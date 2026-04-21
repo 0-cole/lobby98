@@ -8,21 +8,26 @@
 //      acks with snapshot → client switches to room view.
 //   4. In room: send chat, see player list update live, host picks game,
 //      host can kick others. Leave returns to home.
+//   5. Game starts → switch to game view, handle phases.
 // ============================================================
 
 const $ = (id) => document.getElementById(id);
 
-// Local state — "who am I" and "what room am I in"
-let me = null;   // { id, name, isHost }
+// Local state
+let me = null;        // { id, name, isHost }
 let currentRoom = null; // last snapshot from server
+let myPrompt = null;  // the prompt I received this round
+let selectedRating = null;
+let hasSubmittedRating = false;
+let hasSubmittedVote = false;
+let isSpectator = false;
+let timerInterval = null;
 
-// One socket, opened immediately. Note: the server accepts connections from
-// anyone — you're only "in" a room after emitting room:create or room:join.
 const socket = io();
 
 // ---------- View switching ----------
 function show(viewId) {
-  ["view-home", "view-room", "view-kicked"].forEach(v => {
+  ["view-home", "view-room", "view-game", "view-kicked"].forEach(v => {
     $(v).hidden = v !== viewId;
   });
 }
@@ -39,6 +44,7 @@ $("form-create").addEventListener("submit", (e) => {
       return;
     }
     me = resp.you;
+    isSpectator = false;
     enterRoom(resp.snapshot, resp.chat);
   });
 });
@@ -56,6 +62,7 @@ $("form-join").addEventListener("submit", (e) => {
       return;
     }
     me = resp.you;
+    isSpectator = !!resp.spectator;
     enterRoom(resp.snapshot, resp.chat);
   });
 });
@@ -67,26 +74,39 @@ function enterRoom(snapshot, chatHistory) {
   renderRoom(snapshot);
   renderChat(chatHistory);
   renderHeader();
-  show("view-room");
-  // Focus chat for quick vibing
+
+  // If a game is active, go to game view
+  if (snapshot.game && snapshot.game.phase !== "gameover") {
+    switchToGameView(snapshot);
+  } else {
+    show("view-room");
+  }
   setTimeout(() => $("chat-input").focus(), 100);
 }
 
 function leaveRoom() {
   socket.emit("room:leave");
+  resetLocalState();
+  show("view-home");
+}
+
+function resetLocalState() {
   me = null;
   currentRoom = null;
+  myPrompt = null;
+  selectedRating = null;
+  hasSubmittedRating = false;
+  hasSubmittedVote = false;
+  isSpectator = false;
+  clearTimerInterval();
   $("header-right").innerHTML = "";
   $("chat-messages").innerHTML = "";
   $("player-list").innerHTML = "";
-  show("view-home");
 }
 
 $("leave-btn").addEventListener("click", leaveRoom);
 $("back-home-btn").addEventListener("click", () => {
-  me = null;
-  currentRoom = null;
-  $("header-right").innerHTML = "";
+  resetLocalState();
   show("view-home");
 });
 
@@ -100,7 +120,6 @@ $("copy-code-btn").addEventListener("click", async () => {
     btn.textContent = "Copied!";
     setTimeout(() => { btn.textContent = orig; }, 1200);
   } catch {
-    // Fallback: just select the code so the user can copy manually
     const sel = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents($("room-code"));
@@ -114,7 +133,8 @@ function renderHeader() {
   const el = $("header-right");
   if (!me) { el.innerHTML = ""; return; }
   const amHost = currentRoom && currentRoom.hostId === me.id;
-  el.innerHTML = `<span class="user-chip ${amHost ? "host" : ""}">${escapeHtml(me.name)}${amHost ? " (host)" : ""}</span>`;
+  const spectatorTag = isSpectator ? " 👻" : "";
+  el.innerHTML = `<span class="user-chip ${amHost ? "host" : ""}">${escapeHtml(me.name)}${amHost ? " (host)" : ""}${spectatorTag}</span>`;
 }
 
 // ---------- Player list ----------
@@ -154,6 +174,25 @@ function renderRoom(snapshot) {
     list.appendChild(li);
   }
 
+  // Show spectators
+  if (snapshot.spectators && snapshot.spectators.length > 0) {
+    const specHeader = document.createElement("li");
+    specHeader.className = "player-item spectator-header";
+    specHeader.innerHTML = `<span class="player-name" style="color:var(--ink-mute);font-style:italic;">Spectators 👻</span>`;
+    list.appendChild(specHeader);
+    for (const s of snapshot.spectators) {
+      const li = document.createElement("li");
+      li.className = "player-item spectator-item";
+      const isMe = me && s.id === me.id;
+      li.innerHTML = `
+        <span class="player-dot spectator-dot"></span>
+        <span class="player-name">${escapeHtml(s.name)}</span>
+        ${isMe ? '<span class="player-you-tag">(you)</span>' : ""}
+      `;
+      list.appendChild(li);
+    }
+  }
+
   $("player-count").textContent = `${snapshot.players.length}/12`;
   renderHeader();
   renderGamePicker(snapshot);
@@ -163,35 +202,437 @@ function renderRoom(snapshot) {
 function renderGamePicker(snapshot) {
   const amHost = me && snapshot.hostId === me.id;
   const hostNote = $("host-note");
+  const startArea = $("start-game-area");
+  const startNote = $("start-game-note");
+
+  if (snapshot.game) {
+    // Game in progress — hide the picker
+    hostNote.textContent = "Game in progress";
+    startArea.hidden = true;
+    return;
+  }
 
   if (amHost) {
     hostNote.textContent = snapshot.mode
-      ? `you picked: ${snapshot.mode} (games coming in the next update)`
-      : "you're the host — pick a game when it's ready";
+      ? `You picked: ${snapshot.mode}`
+      : "You're the host — pick a game";
   } else {
     hostNote.textContent = snapshot.mode
-      ? `host picked: ${snapshot.mode}`
+      ? `Host picked: ${snapshot.mode}`
       : "(waiting for host to pick)";
   }
 
-  // Mark the selected card, if any
+  // Show start button if host + mode selected
+  if (amHost && snapshot.mode === "frequency") {
+    startArea.hidden = false;
+    if (snapshot.players.length < 3) {
+      startNote.textContent = `Need at least 3 players (${snapshot.players.length} now)`;
+      $("start-game-btn").disabled = true;
+    } else {
+      startNote.textContent = `${snapshot.players.length} players ready`;
+      $("start-game-btn").disabled = false;
+    }
+  } else {
+    startArea.hidden = true;
+  }
+
+  // Mark the selected card
   document.querySelectorAll(".game-card").forEach(card => {
     if (card.dataset.mode === snapshot.mode) card.classList.add("selected");
     else card.classList.remove("selected");
   });
 }
 
-// Click game card — only host can do this, and only when games are actually ready.
-// All games are "soon" right now, so clicks are no-ops visually.
+// Click game card
 document.querySelectorAll(".game-card").forEach(card => {
   card.addEventListener("click", () => {
     if (card.classList.contains("soon")) return;
     if (!currentRoom || !me || currentRoom.hostId !== me.id) return;
+    if (currentRoom.game) return;
     socket.emit("room:setMode", { mode: card.dataset.mode });
   });
 });
 
-// ---------- Chat ----------
+// Start game button
+$("start-game-btn").addEventListener("click", () => {
+  socket.emit("game:start", { rounds: 5 }, (resp) => {
+    if (resp?.error) {
+      $("start-game-note").textContent = resp.error;
+    }
+  });
+});
+
+// ============================================================
+//   GAME VIEW
+// ============================================================
+
+function switchToGameView(snapshot) {
+  $("game-room-code").textContent = snapshot.code;
+  updateGameRoundBadge(snapshot.game);
+  syncGameChat();
+  renderGamePhase(snapshot);
+  show("view-game");
+}
+
+function updateGameRoundBadge(game) {
+  if (!game) return;
+  $("game-round-badge").textContent = `Round ${game.round}/${game.totalRounds}`;
+}
+
+function renderGamePhase(snapshot) {
+  const game = snapshot.game;
+  if (!game) return;
+
+  // Hide all phases
+  ["phase-prompting", "phase-voting", "phase-results", "phase-gameover", "phase-discuss", "phase-intermission"].forEach(id => {
+    const el = $(id);
+    if (el) el.hidden = true;
+  });
+
+  updateGameRoundBadge(game);
+  startTimerDisplay(game.timerEnd);
+
+  switch (game.phase) {
+    case "prompting":
+      renderPromptingPhase(snapshot);
+      break;
+    case "discuss":
+      renderDiscussPhase(snapshot);
+      break;
+    case "voting":
+      renderVotingPhase(snapshot);
+      break;
+    case "results":
+      renderResultsPhase(snapshot);
+      break;
+    case "intermission":
+      renderIntermissionPhase(snapshot);
+      break;
+    case "gameover":
+      renderGameOverPhase(snapshot);
+      break;
+  }
+}
+
+// --- Timer display ---
+function clearTimerInterval() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function startTimerDisplay(timerEnd) {
+  clearTimerInterval();
+  const timerEl = $("game-timer");
+  if (!timerEnd || !timerEl) return;
+
+  function update() {
+    const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
+    timerEl.textContent = `${remaining}s`;
+    timerEl.classList.toggle("timer-urgent", remaining <= 5);
+    if (remaining <= 0) clearTimerInterval();
+  }
+  update();
+  timerInterval = setInterval(update, 250);
+}
+
+// --- Prompting phase ---
+function renderPromptingPhase(snapshot) {
+  $("phase-prompting").hidden = false;
+  const game = snapshot.game;
+
+  if (isSpectator) {
+    $("prompt-text").textContent = "You're spectating this round 👻";
+    $("rating-picker").hidden = true;
+    $("rating-submit-area").hidden = true;
+    $("rating-waiting").hidden = false;
+    $("ratings-progress").textContent = `${game.ratingsSubmitted.length}/${game.playerCount}`;
+    return;
+  }
+
+  if (myPrompt) {
+    $("prompt-text").textContent = myPrompt;
+  }
+
+  $("rating-picker").hidden = false;
+
+  if (hasSubmittedRating) {
+    $("rating-submit-area").hidden = true;
+    $("rating-waiting").hidden = false;
+    $("ratings-progress").textContent = `${game.ratingsSubmitted.length}/${game.playerCount}`;
+    // Disable rating buttons
+    document.querySelectorAll(".rating-btn").forEach(btn => btn.disabled = true);
+  } else {
+    $("rating-submit-area").hidden = false;
+    $("rating-waiting").hidden = true;
+    document.querySelectorAll(".rating-btn").forEach(btn => {
+      btn.disabled = false;
+      btn.classList.toggle("selected", Number(btn.dataset.val) === selectedRating);
+    });
+    $("submit-rating-btn").disabled = selectedRating === null;
+  }
+}
+
+// --- Discuss phase ---
+function renderDiscussPhase(snapshot) {
+  // Reuse voting container but without vote buttons
+  let el = $("phase-discuss");
+  if (!el) {
+    // Create discuss phase element dynamically
+    el = document.createElement("div");
+    el.className = "game-phase";
+    el.id = "phase-discuss";
+    el.innerHTML = `
+      <h3 class="phase-title">📢 Discussion Time</h3>
+      <p class="phase-instruction">All ratings revealed — discuss who seems off!</p>
+      <div class="ratings-reveal" id="discuss-ratings-reveal"></div>
+      <p class="discuss-timer-note" id="discuss-timer-note">Voting begins soon...</p>
+    `;
+    $("phase-prompting").parentNode.appendChild(el);
+  }
+  el.hidden = false;
+
+  const game = snapshot.game;
+  const ratingsEl = $("discuss-ratings-reveal");
+  ratingsEl.innerHTML = "";
+
+  if (game.revealedRatings) {
+    renderRatingsCards(ratingsEl, snapshot, game.revealedRatings, false);
+  }
+}
+
+// --- Voting phase ---
+function renderVotingPhase(snapshot) {
+  $("phase-voting").hidden = false;
+  const game = snapshot.game;
+  const container = $("ratings-reveal");
+  container.innerHTML = "";
+
+  if (game.revealedRatings) {
+    renderRatingsCards(container, snapshot, game.revealedRatings, !isSpectator && !hasSubmittedVote);
+  }
+
+  if (hasSubmittedVote || isSpectator) {
+    $("vote-waiting").hidden = false;
+    $("votes-progress").textContent = `${game.votesSubmitted.length}/${game.playerCount}`;
+  } else {
+    $("vote-waiting").hidden = true;
+  }
+}
+
+function renderRatingsCards(container, snapshot, ratings, showVoteButtons) {
+  // Sort by rating value for a nice scale display
+  const players = snapshot.players;
+  const entries = players
+    .filter(p => ratings[p.id] !== undefined)
+    .map(p => ({ ...p, rating: ratings[p.id] }))
+    .sort((a, b) => a.rating - b.rating);
+
+  for (const p of entries) {
+    const card = document.createElement("div");
+    const isMe = me && p.id === me.id;
+    card.className = `rating-card ${isMe ? "rating-card-me" : ""}`;
+    card.innerHTML = `
+      <div class="rating-card-info">
+        <span class="rating-card-name">${escapeHtml(p.name)}${isMe ? " (you)" : ""}</span>
+        ${p.isHost ? '<span class="player-host-badge">Host</span>' : ""}
+      </div>
+      <div class="rating-card-value">${p.rating}</div>
+      ${showVoteButtons && !isMe
+        ? `<button class="neo-btn neo-btn-vote" data-vote-id="${p.id}">Vote</button>`
+        : ""}
+    `;
+
+    const voteBtn = card.querySelector(".neo-btn-vote");
+    if (voteBtn) {
+      voteBtn.addEventListener("click", () => {
+        if (hasSubmittedVote) return;
+        hasSubmittedVote = true;
+        socket.emit("game:submitVote", { targetId: p.id }, () => {});
+        // Disable all vote buttons immediately
+        container.querySelectorAll(".neo-btn-vote").forEach(b => {
+          b.disabled = true;
+          b.classList.remove("neo-btn-vote-active");
+        });
+        voteBtn.classList.add("neo-btn-vote-active");
+        voteBtn.textContent = "Voted!";
+        $("vote-waiting").hidden = false;
+      });
+    }
+    container.appendChild(card);
+  }
+}
+
+// --- Results phase ---
+function renderResultsPhase(snapshot) {
+  $("phase-results").hidden = false;
+  const game = snapshot.game;
+  const amHost = me && snapshot.hostId === me.id;
+
+  // Off-Key reveal
+  const offKeyPlayer = snapshot.players.find(p => p.id === game.offKeyId);
+  const offKeyName = offKeyPlayer ? offKeyPlayer.name : "???";
+  const isOffKeyMe = me && game.offKeyId === me.id;
+
+  $("offkey-reveal").innerHTML = `
+    <div class="offkey-reveal-card ${isOffKeyMe ? "offkey-reveal-me" : ""}">
+      <span class="offkey-label">The Off-Key was</span>
+      <span class="offkey-name">${escapeHtml(offKeyName)}${isOffKeyMe ? " (you!)" : ""}</span>
+    </div>
+  `;
+
+  // Show both prompts
+  $("prompts-comparison").innerHTML = `
+    <div class="prompt-compare-grid">
+      <div class="prompt-compare-card">
+        <span class="prompt-compare-label">Group prompt</span>
+        <p class="prompt-compare-text">${escapeHtml(game.normalPrompt)}</p>
+      </div>
+      <div class="prompt-compare-card offkey-prompt">
+        <span class="prompt-compare-label">Off-Key prompt</span>
+        <p class="prompt-compare-text">${escapeHtml(game.offKeyPrompt)}</p>
+      </div>
+    </div>
+  `;
+
+  // Score deltas + ratings + votes
+  const scoresEl = $("round-scores");
+  scoresEl.innerHTML = "<h4 class='scores-subtitle'>This round</h4>";
+
+  const table = document.createElement("div");
+  table.className = "scores-table";
+
+  for (const p of snapshot.players) {
+    const rating = game.revealedRatings?.[p.id];
+    const votedFor = game.revealedVotes?.[p.id];
+    const votedForName = snapshot.players.find(x => x.id === votedFor)?.name || "—";
+    const delta = game.roundScoreDeltas?.[p.id] || 0;
+    const total = game.scores?.[p.id] || 0;
+    const isOffKey = p.id === game.offKeyId;
+    const votedCorrectly = votedFor === game.offKeyId;
+
+    const row = document.createElement("div");
+    row.className = `score-row ${isOffKey ? "score-row-offkey" : ""} ${me && p.id === me.id ? "score-row-me" : ""}`;
+    row.innerHTML = `
+      <span class="score-name">${escapeHtml(p.name)}${isOffKey ? " 🎵" : ""}</span>
+      <span class="score-rating">rated ${rating ?? "—"}</span>
+      <span class="score-vote ${votedCorrectly ? "vote-correct" : "vote-wrong"}">voted ${escapeHtml(votedForName)}</span>
+      <span class="score-delta ${delta > 0 ? "delta-pos" : ""}">${delta > 0 ? "+" + delta : delta === 0 ? "—" : delta}</span>
+      <span class="score-total">${total} pts</span>
+    `;
+    table.appendChild(row);
+  }
+  scoresEl.appendChild(table);
+
+  // Next round / game over button (host only)
+  const nextArea = $("next-round-area");
+  if (amHost) {
+    nextArea.hidden = false;
+    if (game.round >= game.totalRounds) {
+      $("next-round-btn").textContent = "🏆 See Final Scores";
+    } else {
+      $("next-round-btn").textContent = "Next Round →";
+    }
+  } else {
+    nextArea.hidden = true;
+  }
+}
+
+$("next-round-btn").addEventListener("click", () => {
+  socket.emit("game:nextRound");
+});
+
+// --- Intermission phase ---
+function renderIntermissionPhase(snapshot) {
+  let el = $("phase-intermission");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "game-phase";
+    el.id = "phase-intermission";
+    el.innerHTML = `
+      <div class="intermission-display">
+        <div class="intermission-icon">⏸</div>
+        <h3 class="phase-title">Next round starting soon...</h3>
+        <div class="waiting-spinner"></div>
+      </div>
+    `;
+    $("phase-prompting").parentNode.appendChild(el);
+  }
+  el.hidden = false;
+}
+
+// --- Game over phase ---
+function renderGameOverPhase(snapshot) {
+  $("phase-gameover").hidden = false;
+  const game = snapshot.game;
+  const amHost = me && snapshot.hostId === me.id;
+
+  // Build sorted scoreboard
+  const scoreboard = snapshot.players
+    .filter(p => game.scores[p.id] !== undefined)
+    .map(p => ({ ...p, score: game.scores[p.id] || 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  const container = $("final-scoreboard");
+  container.innerHTML = "";
+
+  scoreboard.forEach((p, i) => {
+    const isMe = me && p.id === me.id;
+    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+    const card = document.createElement("div");
+    card.className = `scoreboard-entry ${i === 0 ? "scoreboard-winner" : ""} ${isMe ? "scoreboard-me" : ""}`;
+    card.innerHTML = `
+      <span class="scoreboard-rank">${medal}</span>
+      <span class="scoreboard-name">${escapeHtml(p.name)}${isMe ? " (you)" : ""}</span>
+      <span class="scoreboard-score">${p.score} pts</span>
+    `;
+    container.appendChild(card);
+  });
+
+  // Back to lobby button (host only)
+  const backArea = $("back-lobby-area");
+  if (amHost) {
+    backArea.hidden = false;
+  } else {
+    backArea.hidden = true;
+  }
+}
+
+$("back-lobby-btn").addEventListener("click", () => {
+  socket.emit("game:backToLobby");
+});
+
+// ============================================================
+//   RATING PICKER
+// ============================================================
+
+document.querySelectorAll(".rating-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (hasSubmittedRating) return;
+    selectedRating = Number(btn.dataset.val);
+    document.querySelectorAll(".rating-btn").forEach(b => {
+      b.classList.toggle("selected", Number(b.dataset.val) === selectedRating);
+    });
+    $("submit-rating-btn").disabled = false;
+  });
+});
+
+$("submit-rating-btn").addEventListener("click", () => {
+  if (selectedRating === null || hasSubmittedRating) return;
+  hasSubmittedRating = true;
+  $("submit-rating-btn").disabled = true;
+  $("submit-rating-btn").textContent = "Locked in!";
+  document.querySelectorAll(".rating-btn").forEach(btn => btn.disabled = true);
+  socket.emit("game:submitRating", { rating: selectedRating }, () => {});
+  $("rating-submit-area").hidden = true;
+  $("rating-waiting").hidden = false;
+});
+
+// ============================================================
+//   CHAT (shared between lobby and game views)
+// ============================================================
+
 function renderChat(history) {
   const msgs = $("chat-messages");
   msgs.innerHTML = "";
@@ -200,39 +641,112 @@ function renderChat(history) {
 }
 
 function addChatMessage(msg) {
-  const li = document.createElement("li");
-  if (msg.system) {
-    li.className = "chat-system";
-    li.textContent = `— ${msg.text} —`;
-  } else {
-    const isHostAuthor = currentRoom && msg.playerId === currentRoom.hostId;
-    li.innerHTML = `
-      <span class="chat-author ${isHostAuthor ? "host-author" : ""}">${escapeHtml(msg.name)}:</span>
-      <span class="chat-text">${escapeHtml(msg.text)}</span>
-    `;
-  }
-  $("chat-messages").appendChild(li);
+  // Add to both chat containers
+  ["chat-messages", "game-chat-messages"].forEach(containerId => {
+    const container = $(containerId);
+    if (!container) return;
+
+    const li = document.createElement("li");
+    if (msg.system) {
+      li.className = "chat-system";
+      li.textContent = `— ${msg.text} —`;
+    } else {
+      const isHostAuthor = currentRoom && msg.playerId === currentRoom.hostId;
+      li.innerHTML = `
+        <span class="chat-author ${isHostAuthor ? "host-author" : ""}">${escapeHtml(msg.name)}:</span>
+        <span class="chat-text">${escapeHtml(msg.text)}</span>
+      `;
+    }
+    container.appendChild(li);
+  });
 }
 
 function scrollChatToBottom() {
-  const msgs = $("chat-messages");
-  msgs.scrollTop = msgs.scrollHeight;
+  ["chat-messages", "game-chat-messages"].forEach(id => {
+    const el = $(id);
+    if (el) el.scrollTop = el.scrollHeight;
+  });
 }
 
+function syncGameChat() {
+  // Copy lobby chat to game chat panel
+  const src = $("chat-messages");
+  const dst = $("game-chat-messages");
+  if (src && dst) {
+    dst.innerHTML = src.innerHTML;
+    dst.scrollTop = dst.scrollHeight;
+  }
+}
+
+// Lobby chat form
 $("chat-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("chat-input");
-  const text = input.value.trim();
+  sendChat(input);
+});
+
+// Game chat form
+$("game-chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("game-chat-input");
+  sendChat(input);
+});
+
+function sendChat(inputEl) {
+  const text = inputEl.value.trim();
   if (!text) return;
   socket.emit("chat:send", { text }, (ack) => {
     if (ack?.error) console.warn(ack.error);
   });
-  input.value = "";
+  inputEl.value = "";
+}
+
+// ============================================================
+//   SOCKET EVENTS
+// ============================================================
+
+socket.on("room:update", (snapshot) => {
+  const wasInGame = currentRoom?.game?.phase && currentRoom.game.phase !== "gameover";
+  currentRoom = snapshot;
+
+  renderRoom(snapshot);
+
+  if (snapshot.game) {
+    const phase = snapshot.game.phase;
+    // Switch to game view if a game started
+    if (phase !== "gameover" || !wasInGame) {
+      // Reset round state on new round
+      if (phase === "prompting" && !hasSubmittedRating) {
+        selectedRating = null;
+      }
+      if (phase === "prompting") {
+        hasSubmittedRating = false;
+        hasSubmittedVote = false;
+        selectedRating = null;
+        $("submit-rating-btn").textContent = "Lock in";
+      }
+      if (phase === "voting" || phase === "discuss") {
+        hasSubmittedVote = false;
+      }
+
+      switchToGameView(snapshot);
+    } else if (phase === "gameover") {
+      switchToGameView(snapshot);
+    }
+  } else {
+    // No game — back to lobby view
+    hasSubmittedRating = false;
+    hasSubmittedVote = false;
+    selectedRating = null;
+    myPrompt = null;
+    clearTimerInterval();
+    show("view-room");
+  }
 });
 
-// ---------- Socket events ----------
-socket.on("room:update", (snapshot) => {
-  renderRoom(snapshot);
+socket.on("game:yourPrompt", ({ prompt, round }) => {
+  myPrompt = prompt;
+  $("prompt-text").textContent = prompt;
 });
 
 socket.on("chat:message", (msg) => {
@@ -242,32 +756,28 @@ socket.on("chat:message", (msg) => {
 
 socket.on("room:kicked", ({ by }) => {
   $("kicked-by").textContent = by ? `(by ${by})` : "";
-  me = null;
-  currentRoom = null;
-  $("header-right").innerHTML = "";
+  resetLocalState();
   show("view-kicked");
 });
 
 socket.on("disconnect", () => {
-  // If we get dropped, bounce back to home. Don't show an error if we
-  // were the one leaving on purpose (handled by leaveRoom already).
   if (me) {
-    me = null;
-    currentRoom = null;
-    $("header-right").innerHTML = "";
+    resetLocalState();
     show("view-home");
   }
 });
 
-// ---------- Utils ----------
+// ============================================================
+//   UTILS
+// ============================================================
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
 }
 
-// ---------- Kick off ----------
-// Auto-uppercase the room code input as user types
+// Auto-uppercase the room code input
 const codeInput = document.querySelector(".code-input");
 if (codeInput) {
   codeInput.addEventListener("input", (e) => {

@@ -739,3 +739,410 @@ label {
   font-size: 13px;
   font-weight: 500;
 }
+
+/* ================================================================
+   GAME VIEW (Frequency)
+   ================================================================ */
+
+.game-header {
+  margin-bottom: 20px;
+  position: relative;
+}
+.game-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.game-mode-badge {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--deep-blue);
+  background: var(--neo-surface);
+  padding: 6px 14px;
+  border-radius: 12px;
+  box-shadow:
+    inset 2px 2px 4px var(--neo-highlight),
+    inset -2px -2px 4px rgba(30, 80, 110, 0.1);
+}
+.game-round-badge {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.room-code-sm {
+  font-size: 20px;
+  letter-spacing: 4px;
+  padding: 4px 12px;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 18px;
+  margin-bottom: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) { .game-grid { grid-template-columns: 1fr; } }
+
+.game-area {
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+}
+
+.game-phase {
+  animation: phaseIn 0.35s ease-out;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+@keyframes phaseIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.phase-title {
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  color: var(--deep-blue);
+  text-align: center;
+  margin-bottom: 8px;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.7);
+}
+.phase-instruction {
+  text-align: center;
+  color: var(--ink-dim);
+  font-size: 15px;
+  margin-bottom: 24px;
+}
+
+/* Prompt Card */
+.prompt-card {
+  margin: 10px auto 24px;
+  max-width: 90%;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.5) 100%);
+  border-radius: 20px;
+  box-shadow: 
+    0 12px 30px rgba(10, 74, 135, 0.15),
+    inset 0 1px 0 #fff;
+  text-align: center;
+}
+.prompt-text {
+  font-family: "Nunito", sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--deep-blue);
+  line-height: 1.4;
+}
+
+/* Rating Picker */
+.rating-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 30px;
+}
+.rating-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: none;
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--ink);
+  background: var(--neo-surface);
+  cursor: pointer;
+  box-shadow:
+    5px 5px 12px rgba(30, 80, 110, 0.18),
+    -4px -4px 10px var(--neo-highlight);
+  transition: all 0.15s ease;
+}
+.rating-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    6px 8px 16px rgba(30, 80, 110, 0.2),
+    -5px -5px 12px var(--neo-highlight);
+}
+.rating-btn.selected {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #fff;
+  box-shadow:
+    inset 2px 2px 6px rgba(10, 74, 135, 0.4),
+    0 4px 10px rgba(26, 127, 166, 0.3);
+  transform: translateY(1px);
+}
+.rating-btn:disabled:not(.selected) {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Common UI */
+.submit-area {
+  text-align: center;
+  margin-top: auto;
+}
+.neo-btn-large {
+  font-size: 18px;
+  padding: 14px 32px;
+  border-radius: 16px;
+}
+
+.waiting-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: auto;
+  padding: 20px;
+}
+.waiting-spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid var(--neo-surface);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.waiting-text {
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+/* Ratings Reveal (Voting / Discuss Phase) */
+.ratings-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.rating-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--neo-surface);
+  border-radius: 16px;
+  box-shadow:
+    inset 2px 2px 5px rgba(255,255,255,0.7),
+    0 4px 10px rgba(30, 80, 110, 0.08);
+}
+.rating-card-me {
+  background: linear-gradient(90deg, var(--neo-surface) 0%, #d8f0e8 100%);
+}
+.rating-card-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rating-card-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--deep-blue);
+}
+.rating-card-value {
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  color: #fff;
+  background: var(--accent-deep);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+.neo-btn-vote {
+  padding: 8px 16px;
+  font-size: 14px;
+  background: var(--warning);
+  color: #fff;
+}
+.neo-btn-vote-active {
+  background: var(--success);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  transform: translateY(1px);
+}
+
+.discuss-timer-note {
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin-top: auto;
+  padding: 10px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 12px;
+}
+
+/* Results Phase */
+.offkey-reveal {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.offkey-reveal-card {
+  display: inline-flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #ffd868 0%, #ffb547 100%);
+  padding: 16px 32px;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(255, 181, 71, 0.4);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(140, 80, 0, 0.4);
+}
+.offkey-reveal-me {
+  background: linear-gradient(135deg, var(--danger) 0%, #c74354 100%);
+  box-shadow: 0 8px 20px rgba(199, 67, 84, 0.4);
+}
+.offkey-label { font-size: 14px; font-weight: 600; text-transform: uppercase; opacity: 0.9; }
+.offkey-name { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 28px; }
+
+.prompt-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+@media (max-width: 600px) { .prompt-compare-grid { grid-template-columns: 1fr; } }
+.prompt-compare-card {
+  padding: 16px;
+  background: var(--neo-surface);
+  border-radius: 14px;
+  box-shadow: inset 2px 2px 5px #fff;
+}
+.prompt-compare-card.offkey-prompt {
+  background: #fff3db;
+  border: 1px solid #ffe1a8;
+}
+.prompt-compare-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.prompt-compare-text {
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.scores-subtitle {
+  font-weight: 700;
+  color: var(--deep-blue);
+  margin-bottom: 12px;
+}
+.scores-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.score-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 1fr 1fr;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+.score-row-me { background: rgba(255,255,255,0.8); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.score-row-offkey { border-left: 4px solid var(--warning); }
+.score-name { color: var(--deep-blue); }
+.score-rating { color: var(--ink-dim); text-align: center; }
+.score-vote { text-align: center; }
+.vote-correct { color: var(--success); }
+.vote-wrong { color: var(--danger); text-decoration: line-through; opacity: 0.7; }
+.score-delta { text-align: right; color: var(--ink-mute); }
+.delta-pos { color: var(--success); font-weight: 700; }
+.score-total { text-align: right; font-weight: 800; color: var(--deep-blue); }
+
+.next-round-area { text-align: center; margin-top: auto; }
+
+/* Game Over Scoreboard */
+.final-scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+.scoreboard-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--neo-surface);
+  border-radius: 16px;
+  box-shadow: 5px 5px 12px rgba(30,80,110,0.1);
+}
+.scoreboard-winner {
+  background: linear-gradient(135deg, #fff 0%, #fff3db 100%);
+  border: 2px solid #ffe1a8;
+  transform: scale(1.02);
+}
+.scoreboard-me { box-shadow: inset 0 0 0 2px var(--accent-light); }
+.scoreboard-rank { font-size: 24px; font-weight: 800; width: 40px; text-align: center; }
+.scoreboard-name { flex: 1; font-size: 18px; font-weight: 700; color: var(--deep-blue); }
+.scoreboard-score { font-size: 20px; font-weight: 800; color: var(--accent-deep); }
+
+/* Spectator styles */
+.spectator-header { background: transparent; box-shadow: none; padding-bottom: 4px; }
+.spectator-item { background: rgba(255,255,255,0.3); box-shadow: none; }
+.spectator-dot { background: var(--ink-mute); box-shadow: none; }
+
+/* Game Timer */
+.game-timer-wrapper {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  background: var(--neo-surface);
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(10, 74, 135, 0.2);
+  border: 4px solid #fff;
+  z-index: 10;
+}
+.game-timer {
+  font-family: "Nunito", sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--deep-blue);
+}
+.timer-urgent { color: var(--danger); animation: pulse 1s infinite; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* Game specific badges */
+.game-badge-play { background: linear-gradient(180deg, var(--success) 0%, #5ba836 100%); }
+.start-game-area { margin-top: 20px; text-align: center; animation: phaseIn 0.3s; }
+.start-game-note { font-size: 13px; color: var(--ink-dim); margin-top: 8px; font-weight: 600; }
+
+.intermission-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px;
+  text-align: center;
+}
+.intermission-icon {
+  font-size: 48px;
+  color: var(--accent-deep);
+  opacity: 0.8;
+}
