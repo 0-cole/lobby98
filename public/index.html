@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lobby 98 — party games for you and your friends</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Aquatic Frutiger Aero background: sky gradient + floating bubbles + soft orbs -->
+  <div class="sky-bg" aria-hidden="true"></div>
+  <div class="bubbles" aria-hidden="true">
+    <span class="bubble b1"></span>
+    <span class="bubble b2"></span>
+    <span class="bubble b3"></span>
+    <span class="bubble b4"></span>
+    <span class="bubble b5"></span>
+    <span class="bubble b6"></span>
+    <span class="bubble b7"></span>
+    <span class="bubble b8"></span>
+    <span class="bubble b9"></span>
+  </div>
+  <div class="orbs" aria-hidden="true">
+    <span class="orb orb1"></span>
+    <span class="orb orb2"></span>
+    <span class="orb orb3"></span>
+  </div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-logo" aria-hidden="true"></span>
+      <h1 class="brand-name">Lobby&nbsp;<span class="brand-98">98</span></h1>
+    </div>
+    <div class="header-right" id="header-right">
+      <!-- populated by client.js when in a room -->
+    </div>
+  </header>
+
+  <main class="stage">
+
+    <!-- ===================== HOME ===================== -->
+    <section class="view" id="view-home" hidden>
+      <div class="glass-panel hero">
+        <h2 class="hero-title">Social deduction party games.</h2>
+        <p class="hero-body">
+          One player always knows something the others don't. Can the group sniff them out? Play <em>Frequency</em>, <em>Echo</em>, <em>Word Spy</em>, <em>Chain</em>, and more with your friends.
+        </p>
+        <p class="hero-body small">
+          No accounts, no signups. Make a room, share the code, play. Rooms disappear when everyone leaves.
+        </p>
+      </div>
+
+      <div class="auth-grid">
+        <div class="glass-panel">
+          <h3 class="panel-title">Start a room</h3>
+          <form class="auth-form" id="form-create">
+            <label>
+              <span class="label-text">Your name</span>
+              <input class="neo-input" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" />
+            </label>
+            <button type="submit" class="neo-btn neo-btn-primary">Create room</button>
+            <p class="form-error" id="create-error"></p>
+          </form>
+        </div>
+        <div class="glass-panel">
+          <h3 class="panel-title">Join a room</h3>
+          <form class="auth-form" id="form-join">
+            <label>
+              <span class="label-text">Your name</span>
+              <input class="neo-input" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" />
+            </label>
+            <label>
+              <span class="label-text">Room code</span>
+              <input class="neo-input code-input" type="text" name="code" required maxlength="5" autocomplete="off" placeholder="ABCD" />
+            </label>
+            <button type="submit" class="neo-btn neo-btn-primary">Join</button>
+            <p class="form-error" id="join-error"></p>
+          </form>
+        </div>
+      </div>
+
+      <div class="site-stats">
+        <span class="stat-chip">✨ Best with 3+ friends</span>
+        <span class="stat-chip">🌐 No signup required</span>
+        <span class="stat-chip">💬 Chat included</span>
+      </div>
+    </section>
+
+    <!-- ===================== ROOM ===================== -->
+    <section class="view" id="view-room" hidden>
+      <div class="glass-panel room-header">
+        <div class="room-code-display">
+          <span class="room-code-label">Room code</span>
+          <span class="room-code" id="room-code">????</span>
+          <button class="neo-btn neo-btn-ghost neo-btn-small" id="copy-code-btn">Copy</button>
+        </div>
+        <button class="neo-btn neo-btn-ghost neo-btn-small" id="leave-btn">← Leave room</button>
+      </div>
+
+      <div class="lobby-grid">
+        <!-- LEFT: players + game picker -->
+        <div class="glass-panel players-panel">
+          <h3 class="panel-title">
+            Players
+            <span class="count-badge" id="player-count">0/12</span>
+          </h3>
+          <ul class="player-list" id="player-list"></ul>
+
+          <h3 class="panel-title" style="margin-top: 22px;">Pick a game</h3>
+          <p class="panel-sub" id="host-note">(waiting for host to pick)</p>
+          <ul class="game-list" id="game-list">
+            <li class="game-card soon" data-mode="frequency">
+              <div class="game-icon">◈</div>
+              <div class="game-body">
+                <div class="game-name">Frequency</div>
+                <div class="game-desc">Rate a prompt 1–10. One player sees a different prompt. Find them.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+            <li class="game-card soon" data-mode="wordspy">
+              <div class="game-icon">◆</div>
+              <div class="game-body">
+                <div class="game-name">Word Spy</div>
+                <div class="game-desc">Everyone has a word. The spy doesn't. Describe yours without giving it away.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+            <li class="game-card soon" data-mode="echo">
+              <div class="game-icon">◇</div>
+              <div class="game-body">
+                <div class="game-name">Echo</div>
+                <div class="game-desc">Same prompt for everyone — except the Echo, who sees a twist.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+            <li class="game-card soon" data-mode="chain">
+              <div class="game-icon">◁</div>
+              <div class="game-body">
+                <div class="game-name">Chain</div>
+                <div class="game-desc">Build a sentence one word at a time. One player has a secret target word to sneak in.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+            <li class="game-card soon" data-mode="twotruths">
+              <div class="game-icon">◰</div>
+              <div class="game-body">
+                <div class="game-name">Two Truths, One Ghost</div>
+                <div class="game-desc">Two facts are real, one is a lie — but it's stolen from somebody else's life.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+            <li class="game-card soon" data-mode="draw">
+              <div class="game-icon">✎</div>
+              <div class="game-body">
+                <div class="game-name">Draw</div>
+                <div class="game-desc">Everyone draws the same thing. Someone's drawing something different.</div>
+              </div>
+              <span class="game-badge">soon</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- RIGHT: chat -->
+        <div class="glass-panel chat-panel">
+          <h3 class="panel-title">Room chat</h3>
+          <ul class="chat-messages" id="chat-messages"></ul>
+          <form class="chat-form" id="chat-form" autocomplete="off">
+            <input class="neo-input" type="text" id="chat-input" maxlength="300" placeholder="say something…" />
+            <button type="submit" class="neo-btn neo-btn-primary">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== KICKED SCREEN ===================== -->
+    <section class="view" id="view-kicked" hidden>
+      <div class="glass-panel kicked-box">
+        <h2 class="hero-title">You were kicked</h2>
+        <p class="hero-body">The host removed you from the room. <span id="kicked-by"></span></p>
+        <button class="neo-btn neo-btn-primary" id="back-home-btn">← Back to home</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Lobby 98 · made with ♥ by Cole · 2026</span>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="js/client.js"></script>
+</body>
+</html>

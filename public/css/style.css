@@ -1,0 +1,741 @@
+/* ================================================================
+   Lobby 98 — Frutiger Aero + Neomorphism
+   - Aquatic sky gradient background
+   - Floating bubbles + soft color orbs
+   - Frosted glass panels (Frutiger Aero)
+   - Soft pressed/extruded buttons + inputs (Neomorphism)
+   ================================================================ */
+
+:root {
+  /* Frutiger palette — classic aquatic + meadow blends */
+  --sky-top:    #aee3ff;   /* pale sky blue */
+  --sky-mid:    #b8f0d9;   /* pale mint */
+  --sky-bot:    #e8fbe4;   /* soft meadow */
+  --deep-blue:  #0a4a87;
+  --mid-blue:   #3ba8dd;
+  --aqua:       #6ddccf;
+  --seafoam:    #b6e8c8;
+  --lime:       #c3e86b;
+  --glass:      rgba(255, 255, 255, 0.55);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-shadow: rgba(10, 74, 135, 0.18);
+
+  /* Neomorphism surface — the "extruded from same material" color */
+  --neo-surface: #e0f0ec;      /* pale frosted teal/mint */
+  --neo-surface-dark: #c7dcd6;
+  --neo-highlight: rgba(255, 255, 255, 0.95);
+  --neo-shadow:    rgba(30, 80, 110, 0.22);
+
+  /* Text */
+  --ink:     #0d3d5c;
+  --ink-dim: #467a94;
+  --ink-mute:#7aa0b3;
+  --ink-on-color: #fff;
+
+  /* Accents */
+  --accent:       #3aaed6;     /* Frutiger blue */
+  --accent-light: #7fd4ea;
+  --accent-deep:  #1a7fa6;
+  --success:      #7ac94f;
+  --warning:      #ffb547;
+  --danger:       #ff6b7d;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  color: var(--ink);
+  font-family: "Quicksand", "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--sky-top);  /* fallback; .sky-bg handles the gradient */
+}
+
+/* ===== Ambient background ===== */
+.sky-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  background:
+    linear-gradient(180deg,
+      var(--sky-top) 0%,
+      #c6ecf5 35%,
+      var(--sky-mid) 70%,
+      var(--sky-bot) 100%);
+}
+
+/* Soft colored orbs floating behind everything — adds depth */
+.orbs { position: fixed; inset: 0; z-index: -2; pointer-events: none; overflow: hidden; }
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.7;
+  will-change: transform;
+}
+.orb1 {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, #7fd4ea 0%, rgba(127,212,234,0) 70%);
+  top: -120px; left: -80px;
+  animation: orb-drift-1 22s ease-in-out infinite;
+}
+.orb2 {
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, #c3e86b 0%, rgba(195,232,107,0) 70%);
+  bottom: -120px; right: -60px;
+  animation: orb-drift-2 28s ease-in-out infinite;
+}
+.orb3 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #b6e8c8 0%, rgba(182,232,200,0) 70%);
+  top: 40%; left: 50%;
+  transform: translate(-50%, -50%);
+  animation: orb-drift-3 34s ease-in-out infinite;
+}
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(60px, 40px); }
+}
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-50px, -60px); }
+}
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50% { transform: translate(-45%, -55%); }
+}
+
+/* Bubbles rising up */
+.bubbles { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.bubble {
+  position: absolute;
+  bottom: -80px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%,
+      rgba(255,255,255,0.9) 0%,
+      rgba(255,255,255,0.35) 30%,
+      rgba(180, 230, 240, 0.15) 70%,
+      rgba(180, 230, 240, 0.05) 100%);
+  box-shadow:
+    inset -6px -6px 14px rgba(120, 180, 200, 0.18),
+    inset 4px 4px 10px rgba(255, 255, 255, 0.55),
+    0 0 18px rgba(255, 255, 255, 0.35);
+  animation: bubble-rise linear infinite;
+  will-change: transform, opacity;
+}
+.b1 { left: 6%;  width: 36px; height: 36px; animation-duration: 18s; animation-delay: -2s; }
+.b2 { left: 18%; width: 54px; height: 54px; animation-duration: 24s; animation-delay: -8s; }
+.b3 { left: 28%; width: 22px; height: 22px; animation-duration: 14s; animation-delay: -5s; }
+.b4 { left: 42%; width: 68px; height: 68px; animation-duration: 28s; animation-delay: -13s; }
+.b5 { left: 55%; width: 30px; height: 30px; animation-duration: 20s; animation-delay: -1s; }
+.b6 { left: 68%; width: 46px; height: 46px; animation-duration: 22s; animation-delay: -10s; }
+.b7 { left: 78%; width: 26px; height: 26px; animation-duration: 16s; animation-delay: -6s; }
+.b8 { left: 88%; width: 60px; height: 60px; animation-duration: 26s; animation-delay: -15s; }
+.b9 { left: 96%; width: 34px; height: 34px; animation-duration: 19s; animation-delay: -3s; }
+
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% { opacity: 0.7; }
+  50% { transform: translateY(-50vh) translateX(20px); }
+  90% { opacity: 0.5; }
+  100% {
+    transform: translateY(-110vh) translateX(-15px);
+    opacity: 0;
+  }
+}
+
+/* ===== Site header ===== */
+.site-header {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 22px 28px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, #fff 0%, #7fd4ea 40%, #1a7fa6 100%);
+  box-shadow:
+    inset -3px -3px 6px rgba(10, 74, 135, 0.4),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.7),
+    0 4px 10px rgba(26, 127, 166, 0.3);
+  position: relative;
+}
+.brand-logo::after {
+  content: "";
+  position: absolute;
+  top: 5px; left: 8px;
+  width: 12px; height: 7px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  filter: blur(1px);
+}
+.brand-name {
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: -0.5px;
+  color: var(--deep-blue);
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.6);
+  line-height: 1;
+}
+.brand-98 {
+  background: linear-gradient(180deg, var(--mid-blue) 0%, var(--deep-blue) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Quicksand", sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+.user-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--neo-surface);
+  color: var(--ink);
+  box-shadow:
+    inset 2px 2px 4px var(--neo-highlight),
+    inset -2px -2px 4px rgba(30, 80, 110, 0.12),
+    0 2px 6px rgba(30, 80, 110, 0.08);
+}
+.user-chip.host {
+  color: var(--accent-deep);
+  background: linear-gradient(180deg, #fff 0%, var(--neo-surface) 100%);
+}
+.user-chip.host::before {
+  content: "★ ";
+  color: var(--warning);
+}
+
+/* ===== Stage / views ===== */
+.stage {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 20px 80px;
+}
+.view { animation: viewIn 0.45s ease-out both; }
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Glass panels (Frutiger Aero frosted glass) ===== */
+.glass-panel {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.7) 0%,
+      rgba(255, 255, 255, 0.45) 50%,
+      rgba(255, 255, 255, 0.55) 100%);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+  padding: 26px 28px;
+  margin-bottom: 18px;
+  box-shadow:
+    0 10px 40px var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  position: relative;
+  overflow: hidden;
+}
+/* Subtle top highlight — gives the "glossy pane" feel */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, transparent 100%);
+  pointer-events: none;
+  border-radius: 22px 22px 0 0;
+}
+
+/* ===== Hero / welcome ===== */
+.hero { text-align: left; }
+.hero-title {
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 34px;
+  color: var(--deep-blue);
+  margin-bottom: 12px;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+}
+.hero-body {
+  color: var(--ink);
+  font-size: 17px;
+  margin-bottom: 6px;
+}
+.hero-body.small {
+  color: var(--ink-dim);
+  font-size: 15px;
+  margin-top: 8px;
+}
+.hero-body em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--accent-deep);
+}
+.hero-body strong { color: var(--deep-blue); font-weight: 700; }
+
+.kicked-box { text-align: center; }
+.kicked-box .hero-title { color: var(--danger); }
+.kicked-box button { margin-top: 16px; }
+
+/* ===== Panel titles ===== */
+.panel-title {
+  font-family: "Nunito", sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--deep-blue);
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.2px;
+}
+.panel-sub {
+  font-size: 14px;
+  color: var(--ink-mute);
+  margin: -6px 0 10px;
+  font-style: italic;
+}
+
+/* ===== Auth grid ===== */
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 640px) { .auth-grid { grid-template-columns: 1fr; } }
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* ===== Neomorphic inputs ===== */
+.neo-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--neo-surface);
+  border: none;
+  border-radius: 14px;
+  outline: none;
+  box-shadow:
+    inset 3px 3px 7px rgba(30, 80, 110, 0.18),
+    inset -3px -3px 7px var(--neo-highlight);
+  transition: box-shadow 0.2s ease;
+}
+.neo-input::placeholder { color: var(--ink-mute); }
+.neo-input:focus {
+  box-shadow:
+    inset 3px 3px 7px rgba(30, 80, 110, 0.2),
+    inset -3px -3px 7px var(--neo-highlight),
+    0 0 0 3px rgba(58, 174, 214, 0.25);
+}
+.code-input {
+  font-family: "Nunito", monospace;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* ===== Neomorphic buttons ===== */
+.neo-btn {
+  font-family: "Quicksand", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.2px;
+  background: var(--neo-surface);
+  color: var(--ink);
+  box-shadow:
+    5px 5px 12px rgba(30, 80, 110, 0.22),
+    -4px -4px 10px var(--neo-highlight);
+}
+.neo-btn:hover {
+  box-shadow:
+    3px 3px 8px rgba(30, 80, 110, 0.22),
+    -3px -3px 8px var(--neo-highlight);
+}
+.neo-btn:active {
+  box-shadow:
+    inset 3px 3px 7px rgba(30, 80, 110, 0.22),
+    inset -3px -3px 7px var(--neo-highlight);
+  transform: translateY(1px);
+}
+
+.neo-btn-primary {
+  background: linear-gradient(180deg, #7fd4ea 0%, var(--accent) 55%, var(--accent-deep) 100%);
+  color: var(--ink-on-color);
+  text-shadow: 0 1px 2px rgba(10, 74, 135, 0.35);
+  box-shadow:
+    0 8px 18px rgba(26, 127, 166, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px rgba(10, 74, 135, 0.2);
+}
+.neo-btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 10px 22px rgba(26, 127, 166, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px rgba(10, 74, 135, 0.2);
+}
+.neo-btn-primary:active {
+  filter: brightness(0.96);
+  box-shadow:
+    0 4px 10px rgba(26, 127, 166, 0.3),
+    inset 0 2px 4px rgba(10, 74, 135, 0.25);
+  transform: translateY(1px);
+}
+
+.neo-btn-ghost { background: var(--neo-surface); }
+.neo-btn-small { padding: 8px 14px; font-size: 13px; border-radius: 11px; }
+
+.neo-btn-danger {
+  background: linear-gradient(180deg, #ff9aa6 0%, var(--danger) 60%, #c74354 100%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(90, 20, 30, 0.4);
+  box-shadow:
+    0 6px 14px rgba(199, 67, 84, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 13px;
+  min-height: 18px;
+  font-weight: 600;
+}
+
+/* ===== Site stats row ===== */
+.site-stats {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.stat-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 4px 10px rgba(30, 80, 110, 0.1);
+}
+
+/* ===== Room header ===== */
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 22px;
+}
+.room-code-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.room-code-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.room-code {
+  font-family: "Nunito", monospace;
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: 6px;
+  color: var(--deep-blue);
+  padding: 4px 16px;
+  background: var(--neo-surface);
+  border-radius: 12px;
+  box-shadow:
+    inset 3px 3px 6px rgba(30, 80, 110, 0.18),
+    inset -3px -3px 6px var(--neo-highlight);
+}
+
+/* ===== Lobby layout ===== */
+.lobby-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 18px;
+  margin-bottom: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) { .lobby-grid { grid-template-columns: 1fr; } }
+
+/* ===== Player list ===== */
+.count-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-deep);
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  letter-spacing: 0;
+}
+
+.player-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--neo-surface);
+  border-radius: 12px;
+  box-shadow:
+    inset 2px 2px 4px rgba(30, 80, 110, 0.1),
+    inset -2px -2px 4px var(--neo-highlight);
+  font-size: 15px;
+  font-weight: 600;
+  animation: playerIn 0.25s ease-out;
+}
+@keyframes playerIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.player-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff, var(--success) 70%);
+  box-shadow: 0 0 6px rgba(122, 201, 79, 0.7);
+  flex-shrink: 0;
+}
+.player-name { flex: 1; color: var(--ink); }
+.player-host-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: linear-gradient(180deg, #ffd868 0%, #e8a82d 100%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 1px rgba(140, 80, 0, 0.35);
+  box-shadow: 0 2px 4px rgba(200, 130, 0, 0.3);
+}
+.player-you-tag { font-size: 12px; color: var(--ink-mute); font-weight: 600; }
+.player-kick-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  opacity: 0;
+  transition: all 0.15s;
+}
+.player-item:hover .player-kick-btn.can-kick {
+  opacity: 1;
+}
+.player-kick-btn:hover { background: rgba(255, 107, 125, 0.12); }
+
+/* ===== Game cards ===== */
+.game-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.game-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--neo-surface);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow:
+    5px 5px 12px rgba(30, 80, 110, 0.14),
+    -4px -4px 10px var(--neo-highlight);
+}
+.game-card:not(.soon):hover {
+  transform: translateY(-2px);
+  box-shadow:
+    6px 8px 18px rgba(30, 80, 110, 0.2),
+    -5px -5px 12px var(--neo-highlight);
+}
+.game-card:not(.soon):active {
+  box-shadow:
+    inset 3px 3px 7px rgba(30, 80, 110, 0.18),
+    inset -3px -3px 7px var(--neo-highlight);
+  transform: translateY(0);
+}
+.game-card.soon { opacity: 0.65; cursor: not-allowed; }
+.game-card.selected {
+  background: linear-gradient(180deg, rgba(255,255,255,0.95) 0%, #d8f0e8 100%);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    6px 8px 18px rgba(58, 174, 214, 0.28),
+    -4px -4px 10px var(--neo-highlight);
+}
+.game-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--accent-deep);
+  background: linear-gradient(180deg, #fff 0%, #d6eef5 100%);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -2px 4px rgba(10, 74, 135, 0.1);
+  flex-shrink: 0;
+}
+.game-body { flex: 1; min-width: 0; }
+.game-name {
+  font-family: "Nunito", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--deep-blue);
+  margin-bottom: 2px;
+}
+.game-desc { font-size: 13px; color: var(--ink-dim); line-height: 1.35; }
+.game-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--ink-on-color);
+  background: linear-gradient(180deg, var(--warning) 0%, #e89028 100%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  text-shadow: 0 1px 1px rgba(140, 80, 0, 0.35);
+  box-shadow: 0 2px 4px rgba(200, 130, 0, 0.25);
+}
+
+/* ===== Chat ===== */
+.chat-panel { display: flex; flex-direction: column; max-height: 640px; }
+.chat-messages {
+  list-style: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  min-height: 300px;
+  max-height: 460px;
+  background: var(--neo-surface);
+  border-radius: 14px;
+  box-shadow:
+    inset 3px 3px 7px rgba(30, 80, 110, 0.14),
+    inset -3px -3px 7px var(--neo-highlight);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.chat-messages::-webkit-scrollbar { width: 8px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(58, 174, 214, 0.3);
+  border-radius: 4px;
+}
+.chat-messages li {
+  margin-bottom: 6px;
+  word-wrap: break-word;
+  animation: chatIn 0.22s ease-out;
+}
+@keyframes chatIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.chat-author {
+  font-weight: 700;
+  color: var(--accent-deep);
+  margin-right: 5px;
+}
+.chat-author.host-author { color: #c48500; }
+.chat-text { color: var(--ink); }
+.chat-system {
+  color: var(--ink-mute);
+  font-style: italic;
+  font-size: 13px;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.chat-form .neo-input { flex: 1; }
+
+/* ===== Footer ===== */
+.site-footer {
+  text-align: center;
+  padding: 20px 16px 30px;
+  color: var(--ink-mute);
+  font-size: 13px;
+  font-weight: 500;
+}
