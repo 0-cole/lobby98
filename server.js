@@ -14,7 +14,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import path from "path";
-import { pickPrompts } from "./prompts.js";
+import { frequencyGame } from "./games/frequency.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -113,6 +113,7 @@ function gameSnapshot(room) {
   if (g.phase === "results" || g.phase === "gameover") {
     snap.revealedVotes = Object.fromEntries(g.votes);
     snap.offKeyId = g.offKeyId;
+    snap.offKeyName = g.offKeyName;
     snap.offKeyPrompt = g.promptPair.offkey;
     snap.normalPrompt = g.promptPair.normal;
     snap.roundScoreDeltas = g.roundScoreDeltas || {};
@@ -155,344 +156,22 @@ function setRoomTimer(room, duration, callback) {
 }
 
 // ============================================================
-//   FREQUENCY GAME LOGIC
+//   GAME MODULES
 // ============================================================
 
-function startFrequencyGame(room, numRounds) {
-  const playerIds = [...room.players.keys()];
-  const totalRounds = Math.min(numRounds || DEFAULT_ROUNDS, 10);
-  const prompts = pickPrompts(totalRounds);
+const GAMES = {
+  frequency: frequencyGame
+};
 
-  // Shuffle player order for Off-Key rotation (wrap if more rounds than players)
-  const shuffledPlayers = [...playerIds].sort(() => Math.random() - 0.5);
-  const offKeyOrder = [];
-  for (let i = 0; i < totalRounds; i++) {
-    offKeyOrder.push(shuffledPlayers[i % shuffledPlayers.length]);
-  }
-
-  room.game = {
-    phase: "prompting",
-    round: 1,
-    totalRounds,
-    offKeyId: offKeyOrder[0],
-    offKeyOrder,
-    promptPair: prompts[0],
-    prompts,
-    ratings: new Map(),
-    votes: new Map(),
-    scores: new Map(playerIds.map(id => [id, 0])),
-    activePlayers: new Set(playerIds),
-    roundScoreDeltas: {},
-    timerEnd: null
+function getRoomContext() {
+  return {
+    io,
+    broadcastRoom,
+    addSystemMessage,
+    clearRoomTimer,
+    setRoomTimer,
+    backToLobby
   };
-
-  sendPromptsToPlayers(room);
-  addSystemMessage(room, `🎵 Frequency — Round 1 of ${totalRounds}. Rate the prompt! (30s)`);
-  broadcastRoom(room);
-
-  // Start the 30-second submission timer
-  setRoomTimer(room, TIMER_SUBMIT, () => {
-    forceSubmitPhaseEnd(room);
-  });
-}
-
-function sendPromptsToPlayers(room) {
-  const g = room.game;
-  for (const pid of g.activePlayers) {
-    if (!room.players.has(pid)) continue;
-    const isOffKey = pid === g.offKeyId;
-    const prompt = isOffKey ? g.promptPair.offkey : g.promptPair.normal;
-    io.to(pid).emit("game:yourPrompt", { prompt, round: g.round });
-  }
-}
-
-function handleRatingSubmit(room, socketId, rating) {
-  const g = room.game;
-  if (!g || g.phase !== "prompting") return;
-  if (!g.activePlayers.has(socketId)) return;
-  if (g.ratings.has(socketId)) return;
-
-  const val = Math.round(Number(rating));
-  if (val < 1 || val > 10 || isNaN(val)) return;
-
-  g.ratings.set(socketId, val);
-  broadcastRoom(room);
-
-  // Check if all active players have submitted
-  if (g.ratings.size >= g.activePlayers.size) {
-    clearRoomTimer(room);
-    transitionToDiscuss(room);
-  }
-}
-
-function forceSubmitPhaseEnd(room) {
-  const g = room.game;
-  if (!g || g.phase !== "prompting") return;
-
-  // Anyone who didn't submit gets a random 5 (middle value)
-  for (const pid of g.activePlayers) {
-    if (!g.ratings.has(pid)) {
-      g.ratings.set(pid, 5);
-      const pname = room.players.get(pid)?.name || "???";
-      addSystemMessage(room, `⏰ ${pname} didn't submit in time — defaulted to 5`);
-    }
-  }
-  transitionToDiscuss(room);
-}
-
-function transitionToDiscuss(room) {
-  const g = room.game;
-  g.phase = "discuss";
-  g.timerEnd = Date.now() + TIMER_DISCUSS;
-  addSystemMessage(room, `All ratings are in! Discuss — who seems off? 🔍 (60s)`);
-  broadcastRoom(room);
-
-  setRoomTimer(room, TIMER_DISCUSS, () => {
-    transitionToVoting(room);
-  });
-}
-
-function transitionToVoting(room) {
-  const g = room.game;
-  g.phase = "voting";
-  g.timerEnd = Date.now() + TIMER_VOTE;
-  addSystemMessage(room, `⏳ Time to vote! Who is the Off-Key? (20s)`);
-  broadcastRoom(room);
-
-  setRoomTimer(room, TIMER_VOTE, () => {
-    forceVotePhaseEnd(room);
-  });
-}
-
-function handleVoteSubmit(room, socketId, targetId) {
-  const g = room.game;
-  if (!g || g.phase !== "voting") return;
-  if (!g.activePlayers.has(socketId)) return;
-  if (g.votes.has(socketId)) return;
-  if (socketId === targetId) return;
-  if (!g.activePlayers.has(targetId)) return;
-
-  g.votes.set(socketId, targetId);
-  broadcastRoom(room);
-
-  if (g.votes.size >= g.activePlayers.size) {
-    clearRoomTimer(room);
-    transitionToResults(room);
-  }
-}
-
-function forceVotePhaseEnd(room) {
-  const g = room.game;
-  if (!g || g.phase !== "voting") return;
-  // Non-voters simply don't contribute — no forced votes
-  transitionToResults(room);
-}
-
-function transitionToResults(room, offKeyDisconnected = false) {
-  const g = room.game;
-  g.phase = "results";
-  clearRoomTimer(room);
-
-  // --- Scoring (per design doc) ---
-  const deltas = {};
-  for (const pid of g.activePlayers) deltas[pid] = 0;
-
-  if (offKeyDisconnected) {
-    // Off-Key disconnected during discuss/voting. Give 0 points to everyone.
-    g.roundScoreDeltas = deltas;
-    addSystemMessage(room, `The Off-Key disconnected! No winner this round.`);
-    broadcastRoom(room);
-    return;
-  }
-
-  // Count votes for the Off-Key
-  let offKeyVotes = 0;
-
-  for (const [voterId, targetId] of g.votes) {
-    if (targetId === g.offKeyId) {
-      offKeyVotes++;
-    }
-  }
-
-  const majorityThreshold = Math.floor(g.activePlayers.size / 2) + 1;
-  const offKeyCaught = offKeyVotes >= majorityThreshold;
-
-  if (offKeyCaught) {
-    // Off-Key was caught — correct voters get +2
-    for (const [voterId, targetId] of g.votes) {
-      if (targetId === g.offKeyId) {
-        deltas[voterId] = (deltas[voterId] || 0) + 2;
-      }
-    }
-    // Check consolation: Off-Key gets +1 if their rating was strictly closest to median
-    if (g.activePlayers.size >= 5) {
-      const ratings = [...g.ratings.entries()];
-      const allVals = ratings.map(([, v]) => v).sort((a, b) => a - b);
-      const median = allVals[Math.floor(allVals.length / 2)];
-      const offKeyRating = g.ratings.get(g.offKeyId) ?? 5;
-      const offKeyDist = Math.abs(offKeyRating - median);
-      let closest = true;
-      for (const [pid, val] of ratings) {
-        if (pid === g.offKeyId) continue;
-        if (Math.abs(val - median) <= offKeyDist) {
-          closest = false;
-          break;
-        }
-      }
-      if (closest) {
-        deltas[g.offKeyId] = (deltas[g.offKeyId] || 0) + 1;
-      }
-    }
-  } else {
-    // Off-Key survived — they get +3
-    deltas[g.offKeyId] = (deltas[g.offKeyId] || 0) + 3;
-  }
-
-  // Apply deltas to cumulative scores
-  for (const [pid, delta] of Object.entries(deltas)) {
-    g.scores.set(pid, (g.scores.get(pid) || 0) + delta);
-  }
-  g.roundScoreDeltas = deltas;
-
-  const offKeyName = room.players.get(g.offKeyId)?.name || "???";
-  if (offKeyCaught) {
-    addSystemMessage(room, `🎯 The Off-Key was ${offKeyName} — the group caught them!`);
-  } else {
-    addSystemMessage(room, `😎 The Off-Key was ${offKeyName} — they blended in!`);
-  }
-  broadcastRoom(room);
-}
-
-function advanceToNextRound(room) {
-  const g = room.game;
-  if (!g || g.phase !== "results") return;
-
-  if (g.round >= g.totalRounds) {
-    g.phase = "gameover";
-    clearRoomTimer(room);
-    addSystemMessage(room, `🏆 Game over! Check the final scores.`);
-    broadcastRoom(room);
-
-    // Auto-return to lobby after 30 seconds
-    setRoomTimer(room, 30_000, () => {
-      if (room.game && room.game.phase === "gameover") {
-        backToLobby(room);
-      }
-    });
-    return;
-  }
-
-  // Intermission
-  g.phase = "intermission";
-  g.timerEnd = Date.now() + TIMER_INTERMISSION;
-  addSystemMessage(room, `⏸ Next round in 10 seconds...`);
-  broadcastRoom(room);
-
-  setRoomTimer(room, TIMER_INTERMISSION, () => {
-    startNextRound(room);
-  });
-}
-
-function startNextRound(room) {
-  const g = room.game;
-  g.round++;
-  g.phase = "prompting";
-  g.offKeyId = g.offKeyOrder[g.round - 1];
-  g.promptPair = g.prompts[g.round - 1];
-  g.ratings = new Map();
-  g.votes = new Map();
-  g.roundScoreDeltas = {};
-
-  // Update active players to current room members that are in the game
-  g.activePlayers = new Set([...room.players.keys()].filter(id => g.scores.has(id)));
-
-  if (g.activePlayers.size < 2) {
-    g.phase = "gameover";
-    addSystemMessage(room, `Not enough players — game over!`);
-    broadcastRoom(room);
-    return;
-  }
-
-  // If the Off-Key for this round left, pick a random active player
-  if (!g.activePlayers.has(g.offKeyId)) {
-    const remaining = [...g.activePlayers];
-    g.offKeyId = remaining[Math.floor(Math.random() * remaining.length)];
-  }
-
-  sendPromptsToPlayers(room);
-  addSystemMessage(room, `🎵 Round ${g.round} of ${g.totalRounds}. Rate the prompt! (30s)`);
-  broadcastRoom(room);
-
-  setRoomTimer(room, TIMER_SUBMIT, () => {
-    forceSubmitPhaseEnd(room);
-  });
-}
-
-function backToLobby(room) {
-  clearRoomTimer(room);
-  room.game = null;
-  room.mode = null;
-  // Move spectators back to players
-  for (const [id, spec] of room.spectators) {
-    if (io.sockets.sockets.has(id)) {
-      room.players.set(id, { id, name: spec.name });
-    }
-  }
-  room.spectators = new Map();
-  addSystemMessage(room, `Returned to the lobby.`);
-  broadcastRoom(room);
-}
-
-// Handle a player disconnecting mid-game
-function handleGameDisconnect(room, socketId) {
-  const g = room.game;
-  if (!g) return;
-
-  g.activePlayers.delete(socketId);
-  g.ratings.delete(socketId);
-  g.votes.delete(socketId);
-
-  if (g.activePlayers.size < 2) {
-    clearRoomTimer(room);
-    room.game = null;
-    room.mode = null;
-    addSystemMessage(room, `Not enough players — game ended.`);
-    return;
-  }
-
-  // Mid-round disconnect: if Off-Key left during prompting, cancel round & restart
-  if (g.phase === "prompting" && socketId === g.offKeyId) {
-    clearRoomTimer(room);
-    addSystemMessage(room, `The Off-Key disconnected — restarting round with remaining players...`);
-    // Pick a new Off-Key from remaining for this round
-    const remaining = [...g.activePlayers];
-    g.offKeyId = remaining[Math.floor(Math.random() * remaining.length)];
-    g.ratings = new Map();
-    g.votes = new Map();
-    g.phase = "prompting";
-    sendPromptsToPlayers(room);
-    broadcastRoom(room);
-    setRoomTimer(room, TIMER_SUBMIT, () => forceSubmitPhaseEnd(room));
-    return;
-  }
-
-  // If Off-Key left during discuss or voting, skip to results with no winner
-  if ((g.phase === "discuss" || g.phase === "voting") && socketId === g.offKeyId) {
-    clearRoomTimer(room);
-    transitionToResults(room, true);
-    return;
-  }
-
-  // If someone else left mid-round, check if all remaining have submitted/voted
-  if (g.phase === "prompting" && g.ratings.size >= g.activePlayers.size) {
-    clearRoomTimer(room);
-    transitionToDiscuss(room);
-  } else if (g.phase === "voting" && g.votes.size >= g.activePlayers.size) {
-    clearRoomTimer(room);
-    transitionToResults(room);
-  } else {
-    broadcastRoom(room);
-  }
 }
 
 // ============================================================
@@ -611,42 +290,37 @@ io.on("connection", (socket) => {
     if (!room) return ack?.({ error: "Room gone" });
     if (room.hostId !== socket.id) return ack?.({ error: "Only the host can start the game" });
     if (room.game) return ack?.({ error: "A game is already in progress" });
-    if (room.mode !== "frequency") return ack?.({ error: "Pick a game mode first" });
-    if (room.players.size < MIN_PLAYERS_FREQUENCY) {
+    if (!room.mode || !GAMES[room.mode]) return ack?.({ error: "Pick a valid game mode first" });
+    
+    // Check min players if we added it to game modules later, for now just hardcode 3 for Frequency
+    if (room.mode === "frequency" && room.players.size < MIN_PLAYERS_FREQUENCY) {
       return ack?.({ error: `Need at least ${MIN_PLAYERS_FREQUENCY} players to start Frequency` });
     }
 
-    startFrequencyGame(room, rounds || DEFAULT_ROUNDS);
+    GAMES[room.mode].start(room, getRoomContext(), { rounds });
     ack?.({ ok: true });
   });
 
-  // ----- Player submits their 1-10 rating -----
-  socket.on("game:submitRating", ({ rating }, ack) => {
+  // ----- Game Events Generic Handler -----
+  function handleGameEvent(action, payload, ack) {
     const code = socketToRoom.get(socket.id);
     if (!code) return ack?.({ error: "Not in a room" });
     const room = rooms.get(code);
     if (!room) return ack?.({ error: "Room gone" });
-    handleRatingSubmit(room, socket.id, rating);
-    ack?.({ ok: true });
-  });
+    if (!room.game || !room.mode || !GAMES[room.mode]) return ack?.({ error: "No game in progress" });
 
-  // ----- Player votes for who they think is the Off-Key -----
-  socket.on("game:submitVote", ({ targetId }, ack) => {
-    const code = socketToRoom.get(socket.id);
-    if (!code) return ack?.({ error: "Not in a room" });
-    const room = rooms.get(code);
-    if (!room) return ack?.({ error: "Room gone" });
-    handleVoteSubmit(room, socket.id, targetId);
+    GAMES[room.mode].handleEvent(room, getRoomContext(), socket.id, action, payload);
     ack?.({ ok: true });
-  });
+  }
 
-  // ----- Host advances to next round -----
-  socket.on("game:nextRound", () => {
+  socket.on("game:submitRating", (payload, ack) => handleGameEvent("submitRating", payload, ack));
+  socket.on("game:submitVote", (payload, ack) => handleGameEvent("submitVote", payload, ack));
+  socket.on("game:nextRound", (payload, ack) => {
+    // Only host
     const code = socketToRoom.get(socket.id);
-    if (!code) return;
-    const room = rooms.get(code);
-    if (!room || room.hostId !== socket.id) return;
-    advanceToNextRound(room);
+    if (code && rooms.get(code)?.hostId === socket.id) {
+      handleGameEvent("nextRound", payload, ack);
+    }
   });
 
   // ----- Host returns to lobby -----
@@ -707,8 +381,8 @@ function handleLeave(socket, opts = {}) {
   }
 
   // Handle game disconnect if a game is active
-  if (room.game) {
-    handleGameDisconnect(room, socket.id);
+  if (room.game && room.mode && GAMES[room.mode]) {
+    GAMES[room.mode].handleDisconnect(room, getRoomContext(), socket.id);
   }
 
   // Host left? Migrate to next player

@@ -478,8 +478,7 @@ function renderResultsPhase(snapshot) {
   const amHost = me && snapshot.hostId === me.id;
 
   // Off-Key reveal
-  const offKeyPlayer = snapshot.players.find(p => p.id === game.offKeyId);
-  const offKeyName = offKeyPlayer ? offKeyPlayer.name : "???";
+  const offKeyName = game.offKeyName || "???";
   const isOffKeyMe = me && game.offKeyId === me.id;
 
   $("offkey-reveal").innerHTML = `
