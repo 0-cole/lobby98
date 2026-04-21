@@ -16,6 +16,8 @@ import { fileURLToPath } from "url";
 import path from "path";
 import { frequencyGame } from "./games/frequency.js";
 import { wordspyGame } from "./games/wordspy.js";
+import { echoGame } from "./games/echo.js";
+import { chainGame } from "./games/chain.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -141,6 +143,42 @@ function gameSnapshot(room) {
     }
   }
 
+  if (room.mode === "echo") {
+    snap.answersSubmitted = g.answers ? [...g.answers.keys()] : [];
+    snap.votesSubmitted = g.votes ? [...g.votes.keys()] : [];
+    if (g.phase === "discuss" || g.phase === "voting" || g.phase === "results" || g.phase === "gameover") {
+      // Anonymised: map answer position (by answerOrder) to text, not playerId
+      snap.anonymousAnswers = (g.answerOrder || []).map((pid, i) => ({
+        slot: i,
+        text: g.answers?.get(pid) || "(no answer)"
+      }));
+    }
+    if (g.phase === "results" || g.phase === "gameover") {
+      snap.echoId = g.echoId;
+      snap.echoName = g.echoName;
+      snap.echoSlot = (g.answerOrder || []).indexOf(g.echoId);
+      snap.normalPrompt = g.promptPair?.normal;
+      snap.echoPrompt = g.promptPair?.echo;
+      snap.roundScoreDeltas = g.roundScoreDeltas || {};
+      snap.revealedVotes = Object.fromEntries(g.votes || []);
+    }
+  }
+
+  if (room.mode === "chain") {
+    snap.words = g.words || [];
+    snap.turnOrder = g.turnOrder || [];
+    snap.turnIndex = g.turnIndex;
+    snap.startingPhrase = g.startingPhrase;
+    snap.accusation = g.accusation || null;
+    if (g.phase === "results" || g.phase === "gameover") {
+      snap.saboteurId = g.saboteurId;
+      snap.saboteurName = g.saboteurName;
+      snap.targetWord = g.targetWord;
+      snap.finalSentence = g.finalSentence;
+      snap.roundScoreDeltas = g.roundScoreDeltas || {};
+    }
+  }
+
   return snap;
 }
 
@@ -183,7 +221,9 @@ function setRoomTimer(room, duration, callback) {
 
 const GAMES = {
   frequency: frequencyGame,
-  wordspy: wordspyGame
+  wordspy: wordspyGame,
+  echo: echoGame,
+  chain: chainGame
 };
 
 function getRoomContext() {
@@ -338,6 +378,9 @@ io.on("connection", (socket) => {
 
   socket.on("game:submitClue", (payload, ack) => handleGameEvent("submitClue", payload, ack));
   socket.on("game:submitSpyGuess", (payload, ack) => handleGameEvent("submitSpyGuess", payload, ack));
+  socket.on("game:submitAnswer", (payload, ack) => handleGameEvent("submitAnswer", payload, ack));
+  socket.on("game:addWord", (payload, ack) => handleGameEvent("addWord", payload, ack));
+  socket.on("game:callSaboteur", (payload, ack) => handleGameEvent("callSaboteur", payload, ack));
   socket.on("game:submitRating", (payload, ack) => handleGameEvent("submitRating", payload, ack));
   socket.on("game:submitVote", (payload, ack) => handleGameEvent("submitVote", payload, ack));
   socket.on("game:nextRound", (payload, ack) => {

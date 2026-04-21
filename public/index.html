@@ -128,21 +128,21 @@
               </div>
               <span class="game-badge game-badge-play">play</span>
             </li>
-            <li class="game-card soon" data-mode="echo" title="Coming soon in Phase 3">
+            <li class="game-card" data-mode="echo">
               <div class="game-icon">◇</div>
               <div class="game-body">
                 <div class="game-name">Echo</div>
                 <div class="game-desc">Same prompt for everyone — except the Echo, who sees a twist.</div>
               </div>
-              <span class="game-badge">soon</span>
+              <span class="game-badge game-badge-play">play</span>
             </li>
-            <li class="game-card soon" data-mode="chain" title="Coming soon in Phase 3">
+            <li class="game-card" data-mode="chain">
               <div class="game-icon">◁</div>
               <div class="game-body">
                 <div class="game-name">Chain</div>
                 <div class="game-desc">Build a sentence one word at a time. One player has a secret target word to sneak in.</div>
               </div>
-              <span class="game-badge">soon</span>
+              <span class="game-badge game-badge-play">play</span>
             </li>
             <li class="game-card soon" data-mode="twotruths" title="Coming soon in Phase 3">
               <div class="game-icon">◰</div>
@@ -270,6 +270,52 @@
               <p class="waiting-text">Waiting for the Spy to guess...</p>
             </div>
           </div>
+
+          <!-- ECHO: ANSWERING PHASE -->
+          <div class="game-phase" id="phase-echo-answering" hidden>
+            <h3 class="phase-title">Answer the Prompt</h3>
+            <div class="prompt-card glass-panel" id="echo-prompt-card">
+              <p class="prompt-text" id="echo-prompt-text">Loading...</p>
+            </div>
+            <div class="submit-area" id="echo-answer-submit-area">
+              <input type="text" class="neo-input" id="echo-answer-input" maxlength="40" placeholder="Your answer (max 40 chars)…" style="margin-right: 8px;" />
+              <button class="neo-btn neo-btn-primary" id="submit-echo-answer-btn" disabled>Submit</button>
+            </div>
+            <div class="waiting-indicator" id="echo-answer-waiting" hidden>
+              <div class="waiting-spinner"></div>
+              <p class="waiting-text">Waiting for others… <span id="echo-answers-progress">0/0</span></p>
+            </div>
+          </div>
+
+          <!-- ECHO: DISCUSS PHASE -->
+          <div class="game-phase" id="phase-echo-discuss" hidden>
+            <h3 class="phase-title">📨 The Answers</h3>
+            <p class="phase-instruction">One of these came from a <em>different</em> prompt. Which one's the Echo?</p>
+            <div class="ratings-reveal" id="echo-answers-reveal">
+              <!-- dynamically populated -->
+            </div>
+          </div>
+
+          <!-- CHAIN PHASE -->
+          <div class="game-phase" id="phase-chain" hidden>
+            <h3 class="phase-title">🔗 Build the Sentence</h3>
+            <div class="prompt-card glass-panel" style="margin-bottom: 16px;">
+              <p class="prompt-text" id="chain-sentence">—</p>
+            </div>
+            <div id="chain-saboteur-hint" hidden style="background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 10px; padding: 10px; margin-bottom: 14px; text-align: center;">
+              <span style="color:#ef4444; font-weight: 700;">🎯 Your target word: </span><span id="chain-target-word" style="color:#ef4444; font-weight: 900; font-size: 1.2em;"></span>
+            </div>
+            <h4 id="chain-turn-indicator" style="text-align:center; margin-bottom: 12px; color: var(--deep-blue);">...</h4>
+            <div class="submit-area" id="chain-word-submit-area" hidden>
+              <input type="text" class="neo-input" id="chain-word-input" maxlength="20" placeholder="Add one word…" style="margin-right: 8px;" />
+              <button class="neo-btn neo-btn-primary" id="submit-chain-word-btn" disabled>Add</button>
+            </div>
+            <div style="margin-top: 16px; text-align: center;" id="chain-accuse-area">
+              <!-- dynamically populated with CALL SABOTEUR buttons -->
+            </div>
+          </div>
+
+          <!-- CHAIN RESULTS PHASE (reuses phase-results but we inject into it) -->
 
           <!-- VOTING PHASE -->
           <div class="game-phase" id="phase-voting" hidden>
