@@ -255,7 +255,8 @@ document.querySelectorAll(".game-card").forEach(card => {
 
 // Start game button
 $("start-game-btn").addEventListener("click", () => {
-  socket.emit("game:start", { rounds: 5 }, (resp) => {
+  const rounds = Number($("rounds-select").value) || 5;
+  socket.emit("game:start", { rounds }, (resp) => {
     if (resp?.error) {
       $("start-game-note").textContent = resp.error;
     }
@@ -290,7 +291,7 @@ function renderGamePhase(snapshot) {
   });
 
   updateGameRoundBadge(game);
-  startTimerDisplay(game.timerEnd);
+  startTimerDisplay(game.timerEnd, game.phase);
 
   switch (game.phase) {
     case "prompting":
@@ -322,10 +323,16 @@ function clearTimerInterval() {
   }
 }
 
-function startTimerDisplay(timerEnd) {
+function startTimerDisplay(timerEnd, phase) {
   clearTimerInterval();
   const timerEl = $("game-timer");
-  if (!timerEnd || !timerEl) return;
+  const timerWrapper = document.querySelector(".game-timer-wrapper");
+  
+  if (!timerEnd || !timerEl || phase === "results" || phase === "gameover") {
+    if (timerWrapper) timerWrapper.style.display = "none";
+    return;
+  }
+  if (timerWrapper) timerWrapper.style.display = "flex";
 
   function update() {
     const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
@@ -669,13 +676,7 @@ function scrollChatToBottom() {
 }
 
 function syncGameChat() {
-  // Copy lobby chat to game chat panel
-  const src = $("chat-messages");
-  const dst = $("game-chat-messages");
-  if (src && dst) {
-    dst.innerHTML = src.innerHTML;
-    dst.scrollTop = dst.scrollHeight;
-  }
+  // Obsolete: addChatMessage already updates both containers in real time.
 }
 
 // Lobby chat form
@@ -707,6 +708,8 @@ function sendChat(inputEl) {
 
 socket.on("room:update", (snapshot) => {
   const wasInGame = currentRoom?.game?.phase && currentRoom.game.phase !== "gameover";
+  const prevRound = currentRoom?.game?.round;
+  const prevPhase = currentRoom?.game?.phase;
   currentRoom = snapshot;
 
   renderRoom(snapshot);
@@ -716,16 +719,17 @@ socket.on("room:update", (snapshot) => {
     // Switch to game view if a game started
     if (phase !== "gameover" || !wasInGame) {
       // Reset round state on new round
-      if (phase === "prompting" && !hasSubmittedRating) {
-        selectedRating = null;
-      }
-      if (phase === "prompting") {
+      if (phase === "prompting" && (snapshot.game.round !== prevRound || prevPhase !== "prompting")) {
         hasSubmittedRating = false;
         hasSubmittedVote = false;
         selectedRating = null;
         $("submit-rating-btn").textContent = "Lock in";
+        document.querySelectorAll(".rating-btn").forEach(b => {
+          b.classList.remove("selected");
+          b.disabled = false;
+        });
       }
-      if (phase === "voting" || phase === "discuss") {
+      if (phase === "voting" && prevPhase !== "voting") {
         hasSubmittedVote = false;
       }
 

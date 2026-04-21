@@ -120,7 +120,7 @@
               </div>
               <span class="game-badge game-badge-play">play</span>
             </li>
-            <li class="game-card soon" data-mode="wordspy">
+            <li class="game-card soon" data-mode="wordspy" title="Coming soon in Phase 3">
               <div class="game-icon">◆</div>
               <div class="game-body">
                 <div class="game-name">Word Spy</div>
@@ -128,7 +128,7 @@
               </div>
               <span class="game-badge">soon</span>
             </li>
-            <li class="game-card soon" data-mode="echo">
+            <li class="game-card soon" data-mode="echo" title="Coming soon in Phase 3">
               <div class="game-icon">◇</div>
               <div class="game-body">
                 <div class="game-name">Echo</div>
@@ -136,7 +136,7 @@
               </div>
               <span class="game-badge">soon</span>
             </li>
-            <li class="game-card soon" data-mode="chain">
+            <li class="game-card soon" data-mode="chain" title="Coming soon in Phase 3">
               <div class="game-icon">◁</div>
               <div class="game-body">
                 <div class="game-name">Chain</div>
@@ -144,7 +144,7 @@
               </div>
               <span class="game-badge">soon</span>
             </li>
-            <li class="game-card soon" data-mode="twotruths">
+            <li class="game-card soon" data-mode="twotruths" title="Coming soon in Phase 3">
               <div class="game-icon">◰</div>
               <div class="game-body">
                 <div class="game-name">Two Truths, One Ghost</div>
@@ -152,7 +152,7 @@
               </div>
               <span class="game-badge">soon</span>
             </li>
-            <li class="game-card soon" data-mode="draw">
+            <li class="game-card soon" data-mode="draw" title="Coming soon in Phase 3">
               <div class="game-icon">✎</div>
               <div class="game-body">
                 <div class="game-name">Draw</div>
@@ -164,6 +164,15 @@
 
           <!-- Start Game button (host only, appears when mode is selected) -->
           <div class="start-game-area" id="start-game-area" hidden>
+            <div style="margin-bottom: 12px;">
+              <label for="rounds-select" style="font-weight: 700; color: var(--deep-blue); font-size: 14px; margin-right: 8px;">Rounds:</label>
+              <select id="rounds-select" class="neo-input" style="padding: 6px 12px; width: auto; display: inline-block;">
+                <option value="3">Best of 3</option>
+                <option value="5" selected>Best of 5</option>
+                <option value="7">Best of 7</option>
+                <option value="10">Best of 10</option>
+              </select>
+            </div>
             <button class="neo-btn neo-btn-primary neo-btn-large" id="start-game-btn">🎵 Start Frequency</button>
             <p class="start-game-note" id="start-game-note"></p>
           </div>

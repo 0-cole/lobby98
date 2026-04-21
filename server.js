@@ -288,17 +288,25 @@ function forceVotePhaseEnd(room) {
   transitionToResults(room);
 }
 
-function transitionToResults(room) {
+function transitionToResults(room, offKeyDisconnected = false) {
   const g = room.game;
   g.phase = "results";
   clearRoomTimer(room);
 
   // --- Scoring (per design doc) ---
-  // Count votes for the Off-Key
-  let offKeyVotes = 0;
-  const totalVoters = g.votes.size;
   const deltas = {};
   for (const pid of g.activePlayers) deltas[pid] = 0;
+
+  if (offKeyDisconnected) {
+    // Off-Key disconnected during discuss/voting. Give 0 points to everyone.
+    g.roundScoreDeltas = deltas;
+    addSystemMessage(room, `The Off-Key disconnected! No winner this round.`);
+    broadcastRoom(room);
+    return;
+  }
+
+  // Count votes for the Off-Key
+  let offKeyVotes = 0;
 
   for (const [voterId, targetId] of g.votes) {
     if (targetId === g.offKeyId) {
@@ -316,22 +324,24 @@ function transitionToResults(room) {
         deltas[voterId] = (deltas[voterId] || 0) + 2;
       }
     }
-    // Check consolation: Off-Key gets +1 if their rating was closest to median
-    const ratings = [...g.ratings.entries()];
-    const allVals = ratings.map(([, v]) => v).sort((a, b) => a - b);
-    const median = allVals[Math.floor(allVals.length / 2)];
-    const offKeyRating = g.ratings.get(g.offKeyId) ?? 5;
-    const offKeyDist = Math.abs(offKeyRating - median);
-    let closest = true;
-    for (const [pid, val] of ratings) {
-      if (pid === g.offKeyId) continue;
-      if (Math.abs(val - median) < offKeyDist) {
-        closest = false;
-        break;
+    // Check consolation: Off-Key gets +1 if their rating was strictly closest to median
+    if (g.activePlayers.size >= 5) {
+      const ratings = [...g.ratings.entries()];
+      const allVals = ratings.map(([, v]) => v).sort((a, b) => a - b);
+      const median = allVals[Math.floor(allVals.length / 2)];
+      const offKeyRating = g.ratings.get(g.offKeyId) ?? 5;
+      const offKeyDist = Math.abs(offKeyRating - median);
+      let closest = true;
+      for (const [pid, val] of ratings) {
+        if (pid === g.offKeyId) continue;
+        if (Math.abs(val - median) <= offKeyDist) {
+          closest = false;
+          break;
+        }
       }
-    }
-    if (closest) {
-      deltas[g.offKeyId] = (deltas[g.offKeyId] || 0) + 1;
+      if (closest) {
+        deltas[g.offKeyId] = (deltas[g.offKeyId] || 0) + 1;
+      }
     }
   } else {
     // Off-Key survived — they get +3
@@ -362,6 +372,13 @@ function advanceToNextRound(room) {
     clearRoomTimer(room);
     addSystemMessage(room, `🏆 Game over! Check the final scores.`);
     broadcastRoom(room);
+
+    // Auto-return to lobby after 30 seconds
+    setRoomTimer(room, 30_000, () => {
+      if (room.game && room.game.phase === "gameover") {
+        backToLobby(room);
+      }
+    });
     return;
   }
 
@@ -443,8 +460,8 @@ function handleGameDisconnect(room, socketId) {
     return;
   }
 
-  // Mid-round disconnect: if Off-Key left during prompting/discuss/voting, cancel round & restart
-  if ((g.phase === "prompting" || g.phase === "discuss" || g.phase === "voting") && socketId === g.offKeyId) {
+  // Mid-round disconnect: if Off-Key left during prompting, cancel round & restart
+  if (g.phase === "prompting" && socketId === g.offKeyId) {
     clearRoomTimer(room);
     addSystemMessage(room, `The Off-Key disconnected — restarting round with remaining players...`);
     // Pick a new Off-Key from remaining for this round
@@ -456,6 +473,13 @@ function handleGameDisconnect(room, socketId) {
     sendPromptsToPlayers(room);
     broadcastRoom(room);
     setRoomTimer(room, TIMER_SUBMIT, () => forceSubmitPhaseEnd(room));
+    return;
+  }
+
+  // If Off-Key left during discuss or voting, skip to results with no winner
+  if ((g.phase === "discuss" || g.phase === "voting") && socketId === g.offKeyId) {
+    clearRoomTimer(room);
+    transitionToResults(room, true);
     return;
   }
 
