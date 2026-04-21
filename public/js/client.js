@@ -23,6 +23,11 @@ let hasSubmittedVote = false;
 let isSpectator = false;
 let timerInterval = null;
 
+// Word Spy state
+let myWordSpyInfo = null; // { word, category, isSpy }
+let hasSubmittedClue = false;
+let hasSubmittedSpyGuess = false;
+
 const socket = io();
 
 // ---------- View switching ----------
@@ -222,9 +227,13 @@ function renderGamePicker(snapshot) {
       : "(waiting for host to pick)";
   }
 
-  // Show start button if host + mode selected
-  if (amHost && snapshot.mode === "frequency") {
+  // Show start button if host + playable mode selected
+  const playableModes = ["frequency", "wordspy"];
+  if (amHost && playableModes.includes(snapshot.mode)) {
     startArea.hidden = false;
+    const modeLabel = snapshot.mode === "wordspy" ? "Word Spy" : "Frequency";
+    const modeIcon = snapshot.mode === "wordspy" ? "🕵️" : "🎵";
+    $("start-game-btn").textContent = `${modeIcon} Start ${modeLabel}`;
     if (snapshot.players.length < 3) {
       startNote.textContent = `Need at least 3 players (${snapshot.players.length} now)`;
       $("start-game-btn").disabled = true;
@@ -285,21 +294,38 @@ function renderGamePhase(snapshot) {
   if (!game) return;
 
   // Hide all phases
-  ["phase-prompting", "phase-voting", "phase-results", "phase-gameover", "phase-discuss", "phase-intermission"].forEach(id => {
+  ["phase-prompting", "phase-voting", "phase-results", "phase-gameover",
+   "phase-discuss", "phase-intermission",
+   "phase-wordspy-clues", "phase-wordspy-guess"].forEach(id => {
     const el = $(id);
     if (el) el.hidden = true;
   });
+
+  // Update mode badge
+  const modeBadge = $("game-mode-badge");
+  if (modeBadge) {
+    modeBadge.textContent = game.mode === "wordspy" ? "🕵️ Word Spy" : "🎵 Frequency";
+  }
 
   updateGameRoundBadge(game);
   startTimerDisplay(game.timerEnd, game.phase);
 
   switch (game.phase) {
+    // ── Frequency phases ──
     case "prompting":
       renderPromptingPhase(snapshot);
       break;
     case "discuss":
       renderDiscussPhase(snapshot);
       break;
+    // ── Word Spy phases ──
+    case "clues":
+      renderWordSpyCluesPhase(snapshot);
+      break;
+    case "spy-guess":
+      renderWordSpyGuessPhase(snapshot);
+      break;
+    // ── Shared phases ──
     case "voting":
       renderVotingPhase(snapshot);
       break;
@@ -409,15 +435,115 @@ function renderDiscussPhase(snapshot) {
   }
 }
 
-// --- Voting phase ---
+// --- Word Spy: Clues phase ---
+function renderWordSpyCluesPhase(snapshot) {
+  $("phase-wordspy-clues").hidden = false;
+  const game = snapshot.game;
+
+  if (myWordSpyInfo) {
+    const isSpy = myWordSpyInfo.isSpy;
+    $("wordspy-word").textContent = isSpy ? "🕵️ YOU ARE THE SPY" : myWordSpyInfo.word;
+    $("wordspy-word").style.color = isSpy ? "#ef4444" : "";
+    $("wordspy-category").textContent = `Category: ${myWordSpyInfo.category}`;
+  }
+
+  // Render clues so far
+  const cluesList = $("wordspy-clues-list");
+  cluesList.innerHTML = "";
+  (game.clues || []).forEach(c => {
+    const isMe = me && c.playerId === me.id;
+    const div = document.createElement("div");
+    div.className = `rating-card ${isMe ? "rating-card-me" : ""}`;
+    div.innerHTML = `<span class="rating-card-name">${escapeHtml(c.name)}</span><span class="rating-card-value" style="font-size:14px;">${escapeHtml(c.text)}</span>`;
+    cluesList.appendChild(div);
+  });
+
+  // Turn indicator
+  const currentTurnId = (game.turnOrder || [])[game.turnIndex];
+  const isMyTurn = me && currentTurnId === me.id;
+  const turnPlayer = snapshot.players.find(p => p.id === currentTurnId);
+  const turnName = turnPlayer ? turnPlayer.name : "?";
+
+  const indicator = $("wordspy-turn-indicator");
+  if (currentTurnId) {
+    indicator.textContent = isMyTurn ? "✏️ Your turn — give a clue!" : `⏳ ${escapeHtml(turnName)}'s turn...`;
+  } else {
+    indicator.textContent = "All clues in!";
+  }
+
+  const submitArea = $("wordspy-clue-submit-area");
+  if (isMyTurn && !hasSubmittedClue && !isSpectator) {
+    submitArea.hidden = false;
+    $("submit-clue-btn").disabled = $("wordspy-clue-input").value.trim() === "";
+  } else {
+    submitArea.hidden = true;
+  }
+}
+
+// --- Word Spy: Spy Guess phase ---
+function renderWordSpyGuessPhase(snapshot) {
+  $("phase-wordspy-guess").hidden = false;
+  const game = snapshot.game;
+  const isSpy = myWordSpyInfo?.isSpy || (me && game.spyId === me.id);
+
+  if (isSpy && !hasSubmittedSpyGuess && !isSpectator) {
+    $("wordspy-guess-area").hidden = false;
+    $("wordspy-guess-waiting").hidden = true;
+    $("submit-spy-guess-btn").disabled = $("wordspy-guess-input").value.trim() === "";
+  } else {
+    $("wordspy-guess-area").hidden = true;
+    $("wordspy-guess-waiting").hidden = false;
+  }
+}
+
+// --- Voting phase (shared: Frequency + Word Spy) ---
 function renderVotingPhase(snapshot) {
   $("phase-voting").hidden = false;
   const game = snapshot.game;
   const container = $("ratings-reveal");
   container.innerHTML = "";
 
-  if (game.revealedRatings) {
-    renderRatingsCards(container, snapshot, game.revealedRatings, !isSpectator && !hasSubmittedVote);
+  const isWordSpy = game.mode === "wordspy";
+
+  if ($("voting-title")) {
+    $("voting-title").textContent = isWordSpy ? "Who is the Spy? 🕵️" : "Who's the Off-Key? 🔍";
+  }
+  if ($("voting-desc")) {
+    $("voting-desc").textContent = isWordSpy
+      ? "Everyone gave a clue — but one player is the Spy. Vote for who you think it is!"
+      : "Everyone rated the prompt — but someone had a different prompt. Vote for who you think it was!";
+  }
+
+  const canVote = !isSpectator && !hasSubmittedVote;
+
+  if (isWordSpy) {
+    // Render clue cards with vote buttons for Word Spy
+    (game.clues || []).forEach(c => {
+      const card = document.createElement("div");
+      const isMe = me && c.playerId === me.id;
+      card.className = `rating-card ${isMe ? "rating-card-me" : ""}`;
+      card.innerHTML = `
+        <div class="rating-card-info">
+          <span class="rating-card-name">${escapeHtml(c.name)}${isMe ? " (you)" : ""}</span>
+        </div>
+        <div class="rating-card-value" style="font-size:13px;">${escapeHtml(c.text)}</div>
+        ${canVote && !isMe ? `<button class="neo-btn neo-btn-vote" data-vote-id="${c.playerId}">Vote</button>` : ""}
+      `;
+      const voteBtn = card.querySelector(".neo-btn-vote");
+      if (voteBtn) {
+        voteBtn.addEventListener("click", () => {
+          if (hasSubmittedVote) return;
+          hasSubmittedVote = true;
+          socket.emit("game:submitVote", { targetId: c.playerId }, () => {});
+          container.querySelectorAll(".neo-btn-vote").forEach(b => { b.disabled = true; });
+          voteBtn.textContent = "Voted!";
+          $("vote-waiting").hidden = false;
+        });
+      }
+      container.appendChild(card);
+    });
+  } else if (game.revealedRatings) {
+    renderRatingsCards(container, snapshot, game.revealedRatings, canVote);
   }
 
   if (hasSubmittedVote || isSpectator) {
@@ -476,6 +602,11 @@ function renderResultsPhase(snapshot) {
   $("phase-results").hidden = false;
   const game = snapshot.game;
   const amHost = me && snapshot.hostId === me.id;
+
+  if (game.mode === "wordspy") {
+    renderWordSpyResults(snapshot);
+    return;
+  }
 
   // Off-Key reveal
   const offKeyName = game.offKeyName || "???";
@@ -548,6 +679,71 @@ function renderResultsPhase(snapshot) {
 $("next-round-btn").addEventListener("click", () => {
   socket.emit("game:nextRound");
 });
+
+// --- Word Spy results ---
+function renderWordSpyResults(snapshot) {
+  const game = snapshot.game;
+  const amHost = me && snapshot.hostId === me.id;
+
+  const spyName = game.spyName || "???";
+  const isSpyMe = me && game.spyId === me.id;
+  const word = game.secretWord || "?";
+  const category = game.secretCategory || "?";
+  const guessCorrect = game.spyGuess && game.spyGuess.toLowerCase() === word.toLowerCase();
+
+  let headline, sub;
+  if (!game.spyCaught) {
+    headline = `🕵️ ${escapeHtml(spyName)} was the Spy and blended in!`;
+    sub = `The word was <strong>${escapeHtml(word)}</strong> (${escapeHtml(category)})`;
+  } else if (guessCorrect) {
+    headline = `🤯 ${escapeHtml(spyName)} was caught but guessed the word!`;
+    sub = `The word was <strong>${escapeHtml(word)}</strong> — and they knew it!`;
+  } else {
+    headline = `🎉 The Spy (${escapeHtml(spyName)}) was caught!`;
+    sub = `The word was <strong>${escapeHtml(word)}</strong>` +
+      (game.spyGuess ? ` — they guessed "${escapeHtml(game.spyGuess)}".` : ` — they ran out of time.`);
+  }
+
+  $("offkey-reveal").innerHTML = `
+    <div class="offkey-reveal-card ${isSpyMe ? "offkey-reveal-me" : ""}">
+      <span class="offkey-label">${headline}</span>
+    </div>
+  `;
+  $("prompts-comparison").innerHTML = `
+    <div class="prompt-compare-grid">
+      <div class="prompt-compare-card">
+        <span class="prompt-compare-label">The secret word</span>
+        <p class="prompt-compare-text">${escapeHtml(word)}</p>
+      </div>
+      <div class="prompt-compare-card offkey-prompt">
+        <span class="prompt-compare-label">Category</span>
+        <p class="prompt-compare-text">${escapeHtml(category)}</p>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:10px;">${sub}</p>
+  `;
+
+  // Score deltas
+  const deltasEl = $("round-score-deltas");
+  deltasEl.innerHTML = "";
+  if (game.roundScoreDeltas) {
+    for (const p of snapshot.players) {
+      const delta = game.roundScoreDeltas[p.id];
+      if (delta === undefined) continue;
+      const isMe = me && p.id === me.id;
+      const div = document.createElement("div");
+      div.className = `score-delta-item ${isMe ? "score-delta-me" : ""}`;
+      div.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="score-delta-value ${delta > 0 ? "delta-positive" : ""}">+${delta}</span>`;
+      deltasEl.appendChild(div);
+    }
+  }
+
+  if (amHost) {
+    $("results-host-area").hidden = false;
+  } else {
+    $("results-host-area").hidden = true;
+  }
+}
 
 // --- Intermission phase ---
 function renderIntermissionPhase(snapshot) {
@@ -633,6 +829,41 @@ $("submit-rating-btn").addEventListener("click", () => {
   socket.emit("game:submitRating", { rating: selectedRating }, () => {});
   $("rating-submit-area").hidden = true;
   $("rating-waiting").hidden = false;
+});
+
+// ============================================================
+//   WORD SPY CONTROLS
+// ============================================================
+
+$("wordspy-clue-input").addEventListener("input", () => {
+  $("submit-clue-btn").disabled = $("wordspy-clue-input").value.trim() === "";
+});
+
+$("submit-clue-btn").addEventListener("click", () => {
+  if (hasSubmittedClue) return;
+  const clue = $("wordspy-clue-input").value.trim();
+  if (!clue) return;
+  hasSubmittedClue = true;
+  $("submit-clue-btn").disabled = true;
+  $("submit-clue-btn").textContent = "Sent!";
+  socket.emit("game:submitClue", { clue }, () => {});
+  $("wordspy-clue-submit-area").hidden = true;
+});
+
+$("wordspy-guess-input").addEventListener("input", () => {
+  $("submit-spy-guess-btn").disabled = $("wordspy-guess-input").value.trim() === "";
+});
+
+$("submit-spy-guess-btn").addEventListener("click", () => {
+  if (hasSubmittedSpyGuess) return;
+  const guess = $("wordspy-guess-input").value.trim();
+  if (!guess) return;
+  hasSubmittedSpyGuess = true;
+  $("submit-spy-guess-btn").disabled = true;
+  $("submit-spy-guess-btn").textContent = "Guessed!";
+  socket.emit("game:submitSpyGuess", { guess }, () => {});
+  $("wordspy-guess-area").hidden = true;
+  $("wordspy-guess-waiting").hidden = false;
 });
 
 // ============================================================
@@ -728,6 +959,13 @@ socket.on("room:update", (snapshot) => {
           b.disabled = false;
         });
       }
+      if (phase === "clues" && (snapshot.game.round !== prevRound || prevPhase !== "clues")) {
+        hasSubmittedClue = false;
+        hasSubmittedVote = false;
+        hasSubmittedSpyGuess = false;
+        $("wordspy-clue-input").value = "";
+        $("wordspy-guess-input").value = "";
+      }
       if (phase === "voting" && prevPhase !== "voting") {
         hasSubmittedVote = false;
       }
@@ -750,6 +988,16 @@ socket.on("room:update", (snapshot) => {
 socket.on("game:yourPrompt", ({ prompt, round }) => {
   myPrompt = prompt;
   $("prompt-text").textContent = prompt;
+});
+
+socket.on("game:yourWordSpy", ({ word, category, isSpy }) => {
+  myWordSpyInfo = { word, category, isSpy };
+  hasSubmittedClue = false;
+  hasSubmittedSpyGuess = false;
+  $("wordspy-clue-input").value = "";
+  $("wordspy-guess-input").value = "";
+  $("submit-clue-btn").textContent = "Send";
+  $("submit-spy-guess-btn").textContent = "Guess";
 });
 
 socket.on("chat:message", (msg) => {

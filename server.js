@@ -15,6 +15,7 @@ import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import path from "path";
 import { frequencyGame } from "./games/frequency.js";
+import { wordspyGame } from "./games/wordspy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -99,24 +100,45 @@ function gameSnapshot(room) {
     phase: g.phase,
     round: g.round,
     totalRounds: g.totalRounds,
-    ratingsSubmitted: [...g.ratings.keys()],
-    votesSubmitted: [...g.votes.keys()],
     scores: Object.fromEntries(g.scores),
     timerEnd: g.timerEnd || null,
-    playerCount: g.activePlayers.size
+    playerCount: g.activePlayers.size,
+    mode: room.mode
   };
 
-  // Revealed data — only present in certain phases
-  if (g.phase === "discuss" || g.phase === "voting" || g.phase === "results" || g.phase === "gameover") {
-    snap.revealedRatings = Object.fromEntries(g.ratings);
+  if (room.mode === "frequency") {
+    snap.ratingsSubmitted = g.ratings ? [...g.ratings.keys()] : [];
+    snap.votesSubmitted = g.votes ? [...g.votes.keys()] : [];
+    if (g.phase === "discuss" || g.phase === "voting" || g.phase === "results" || g.phase === "gameover") {
+      snap.revealedRatings = Object.fromEntries(g.ratings);
+    }
+    if (g.phase === "results" || g.phase === "gameover") {
+      snap.revealedVotes = Object.fromEntries(g.votes);
+      snap.offKeyId = g.offKeyId;
+      snap.offKeyName = g.offKeyName;
+      snap.offKeyPrompt = g.promptPair?.offkey;
+      snap.normalPrompt = g.promptPair?.normal;
+      snap.roundScoreDeltas = g.roundScoreDeltas || {};
+    }
   }
-  if (g.phase === "results" || g.phase === "gameover") {
-    snap.revealedVotes = Object.fromEntries(g.votes);
-    snap.offKeyId = g.offKeyId;
-    snap.offKeyName = g.offKeyName;
-    snap.offKeyPrompt = g.promptPair.offkey;
-    snap.normalPrompt = g.promptPair.normal;
-    snap.roundScoreDeltas = g.roundScoreDeltas || {};
+
+  if (room.mode === "wordspy") {
+    snap.clues = g.clues;
+    snap.turnOrder = g.turnOrder;
+    snap.turnIndex = g.turnIndex;
+    snap.votesSubmitted = g.votes ? [...g.votes.keys()] : [];
+    if (g.phase === "spy-guess" || g.phase === "results" || g.phase === "gameover") {
+      snap.revealedVotes = Object.fromEntries(g.votes);
+      snap.spyId = g.spyId;
+      snap.spyName = g.spyName;
+      snap.spyCaught = g.spyCaught;
+    }
+    if (g.phase === "results" || g.phase === "gameover") {
+      snap.secretWord = g.secretPair?.word;
+      snap.secretCategory = g.secretPair?.category;
+      snap.spyGuess = g.spyGuess;
+      snap.roundScoreDeltas = g.roundScoreDeltas || {};
+    }
   }
 
   return snap;
@@ -160,7 +182,8 @@ function setRoomTimer(room, duration, callback) {
 // ============================================================
 
 const GAMES = {
-  frequency: frequencyGame
+  frequency: frequencyGame,
+  wordspy: wordspyGame
 };
 
 function getRoomContext() {
@@ -313,6 +336,8 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   }
 
+  socket.on("game:submitClue", (payload, ack) => handleGameEvent("submitClue", payload, ack));
+  socket.on("game:submitSpyGuess", (payload, ack) => handleGameEvent("submitSpyGuess", payload, ack));
   socket.on("game:submitRating", (payload, ack) => handleGameEvent("submitRating", payload, ack));
   socket.on("game:submitVote", (payload, ack) => handleGameEvent("submitVote", payload, ack));
   socket.on("game:nextRound", (payload, ack) => {
