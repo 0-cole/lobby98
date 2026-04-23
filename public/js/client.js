@@ -13,10 +13,249 @@
 
 const $ = (id) => document.getElementById(id);
 
+// ============================================================
+//   PROFILE & SHOP SYSTEM (localStorage)
+// ============================================================
+
+const NAME_COLORS = [
+  { id: "default", name: "Default", color: "#0b4d6e", price: 0 },
+  { id: "cyan", name: "Cyan", color: "#1ab5d5", price: 30 },
+  { id: "emerald", name: "Emerald", color: "#2d9e5a", price: 30 },
+  { id: "sunset", name: "Sunset", color: "#e87830", price: 50 },
+  { id: "magenta", name: "Magenta", color: "#c740a0", price: 50 },
+  { id: "gold", name: "Gold", color: "#c89020", price: 80 },
+  { id: "violet", name: "Violet", color: "#7c3aed", price: 80 },
+  { id: "crimson", name: "Crimson", color: "#dc2626", price: 100 },
+  { id: "aurora", name: "Aurora", color: "linear-gradient(90deg,#1ab5d5,#2d9e5a,#c89020)", price: 150, gradient: true },
+];
+
+const TITLES = [
+  { id: "none", name: "None", price: 0 },
+  { id: "spy-hunter", name: "Spy Hunter", price: 60 },
+  { id: "off-key-legend", name: "Off-Key Legend", price: 60 },
+  { id: "chain-breaker", name: "Chain Breaker", price: 60 },
+  { id: "smooth-talker", name: "Smooth Talker", price: 100 },
+  { id: "detective", name: "Detective", price: 100 },
+  { id: "mastermind", name: "Mastermind", price: 150 },
+  { id: "shadow", name: "The Shadow", price: 200 },
+  { id: "lobby-legend", name: "Lobby Legend", price: 300 },
+];
+
+const DEFAULT_PROFILE = {
+  name: "",
+  colorId: "default",
+  titleId: "none",
+  coins: 0,
+  gamesPlayed: 0,
+  gamesWon: 0,
+  totalPoints: 0,
+  owned: ["default", "none"],  // owned item IDs (colors + titles)
+};
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem("lobby98_profile");
+    if (raw) {
+      const p = JSON.parse(raw);
+      return { ...DEFAULT_PROFILE, ...p, owned: [...new Set([...DEFAULT_PROFILE.owned, ...(p.owned || [])])] };
+    }
+  } catch {}
+  return { ...DEFAULT_PROFILE, owned: [...DEFAULT_PROFILE.owned] };
+}
+
+function saveProfile(profile) {
+  try { localStorage.setItem("lobby98_profile", JSON.stringify(profile)); } catch {}
+}
+
+let profile = loadProfile();
+
+function getNameColor() {
+  const c = NAME_COLORS.find(x => x.id === profile.colorId);
+  return c ? c.color : NAME_COLORS[0].color;
+}
+
+function getTitle() {
+  const t = TITLES.find(x => x.id === profile.titleId);
+  return t && t.id !== "none" ? t.name : null;
+}
+
+function awardCoins(points) {
+  if (points <= 0) return;
+  profile.coins += points;
+  profile.totalPoints += points;
+  saveProfile(profile);
+  updateCoinsDisplay();
+}
+
+function recordGameEnd(won) {
+  profile.gamesPlayed++;
+  if (won) profile.gamesWon++;
+  saveProfile(profile);
+}
+
+function updateCoinsDisplay() {
+  $("coins-btn").textContent = profile.coins;
+  const shopCoins = $("shop-coins");
+  if (shopCoins) shopCoins.textContent = profile.coins;
+}
+
+// Auto-fill name inputs from profile
+function prefillName() {
+  if (profile.name) {
+    const ci = $("create-name-input");
+    const ji = $("join-name-input");
+    if (ci && !ci.value) ci.value = profile.name;
+    if (ji && !ji.value) ji.value = profile.name;
+  }
+}
+
+// ============================================================
+//   PROFILE OVERLAY
+// ============================================================
+
+function openProfile() {
+  $("profile-overlay").hidden = false;
+  $("profile-name-input").value = profile.name;
+  $("stat-games").textContent = profile.gamesPlayed;
+  $("stat-wins").textContent = profile.gamesWon;
+  $("stat-points").textContent = profile.totalPoints;
+  const title = getTitle();
+  $("profile-equipped-title").textContent = title || "None";
+  renderColorPicker();
+}
+
+function renderColorPicker() {
+  const grid = $("color-picker");
+  grid.innerHTML = "";
+  for (const c of NAME_COLORS) {
+    if (!profile.owned.includes(c.id)) continue;
+    const swatch = document.createElement("div");
+    swatch.className = `color-swatch ${profile.colorId === c.id ? "selected" : ""}`;
+    swatch.style.background = c.gradient ? c.color : c.color;
+    swatch.title = c.name;
+    swatch.addEventListener("click", () => {
+      profile.colorId = c.id;
+      renderColorPicker();
+    });
+    grid.appendChild(swatch);
+  }
+}
+
+$("profile-btn").addEventListener("click", openProfile);
+$("profile-close").addEventListener("click", () => { $("profile-overlay").hidden = true; });
+$("profile-save").addEventListener("click", () => {
+  const newName = $("profile-name-input").value.trim().slice(0, 16);
+  if (newName) profile.name = newName;
+  saveProfile(profile);
+  prefillName();
+  $("profile-overlay").hidden = true;
+});
+
+// ============================================================
+//   SHOP OVERLAY
+// ============================================================
+
+function openShop() {
+  $("shop-overlay").hidden = false;
+  updateCoinsDisplay();
+  renderShop();
+}
+
+function renderShop() {
+  const container = $("shop-categories");
+  container.innerHTML = "";
+
+  // Name Colors
+  const colorSection = document.createElement("div");
+  colorSection.className = "shop-category";
+  colorSection.innerHTML = `<div class="shop-category-title">Name Colors</div>`;
+  const colorGrid = document.createElement("div");
+  colorGrid.className = "shop-grid";
+  for (const c of NAME_COLORS) {
+    if (c.id === "default") continue;
+    const owned = profile.owned.includes(c.id);
+    const equipped = profile.colorId === c.id;
+    const canAfford = profile.coins >= c.price;
+    const item = document.createElement("div");
+    item.className = `shop-item ${owned ? "owned" : ""} ${equipped ? "equipped" : ""} ${!owned && !canAfford ? "too-expensive" : ""}`;
+    item.innerHTML = `
+      <div class="shop-item-preview" style="${c.gradient ? `background:${c.color};-webkit-background-clip:text;background-clip:text;color:transparent;` : `color:${c.color};`}">Aa</div>
+      <div class="shop-item-name">${c.name}</div>
+      ${owned ? (equipped ? '<div class="shop-item-status">equipped</div>' : '<div class="shop-item-status" style="color:var(--accent)">owned</div>') : `<div class="shop-item-price">${c.price}</div>`}
+    `;
+    item.addEventListener("click", () => {
+      if (owned) {
+        profile.colorId = c.id;
+        saveProfile(profile);
+        renderShop();
+      } else if (canAfford) {
+        profile.coins -= c.price;
+        profile.owned.push(c.id);
+        profile.colorId = c.id;
+        saveProfile(profile);
+        updateCoinsDisplay();
+        renderShop();
+      }
+    });
+    colorGrid.appendChild(item);
+  }
+  colorSection.appendChild(colorGrid);
+  container.appendChild(colorSection);
+
+  // Titles
+  const titleSection = document.createElement("div");
+  titleSection.className = "shop-category";
+  titleSection.innerHTML = `<div class="shop-category-title">Titles</div>`;
+  const titleGrid = document.createElement("div");
+  titleGrid.className = "shop-grid";
+  for (const t of TITLES) {
+    if (t.id === "none") continue;
+    const owned = profile.owned.includes(t.id);
+    const equipped = profile.titleId === t.id;
+    const canAfford = profile.coins >= t.price;
+    const item = document.createElement("div");
+    item.className = `shop-item ${owned ? "owned" : ""} ${equipped ? "equipped" : ""} ${!owned && !canAfford ? "too-expensive" : ""}`;
+    item.innerHTML = `
+      <div class="shop-item-preview" style="font-size:14px;">🏷️</div>
+      <div class="shop-item-name">${t.name}</div>
+      ${owned ? (equipped ? '<div class="shop-item-status">equipped</div>' : '<div class="shop-item-status" style="color:var(--accent)">owned</div>') : `<div class="shop-item-price">${t.price}</div>`}
+    `;
+    item.addEventListener("click", () => {
+      if (owned) {
+        profile.titleId = t.id;
+        saveProfile(profile);
+        renderShop();
+      } else if (canAfford) {
+        profile.coins -= t.price;
+        profile.owned.push(t.id);
+        profile.titleId = t.id;
+        saveProfile(profile);
+        updateCoinsDisplay();
+        renderShop();
+      }
+    });
+    titleGrid.appendChild(item);
+  }
+  titleSection.appendChild(titleGrid);
+  container.appendChild(titleSection);
+}
+
+$("shop-btn").addEventListener("click", openShop);
+$("coins-btn").addEventListener("click", openShop);
+$("shop-close").addEventListener("click", () => { $("shop-overlay").hidden = true; });
+
+// Close overlays on backdrop click
+$("profile-overlay").addEventListener("click", (e) => { if (e.target === $("profile-overlay")) $("profile-overlay").hidden = true; });
+$("shop-overlay").addEventListener("click", (e) => { if (e.target === $("shop-overlay")) $("shop-overlay").hidden = true; });
+
+// ============================================================
+//   GAME STATE
+// ============================================================
+
 // Local state
 let me = null;        // { id, name, isHost }
 let currentRoom = null; // last snapshot from server
-let myPrompt = null;  // the prompt I received this round
+let myPrompt = null;  // the prompt I received this round (Frequency)
 let selectedRating = null;
 let hasSubmittedRating = false;
 let hasSubmittedVote = false;
@@ -24,17 +263,13 @@ let isSpectator = false;
 let timerInterval = null;
 
 // Word Spy state
-let myWordSpyInfo = null; // { word, category, isSpy }
+let myWord = null;        // { word, category, isSpy }
 let hasSubmittedClue = false;
 let hasSubmittedSpyGuess = false;
 
-// Echo state
-let myEchoInfo = null; // { prompt, isEcho }
-let hasSubmittedAnswer = false;
-
 // Chain state
-let myChainInfo = null; // { isSaboteur, targetWord, startingPhrase }
-let hasSubmittedWord = false;
+let myChainRole = null;   // { isSaboteur, targetWord, starter }
+let hasAccused = false;
 
 const socket = io();
 
@@ -58,6 +293,8 @@ $("form-create").addEventListener("submit", (e) => {
     }
     me = resp.you;
     isSpectator = false;
+    profile.name = resp.you.name;
+    saveProfile(profile);
     enterRoom(resp.snapshot, resp.chat);
   });
 });
@@ -76,6 +313,8 @@ $("form-join").addEventListener("submit", (e) => {
     }
     me = resp.you;
     isSpectator = !!resp.spectator;
+    profile.name = resp.you.name;
+    saveProfile(profile);
     enterRoom(resp.snapshot, resp.chat);
   });
 });
@@ -111,6 +350,12 @@ function resetLocalState() {
   hasSubmittedRating = false;
   hasSubmittedVote = false;
   isSpectator = false;
+  myWord = null;
+  hasSubmittedClue = false;
+  hasSubmittedSpyGuess = false;
+  myChainRole = null;
+  hasAccused = false;
+  coinsAwardedThisGame = false;
   clearTimerInterval();
   $("header-right").innerHTML = "";
   $("chat-messages").innerHTML = "";
@@ -235,21 +480,12 @@ function renderGamePicker(snapshot) {
       : "(waiting for host to pick)";
   }
 
-  // Show start button if host + playable mode selected
-  const playableModes = ["frequency", "wordspy", "echo", "chain"];
-  if (amHost && playableModes.includes(snapshot.mode)) {
+  // Show start button if host + mode selected
+  if (amHost && (snapshot.mode === "frequency" || snapshot.mode === "wordspy" || snapshot.mode === "chain")) {
     startArea.hidden = false;
-    const labels = { frequency: "Frequency", wordspy: "Word Spy", echo: "Echo", chain: "Chain" };
-    const icons = { frequency: "🎵", wordspy: "🕵️", echo: "🔊", chain: "🔗" };
-    const minPlayers = { frequency: 3, wordspy: 3, echo: 3, chain: 2 };
-    
-    const modeLabel = labels[snapshot.mode] || snapshot.mode;
-    const modeIcon = icons[snapshot.mode] || "";
-    const min = minPlayers[snapshot.mode] || 3;
-
-    $("start-game-btn").textContent = `${modeIcon} Start ${modeLabel}`;
-    if (snapshot.players.length < min) {
-      startNote.textContent = `Need at least ${min} players (${snapshot.players.length} now)`;
+    const minP = snapshot.mode === "wordspy" ? 3 : 3;
+    if (snapshot.players.length < minP) {
+      startNote.textContent = `Need at least ${minP} players (${snapshot.players.length} now)`;
       $("start-game-btn").disabled = true;
     } else {
       startNote.textContent = `${snapshot.players.length} players ready`;
@@ -292,6 +528,15 @@ $("start-game-btn").addEventListener("click", () => {
 
 function switchToGameView(snapshot) {
   $("game-room-code").textContent = snapshot.code;
+  // Set mode badge
+  const badge = $("game-mode-badge");
+  if (snapshot.game?.type === "wordspy") {
+    badge.textContent = "🕵️ Word Spy";
+  } else if (snapshot.game?.type === "chain") {
+    badge.textContent = "⛓️ Chain";
+  } else {
+    badge.textContent = "🎵 Frequency";
+  }
   updateGameRoundBadge(snapshot.game);
   syncGameChat();
   renderGamePhase(snapshot);
@@ -307,56 +552,57 @@ function renderGamePhase(snapshot) {
   const game = snapshot.game;
   if (!game) return;
 
-  // Hide all phases
+  // Hide all phases (both Frequency and Word Spy)
   ["phase-prompting", "phase-voting", "phase-results", "phase-gameover",
    "phase-discuss", "phase-intermission",
-   "phase-wordspy-clues", "phase-wordspy-guess",
-   "phase-echo-answering", "phase-echo-discuss",
-   "phase-chain"].forEach(id => {
+   "phase-ws-clues", "phase-ws-discuss", "phase-ws-voting",
+   "phase-ws-spyguess", "phase-ws-results",
+   "phase-chain-building", "phase-chain-results"].forEach(id => {
     const el = $(id);
     if (el) el.hidden = true;
   });
-
-  // Update mode badge
-  const modeBadge = $("game-mode-badge");
-  if (modeBadge) {
-    const badges = { frequency: "🎵 Frequency", wordspy: "🕵️ Word Spy", echo: "🔊 Echo", chain: "🔗 Chain" };
-    modeBadge.textContent = badges[game.mode] || game.mode;
-  }
 
   updateGameRoundBadge(game);
   startTimerDisplay(game.timerEnd, game.phase);
 
   switch (game.phase) {
-    // ── Frequency phases ──
+    // Frequency phases
     case "prompting":
       renderPromptingPhase(snapshot);
       break;
     case "discuss":
       renderDiscussPhase(snapshot);
       break;
-    // ── Word Spy phases ──
-    case "clues":
-      renderWordSpyCluesPhase(snapshot);
-      break;
-    case "spy-guess":
-      renderWordSpyGuessPhase(snapshot);
-      break;
-    // ── Echo phases ──
-    case "answering":
-      renderEchoAnsweringPhase(snapshot);
-      break;
-    // ── Chain phases ──
-    case "chain":
-      renderChainPhase(snapshot);
-      break;
-    // ── Shared phases ──
     case "voting":
       renderVotingPhase(snapshot);
       break;
     case "results":
       renderResultsPhase(snapshot);
       break;
+    // Word Spy phases
+    case "ws-clues":
+      renderWSCluesPhase(snapshot);
+      break;
+    case "ws-discuss":
+      renderWSDiscussPhase(snapshot);
+      break;
+    case "ws-voting":
+      renderWSVotingPhase(snapshot);
+      break;
+    case "ws-spyguess":
+      renderWSSpyGuessPhase(snapshot);
+      break;
+    case "ws-results":
+      renderWSResultsPhase(snapshot);
+      break;
+    // Chain phases
+    case "chain-building":
+      renderChainBuildingPhase(snapshot);
+      break;
+    case "chain-results":
+      renderChainResultsPhase(snapshot);
+      break;
+    // Shared phases
     case "intermission":
       renderIntermissionPhase(snapshot);
       break;
@@ -379,7 +625,7 @@ function startTimerDisplay(timerEnd, phase) {
   const timerEl = $("game-timer");
   const timerWrapper = document.querySelector(".game-timer-wrapper");
   
-  if (!timerEnd || !timerEl || phase === "results" || phase === "gameover") {
+  if (!timerEnd || !timerEl || phase === "results" || phase === "gameover" || phase === "ws-results" || phase === "chain-results") {
     if (timerWrapper) timerWrapper.style.display = "none";
     return;
   }
@@ -460,231 +706,15 @@ function renderDiscussPhase(snapshot) {
   }
 }
 
-// --- Word Spy: Clues phase ---
-function renderWordSpyCluesPhase(snapshot) {
-  $("phase-wordspy-clues").hidden = false;
-  const game = snapshot.game;
-
-  if (myWordSpyInfo) {
-    const isSpy = myWordSpyInfo.isSpy;
-    $("wordspy-word").textContent = isSpy ? "🕵️ YOU ARE THE SPY" : myWordSpyInfo.word;
-    $("wordspy-word").style.color = isSpy ? "#ef4444" : "";
-    $("wordspy-category").textContent = `Category: ${myWordSpyInfo.category}`;
-  }
-
-  // Render clues so far
-  const cluesList = $("wordspy-clues-list");
-  cluesList.innerHTML = "";
-  (game.clues || []).forEach(c => {
-    const isMe = me && c.playerId === me.id;
-    const div = document.createElement("div");
-    div.className = `rating-card ${isMe ? "rating-card-me" : ""}`;
-    div.innerHTML = `<span class="rating-card-name">${escapeHtml(c.name)}</span><span class="rating-card-value" style="font-size:14px;">${escapeHtml(c.text)}</span>`;
-    cluesList.appendChild(div);
-  });
-
-  // Turn indicator
-  const currentTurnId = (game.turnOrder || [])[game.turnIndex];
-  const isMyTurn = me && currentTurnId === me.id;
-  const turnPlayer = snapshot.players.find(p => p.id === currentTurnId);
-  const turnName = turnPlayer ? turnPlayer.name : "?";
-
-  const indicator = $("wordspy-turn-indicator");
-  if (currentTurnId) {
-    indicator.textContent = isMyTurn ? "✏️ Your turn — give a clue!" : `⏳ ${escapeHtml(turnName)}'s turn...`;
-  } else {
-    indicator.textContent = "All clues in!";
-  }
-
-  const submitArea = $("wordspy-clue-submit-area");
-  if (isMyTurn && !hasSubmittedClue && !isSpectator) {
-    submitArea.hidden = false;
-    $("submit-clue-btn").disabled = $("wordspy-clue-input").value.trim() === "";
-  } else {
-    submitArea.hidden = true;
-  }
-}
-
-// --- Word Spy: Spy Guess phase ---
-function renderWordSpyGuessPhase(snapshot) {
-  $("phase-wordspy-guess").hidden = false;
-  const game = snapshot.game;
-  const isSpy = myWordSpyInfo?.isSpy || (me && game.spyId === me.id);
-
-  if (isSpy && !hasSubmittedSpyGuess && !isSpectator) {
-    $("wordspy-guess-area").hidden = false;
-    $("wordspy-guess-waiting").hidden = true;
-    $("submit-spy-guess-btn").disabled = $("wordspy-guess-input").value.trim() === "";
-  } else {
-    $("wordspy-guess-area").hidden = true;
-    $("wordspy-guess-waiting").hidden = false;
-  }
-}
-
-// --- Echo: Answering phase ---
-function renderEchoAnsweringPhase(snapshot) {
-  $("phase-echo-answering").hidden = false;
-  const game = snapshot.game;
-
-  if (myEchoInfo) {
-    $("echo-prompt-text").textContent = myEchoInfo.prompt;
-  }
-
-  if (hasSubmittedAnswer || isSpectator) {
-    $("echo-answer-submit-area").hidden = true;
-    $("echo-answer-waiting").hidden = false;
-    $("echo-answers-progress").textContent = `${game.answersSubmitted.length}/${game.playerCount}`;
-  } else {
-    $("echo-answer-submit-area").hidden = false;
-    $("echo-answer-waiting").hidden = true;
-    $("submit-echo-answer-btn").disabled = $("echo-answer-input").value.trim() === "";
-  }
-}
-
-// --- Chain: Chain phase ---
-function renderChainPhase(snapshot) {
-  $("phase-chain").hidden = false;
-  const game = snapshot.game;
-
-  // Render sentence
-  const sentence = (game.startingPhrase || "") + " " + (game.words || []).map(w => w.word).join(" ");
-  $("chain-sentence").textContent = sentence;
-
-  // Saboteur hint
-  const hintArea = $("chain-saboteur-hint");
-  if (myChainInfo && myChainInfo.isSaboteur) {
-    hintArea.hidden = false;
-    $("chain-target-word").textContent = myChainInfo.targetWord;
-  } else {
-    hintArea.hidden = true;
-  }
-
-  // Turn indicator
-  const currentTurnId = (game.turnOrder || [])[game.turnIndex];
-  const isMyTurn = me && currentTurnId === me.id;
-  const turnPlayer = snapshot.players.find(p => p.id === currentTurnId);
-  const turnName = turnPlayer ? turnPlayer.name : "?";
-
-  const indicator = $("chain-turn-indicator");
-  indicator.textContent = isMyTurn ? "✏️ Your turn — add a word!" : `⏳ ${escapeHtml(turnName)}'s turn...`;
-
-  const submitArea = $("chain-word-submit-area");
-  if (isMyTurn && !isSpectator) {
-    submitArea.hidden = false;
-    $("submit-chain-word-btn").disabled = $("chain-word-input").value.trim() === "";
-    // Don't focus if we already have focus to avoid stealing from chat
-    if (document.activeElement !== $("chain-word-input") && document.activeElement !== $("chat-input")) {
-       // optional focus
-    }
-  } else {
-    submitArea.hidden = true;
-  }
-
-  // Accuse buttons
-  const accuseArea = $("chain-accuse-area");
-  accuseArea.innerHTML = "";
-  if (!isSpectator && !isMyTurn) {
-    const title = document.createElement("p");
-    title.className = "phase-instruction";
-    title.textContent = "Think someone's the Saboteur?";
-    accuseArea.appendChild(title);
-
-    const btnGrid = document.createElement("div");
-    btnGrid.style.display = "flex";
-    btnGrid.style.flexWrap = "wrap";
-    btnGrid.style.gap = "8px";
-    btnGrid.style.justifyContent = "center";
-
-    snapshot.players.forEach(p => {
-      if (me && p.id === me.id) return;
-      const btn = document.createElement("button");
-      btn.className = "neo-btn neo-btn-sm neo-btn-danger";
-      btn.textContent = `Accuse ${p.name}`;
-      btn.addEventListener("click", () => {
-        if (!confirm(`Are you sure ${p.name} is the Saboteur? Penalty if wrong!`)) return;
-        socket.emit("game:callSaboteur", { accusedId: p.id });
-      });
-      btnGrid.appendChild(btn);
-    });
-    accuseArea.appendChild(btnGrid);
-  }
-}
-
-// --- Voting phase (shared: Frequency + Word Spy + Echo) ---
+// --- Voting phase ---
 function renderVotingPhase(snapshot) {
   $("phase-voting").hidden = false;
   const game = snapshot.game;
   const container = $("ratings-reveal");
   container.innerHTML = "";
 
-  const isWordSpy = game.mode === "wordspy";
-  const isEcho = game.mode === "echo";
-
-  if ($("voting-title")) {
-    if (isWordSpy) $("voting-title").textContent = "Who is the Spy? 🕵️";
-    else if (isEcho) $("voting-title").textContent = "Which Answer is the Echo's? 🔊";
-    else $("voting-title").textContent = "Who's the Off-Key? 🔍";
-  }
-  if ($("voting-desc")) {
-    if (isWordSpy) $("voting-desc").textContent = "Everyone gave a clue — but one player is the Spy. Vote for who you think it is!";
-    else if (isEcho) $("voting-desc").textContent = "One of these answers came from a slightly different prompt. Find it!";
-    else $("voting-desc").textContent = "Everyone rated the prompt — but someone had a different prompt. Vote for who you think it was!";
-  }
-
-  const canVote = !isSpectator && !hasSubmittedVote;
-
-  if (isWordSpy) {
-    // ... (rest of Word Spy voting logic)
-    (game.clues || []).forEach(c => {
-      const card = document.createElement("div");
-      const isMe = me && c.playerId === me.id;
-      card.className = `rating-card ${isMe ? "rating-card-me" : ""}`;
-      card.innerHTML = `
-        <div class="rating-card-info">
-          <span class="rating-card-name">${escapeHtml(c.name)}${isMe ? " (you)" : ""}</span>
-        </div>
-        <div class="rating-card-value" style="font-size:13px;">${escapeHtml(c.text)}</div>
-        ${canVote && !isMe ? `<button class="neo-btn neo-btn-vote" data-vote-id="${c.playerId}">Vote</button>` : ""}
-      `;
-      const voteBtn = card.querySelector(".neo-btn-vote");
-      if (voteBtn) {
-        voteBtn.addEventListener("click", () => {
-          if (hasSubmittedVote) return;
-          hasSubmittedVote = true;
-          socket.emit("game:submitVote", { targetId: c.playerId }, () => {});
-          container.querySelectorAll(".neo-btn-vote").forEach(b => { b.disabled = true; });
-          voteBtn.textContent = "Voted!";
-          $("vote-waiting").hidden = false;
-        });
-      }
-      container.appendChild(card);
-    });
-  } else if (isEcho) {
-    // Render anonymous answers for Echo voting
-    (game.anonymousAnswers || []).forEach(ans => {
-      const card = document.createElement("div");
-      card.className = "rating-card anonymous-card";
-      card.innerHTML = `
-        <div class="rating-card-value" style="font-size:16px; margin: 10px 0;">${escapeHtml(ans.text)}</div>
-        ${canVote ? `<button class="neo-btn neo-btn-vote" data-answer-slot="${ans.slot}">This is the Echo</button>` : ""}
-      `;
-      const voteBtn = card.querySelector(".neo-btn-vote");
-      if (voteBtn) {
-        voteBtn.addEventListener("click", () => {
-          if (hasSubmittedVote) return;
-          hasSubmittedVote = true;
-          // For Echo, we vote for the slot/playerId associated with that answer
-          const targetId = game.turnOrder[ans.slot];
-          socket.emit("game:submitVote", { targetId }, () => {});
-          container.querySelectorAll(".neo-btn-vote").forEach(b => { b.disabled = true; });
-          voteBtn.textContent = "Voted!";
-          $("vote-waiting").hidden = false;
-        });
-      }
-      container.appendChild(card);
-    });
-  } else if (game.revealedRatings) {
-    renderRatingsCards(container, snapshot, game.revealedRatings, canVote);
+  if (game.revealedRatings) {
+    renderRatingsCards(container, snapshot, game.revealedRatings, !isSpectator && !hasSubmittedVote);
   }
 
   if (hasSubmittedVote || isSpectator) {
@@ -744,21 +774,9 @@ function renderResultsPhase(snapshot) {
   const game = snapshot.game;
   const amHost = me && snapshot.hostId === me.id;
 
-  if (game.mode === "wordspy") {
-    renderWordSpyResults(snapshot);
-    return;
-  }
-  if (game.mode === "echo") {
-    renderEchoResults(snapshot);
-    return;
-  }
-  if (game.mode === "chain") {
-    renderChainResults(snapshot);
-    return;
-  }
-
   // Off-Key reveal
-  const offKeyName = game.offKeyName || "???";
+  const offKeyPlayer = snapshot.players.find(p => p.id === game.offKeyId);
+  const offKeyName = offKeyPlayer ? offKeyPlayer.name : "???";
   const isOffKeyMe = me && game.offKeyId === me.id;
 
   $("offkey-reveal").innerHTML = `
@@ -829,158 +847,6 @@ $("next-round-btn").addEventListener("click", () => {
   socket.emit("game:nextRound");
 });
 
-// --- Word Spy results ---
-function renderWordSpyResults(snapshot) {
-  const game = snapshot.game;
-  const amHost = me && snapshot.hostId === me.id;
-
-  const spyName = game.spyName || "???";
-  const isSpyMe = me && game.spyId === me.id;
-  const word = game.secretWord || "?";
-  const category = game.secretCategory || "?";
-  const guessCorrect = game.spyGuess && game.spyGuess.toLowerCase() === word.toLowerCase();
-
-  let headline, sub;
-  if (!game.spyCaught) {
-    headline = `🕵️ ${escapeHtml(spyName)} was the Spy and blended in!`;
-    sub = `The word was <strong>${escapeHtml(word)}</strong> (${escapeHtml(category)})`;
-  } else if (guessCorrect) {
-    headline = `🤯 ${escapeHtml(spyName)} was caught but guessed the word!`;
-    sub = `The word was <strong>${escapeHtml(word)}</strong> — and they knew it!`;
-  } else {
-    headline = `🎉 The Spy (${escapeHtml(spyName)}) was caught!`;
-    sub = `The word was <strong>${escapeHtml(word)}</strong>` +
-      (game.spyGuess ? ` — they guessed "${escapeHtml(game.spyGuess)}".` : ` — they ran out of time.`);
-  }
-
-  $("offkey-reveal").innerHTML = `
-    <div class="offkey-reveal-card ${isSpyMe ? "offkey-reveal-me" : ""}">
-      <span class="offkey-label">${headline}</span>
-    </div>
-  `;
-  $("prompts-comparison").innerHTML = `
-    <div class="prompt-compare-grid">
-      <div class="prompt-compare-card">
-        <span class="prompt-compare-label">The secret word</span>
-        <p class="prompt-compare-text">${escapeHtml(word)}</p>
-      </div>
-      <div class="prompt-compare-card offkey-prompt">
-        <span class="prompt-compare-label">Category</span>
-        <p class="prompt-compare-text">${escapeHtml(category)}</p>
-      </div>
-    </div>
-    <p style="text-align:center;margin-top:10px;">${sub}</p>
-  `;
-
-  // Score deltas
-  const deltasEl = $("round-score-deltas");
-  deltasEl.innerHTML = "";
-  if (game.roundScoreDeltas) {
-    for (const p of snapshot.players) {
-      const delta = game.roundScoreDeltas[p.id];
-      if (delta === undefined) continue;
-      const isMe = me && p.id === me.id;
-      const div = document.createElement("div");
-      div.className = `score-delta-item ${isMe ? "score-delta-me" : ""}`;
-      div.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="score-delta-value ${delta > 0 ? "delta-positive" : ""}">+${delta}</span>`;
-      deltasEl.appendChild(div);
-    }
-  }
-
-  if (amHost) {
-    $("results-host-area").hidden = false;
-  } else {
-    $("results-host-area").hidden = true;
-  }
-}
-
-// --- Echo results ---
-function renderEchoResults(snapshot) {
-  const game = snapshot.game;
-  const amHost = me && snapshot.hostId === me.id;
-
-  const echoName = game.echoName || "???";
-  const isEchoMe = me && game.echoId === me.id;
-
-  $("offkey-reveal").innerHTML = `
-    <div class="offkey-reveal-card ${isEchoMe ? "offkey-reveal-me" : ""}">
-      <span class="offkey-label">The Echo was</span>
-      <span class="offkey-name">${escapeHtml(echoName)}${isEchoMe ? " (you!)" : ""}</span>
-    </div>
-  `;
-
-  $("prompts-comparison").innerHTML = `
-    <div class="prompt-compare-grid">
-      <div class="prompt-compare-card">
-        <span class="prompt-compare-label">Group prompt</span>
-        <p class="prompt-compare-text">${escapeHtml(game.normalPrompt)}</p>
-      </div>
-      <div class="prompt-compare-card offkey-prompt">
-        <span class="prompt-compare-label">Echo prompt</span>
-        <p class="prompt-compare-text">${escapeHtml(game.echoPrompt)}</p>
-      </div>
-    </div>
-  `;
-
-  const deltasEl = $("round-score-deltas");
-  deltasEl.innerHTML = "";
-  if (game.roundScoreDeltas) {
-    snapshot.players.forEach(p => {
-      const delta = game.roundScoreDeltas[p.id];
-      if (delta === undefined) return;
-      const isMe = me && p.id === me.id;
-      const div = document.createElement("div");
-      div.className = `score-delta-item ${isMe ? "score-delta-me" : ""}`;
-      div.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="score-delta-value ${delta > 0 ? "delta-positive" : ""}">+${delta}</span>`;
-      deltasEl.appendChild(div);
-    });
-  }
-
-  $("results-host-area").hidden = !amHost;
-}
-
-// --- Chain results ---
-function renderChainResults(snapshot) {
-  const game = snapshot.game;
-  const amHost = me && snapshot.hostId === me.id;
-
-  const saboteurName = game.saboteurName || "???";
-  const isSaboteurMe = me && game.saboteurId === me.id;
-
-  $("offkey-reveal").innerHTML = `
-    <div class="offkey-reveal-card ${isSaboteurMe ? "offkey-reveal-me" : ""}">
-      <span class="offkey-label">The Saboteur was</span>
-      <span class="offkey-name">${escapeHtml(saboteurName)}${isSaboteurMe ? " (you!)" : ""}</span>
-    </div>
-  `;
-
-  $("prompts-comparison").innerHTML = `
-    <div class="glass-panel" style="padding:15px; margin-top:10px; border:1px solid var(--deep-blue); text-align:center;">
-       <span style="font-size:0.8em; text-transform:uppercase; color:var(--deep-blue); font-weight:bold;">The Final Sentence</span>
-       <p style="font-size:1.2em; font-weight:bold; margin-top:8px;">"${escapeHtml(game.finalSentence)}"</p>
-       <div style="margin-top:10px; font-size:0.9em;">
-         Target word was: <span style="color:#ef4444; font-weight:bold;">${escapeHtml(game.targetWord)}</span>
-       </div>
-    </div>
-  `;
-
-  const deltasEl = $("round-score-deltas");
-  deltasEl.innerHTML = "";
-  if (game.roundScoreDeltas) {
-    snapshot.players.forEach(p => {
-      const delta = game.roundScoreDeltas[p.id];
-      if (delta === undefined) return;
-      const isMe = me && p.id === me.id;
-      const div = document.createElement("div");
-      div.className = `score-delta-item ${isMe ? "score-delta-me" : ""}`;
-      div.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="score-delta-value ${delta > 0 ? "delta-positive" : (delta < 0 ? "delta-negative" : "")}">${delta > 0 ? '+' : ''}${delta}</span>`;
-      deltasEl.appendChild(div);
-    });
-  }
-
-  $("results-host-area").hidden = !amHost;
-}
-
 // --- Intermission phase ---
 function renderIntermissionPhase(snapshot) {
   let el = $("phase-intermission");
@@ -1001,10 +867,25 @@ function renderIntermissionPhase(snapshot) {
 }
 
 // --- Game over phase ---
+// Track if we already awarded coins this game (to avoid double-awarding on re-renders)
+let coinsAwardedThisGame = false;
+
 function renderGameOverPhase(snapshot) {
   $("phase-gameover").hidden = false;
   const game = snapshot.game;
   const amHost = me && snapshot.hostId === me.id;
+
+  // Award coins once per game
+  if (!coinsAwardedThisGame && me && game.scores[me.id] !== undefined) {
+    coinsAwardedThisGame = true;
+    const myScore = game.scores[me.id] || 0;
+    awardCoins(myScore);
+
+    // Check if I won (top score)
+    const allScores = Object.values(game.scores);
+    const maxScore = Math.max(...allScores);
+    recordGameEnd(myScore === maxScore && myScore > 0);
+  }
 
   // Build sorted scoreboard
   const scoreboard = snapshot.players
@@ -1042,6 +923,506 @@ $("back-lobby-btn").addEventListener("click", () => {
 });
 
 // ============================================================
+//   WORD SPY PHASES
+// ============================================================
+
+function renderWSClueList(containerId, clues, players, currentTurnId) {
+  const list = $(containerId);
+  if (!list) return;
+  list.innerHTML = "";
+  for (const c of clues) {
+    const p = players.find(x => x.id === c.id);
+    const li = document.createElement("li");
+    const isNoClue = c.clue === "(no clue)";
+    const isCurrent = c.id === currentTurnId;
+    li.className = `ws-clue-item ${isNoClue ? "no-clue" : ""} ${isCurrent ? "current-turn" : ""}`;
+    li.innerHTML = `
+      <span class="ws-clue-author">${escapeHtml(p?.name || "???")}</span>
+      <span class="ws-clue-text">${escapeHtml(c.clue)}</span>
+    `;
+    list.appendChild(li);
+  }
+}
+
+function renderWSCluesPhase(snapshot) {
+  $("phase-ws-clues").hidden = false;
+  const game = snapshot.game;
+
+  // Word display
+  if (isSpectator) {
+    $("ws-word-label").textContent = "You're spectating 👻";
+    $("ws-word-text").textContent = "???";
+    $("ws-word-text").classList.remove("spy-word");
+    $("ws-category-text").textContent = `Category: ${game.category}`;
+    $("ws-clue-input-area").hidden = true;
+  } else if (myWord) {
+    if (myWord.isSpy) {
+      $("ws-word-label").textContent = "You are the SPY!";
+      $("ws-word-text").textContent = "???";
+      $("ws-word-text").classList.add("spy-word");
+    } else {
+      $("ws-word-label").textContent = "Your word";
+      $("ws-word-text").textContent = myWord.word;
+      $("ws-word-text").classList.remove("spy-word");
+    }
+    $("ws-category-text").textContent = `Category: ${myWord.category}`;
+  }
+
+  // Turn indicator
+  const currentPid = game.turnOrder?.[game.currentTurn];
+  const currentPlayer = snapshot.players.find(p => p.id === currentPid);
+  const isMyTurn = me && currentPid === me.id && !isSpectator;
+
+  if (game.currentTurn >= game.turnOrder.length) {
+    $("ws-turn-indicator").textContent = "All clues given!";
+    $("ws-turn-indicator").classList.remove("your-turn");
+    $("ws-clue-input-area").hidden = true;
+  } else if (isMyTurn && !hasSubmittedClue) {
+    $("ws-turn-indicator").textContent = "YOUR TURN — give a clue!";
+    $("ws-turn-indicator").classList.add("your-turn");
+    $("ws-clue-input-area").hidden = false;
+    $("ws-clue-input").focus();
+  } else {
+    $("ws-turn-indicator").textContent = `${currentPlayer?.name || "???"}'s turn...`;
+    $("ws-turn-indicator").classList.remove("your-turn");
+    $("ws-clue-input-area").hidden = true;
+  }
+
+  // Clue list
+  renderWSClueList("ws-clue-list", game.clues, snapshot.players, currentPid);
+}
+
+function renderWSDiscussPhase(snapshot) {
+  $("phase-ws-discuss").hidden = false;
+  const game = snapshot.game;
+
+  // Show word/spy status again for reference
+  if (isSpectator) {
+    $("ws-discuss-word-label").textContent = "You're spectating 👻";
+    $("ws-discuss-word-text").textContent = "???";
+  } else if (myWord) {
+    if (myWord.isSpy) {
+      $("ws-discuss-word-label").textContent = "You are the SPY!";
+      $("ws-discuss-word-text").textContent = "???";
+    } else {
+      $("ws-discuss-word-label").textContent = "Your word";
+      $("ws-discuss-word-text").textContent = myWord.word;
+    }
+    $("ws-discuss-category-text").textContent = `Category: ${myWord.category}`;
+  }
+
+  renderWSClueList("ws-discuss-clue-list", game.clues, snapshot.players, null);
+}
+
+function renderWSVotingPhase(snapshot) {
+  $("phase-ws-voting").hidden = false;
+  const game = snapshot.game;
+
+  // Show clues for reference
+  renderWSClueList("ws-voting-clue-list", game.clues, snapshot.players, null);
+
+  // Vote grid
+  const grid = $("ws-vote-grid");
+  grid.innerHTML = "";
+
+  if (isSpectator || hasSubmittedVote) {
+    // Show waiting state
+    for (const p of snapshot.players) {
+      if (!game.clues.find(c => c.id === p.id)) continue;
+      const card = document.createElement("div");
+      const isMe = me && p.id === me.id;
+      card.className = `ws-vote-card disabled`;
+      const clue = game.clues.find(c => c.id === p.id)?.clue || "—";
+      card.innerHTML = `
+        <span class="ws-vote-card-name">${escapeHtml(p.name)}</span>
+        <span class="ws-vote-card-clue">"${escapeHtml(clue)}"</span>
+      `;
+      grid.appendChild(card);
+    }
+    $("ws-vote-waiting").hidden = false;
+    $("ws-votes-progress").textContent = `${game.votesSubmitted.length}/${game.playerCount}`;
+  } else {
+    $("ws-vote-waiting").hidden = true;
+    for (const p of snapshot.players) {
+      const isMe = me && p.id === me.id;
+      const card = document.createElement("div");
+      card.className = `ws-vote-card ${isMe ? "is-me" : ""}`;
+      const clue = game.clues.find(c => c.id === p.id)?.clue || "—";
+      card.innerHTML = `
+        <span class="ws-vote-card-name">${escapeHtml(p.name)}${isMe ? " (you)" : ""}</span>
+        <span class="ws-vote-card-clue">"${escapeHtml(clue)}"</span>
+        ${!isMe ? '<span class="ws-vote-card-label">Vote</span>' : '<span class="ws-vote-card-label" style="opacity:0.3">can\'t vote self</span>'}
+      `;
+      if (!isMe) {
+        card.addEventListener("click", () => {
+          if (hasSubmittedVote) return;
+          hasSubmittedVote = true;
+          socket.emit("game:submitVote", { targetId: p.id });
+          // Mark voted
+          grid.querySelectorAll(".ws-vote-card").forEach(c => {
+            c.classList.add("disabled");
+            c.querySelector(".ws-vote-card-label").textContent = "";
+          });
+          card.classList.remove("disabled");
+          card.classList.add("voted");
+          card.querySelector(".ws-vote-card-label").textContent = "Voted!";
+          $("ws-vote-waiting").hidden = false;
+        });
+      }
+      grid.appendChild(card);
+    }
+  }
+}
+
+function renderWSSpyGuessPhase(snapshot) {
+  $("phase-ws-spyguess").hidden = false;
+  const game = snapshot.game;
+
+  $("ws-spyguess-category").textContent = `Category: ${game.category}`;
+
+  const amSpy = me && game.spyId === me.id;
+
+  if (amSpy && !hasSubmittedSpyGuess && !isSpectator) {
+    $("ws-spyguess-instruction").textContent = "The group caught you! Guess the word to still win!";
+    $("ws-guess-input-area").hidden = false;
+    $("ws-guess-waiting").hidden = true;
+    $("ws-guess-input").focus();
+  } else {
+    if (amSpy) {
+      $("ws-spyguess-instruction").textContent = "Your guess has been submitted...";
+    } else {
+      $("ws-spyguess-instruction").textContent = `The Spy was caught! Waiting for their guess...`;
+    }
+    $("ws-guess-input-area").hidden = true;
+    $("ws-guess-waiting").hidden = false;
+    $("ws-guess-waiting-text").textContent = amSpy ? "Waiting for result..." : "Waiting for the Spy's guess...";
+  }
+}
+
+function renderWSResultsPhase(snapshot) {
+  $("phase-ws-results").hidden = false;
+  const game = snapshot.game;
+  const amHost = me && snapshot.hostId === me.id;
+
+  // Result reveal
+  const reveal = $("ws-result-reveal");
+  let cardClass, labelText, detailText;
+
+  if (game.spyCaught && !game.spyGuessedCorrectly) {
+    cardClass = "spy-caught";
+    labelText = "The Spy was";
+    detailText = "Caught and couldn't guess the word!";
+  } else if (game.spyCaught && game.spyGuessedCorrectly) {
+    cardClass = "spy-guessed";
+    labelText = "The Spy was";
+    detailText = `Caught — but correctly guessed "${escapeHtml(game.word)}"! Spy wins!`;
+  } else {
+    cardClass = "spy-escaped";
+    labelText = "The Spy was";
+    detailText = "Blended in perfectly!";
+  }
+
+  reveal.innerHTML = `
+    <div class="ws-result-card ${cardClass}">
+      <div class="ws-result-label">${labelText}</div>
+      <div class="ws-result-name">${escapeHtml(game.spyName || "???")}</div>
+      <div class="ws-result-detail">${detailText}</div>
+    </div>
+  `;
+
+  // Word reveal
+  $("ws-word-reveal").innerHTML = `
+    <div class="ws-word-reveal-label">The word was</div>
+    <div class="ws-word-reveal-word">${escapeHtml(game.word)}</div>
+    <div class="ws-word-reveal-cat">Category: ${escapeHtml(game.category)}</div>
+  `;
+
+  // Score table
+  const scoresEl = $("ws-round-scores");
+  scoresEl.innerHTML = "<h4 class='scores-subtitle'>This round</h4>";
+  const table = document.createElement("div");
+  table.className = "scores-table";
+
+  for (const p of snapshot.players) {
+    const votedFor = game.revealedVotes?.[p.id];
+    const votedForName = snapshot.players.find(x => x.id === votedFor)?.name || "—";
+    const delta = game.roundScoreDeltas?.[p.id] || 0;
+    const total = game.scores?.[p.id] || 0;
+    const isSpy = p.id === game.spyId;
+    const votedCorrectly = votedFor === game.spyId;
+
+    const row = document.createElement("div");
+    row.className = `score-row ${isSpy ? "score-row-offkey" : ""} ${me && p.id === me.id ? "score-row-me" : ""}`;
+    row.innerHTML = `
+      <span class="score-name">${escapeHtml(p.name)}${isSpy ? " 🕵️" : ""}</span>
+      <span class="score-vote ${votedCorrectly ? "vote-correct" : "vote-wrong"}">voted ${escapeHtml(votedForName)}</span>
+      <span class="score-delta ${delta > 0 ? "delta-pos" : ""}">${delta > 0 ? "+" + delta : delta === 0 ? "—" : delta}</span>
+      <span class="score-total">${total} pts</span>
+    `;
+    table.appendChild(row);
+  }
+  scoresEl.appendChild(table);
+
+  // Next round button (host only)
+  const nextArea = $("ws-next-round-area");
+  if (amHost) {
+    nextArea.hidden = false;
+    if (game.round >= game.totalRounds) {
+      $("ws-next-round-btn").textContent = "🏆 See Final Scores";
+    } else {
+      $("ws-next-round-btn").textContent = "Next Round →";
+    }
+  } else {
+    nextArea.hidden = true;
+  }
+}
+
+// WS event handlers
+$("ws-clue-submit").addEventListener("click", () => {
+  const input = $("ws-clue-input");
+  const clue = input.value.trim();
+  if (!clue || hasSubmittedClue) return;
+  hasSubmittedClue = true;
+  socket.emit("game:submitClue", { clue });
+  input.value = "";
+  $("ws-clue-input-area").hidden = true;
+});
+
+// Allow Enter key to submit clue
+$("ws-clue-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("ws-clue-submit").click();
+  }
+});
+
+$("ws-guess-submit").addEventListener("click", () => {
+  const input = $("ws-guess-input");
+  const guess = input.value.trim();
+  if (!guess || hasSubmittedSpyGuess) return;
+  hasSubmittedSpyGuess = true;
+  socket.emit("game:spyGuess", { guess });
+  input.value = "";
+  $("ws-guess-input-area").hidden = true;
+  $("ws-guess-waiting").hidden = false;
+  $("ws-guess-waiting-text").textContent = "Guess submitted!";
+});
+
+$("ws-guess-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("ws-guess-submit").click();
+  }
+});
+
+$("ws-next-round-btn").addEventListener("click", () => {
+  socket.emit("game:nextRound");
+});
+
+// ============================================================
+//   CHAIN PHASES
+// ============================================================
+
+function renderChainBuildingPhase(snapshot) {
+  $("phase-chain-building").hidden = false;
+  const game = snapshot.game;
+
+  // Role card
+  if (isSpectator) {
+    $("chain-role-label").textContent = "You're spectating 👻";
+    $("chain-role-text").textContent = "";
+    $("chain-role-text").classList.remove("saboteur");
+    $("chain-word-input-area").hidden = true;
+    $("chain-accuse-area").hidden = true;
+  } else if (myChainRole) {
+    if (myChainRole.isSaboteur) {
+      $("chain-role-label").textContent = "You are the SABOTEUR!";
+      $("chain-role-text").innerHTML = `Sneak this word in: <span class="chain-target-word">${escapeHtml(myChainRole.targetWord)}</span>`;
+      $("chain-role-text").classList.add("saboteur");
+    } else {
+      $("chain-role-label").textContent = "You're a builder";
+      $("chain-role-text").textContent = "Add words to the sentence. Watch for the Saboteur!";
+      $("chain-role-text").classList.remove("saboteur");
+    }
+  }
+
+  // Sentence display
+  const sentenceEl = $("chain-sentence-display");
+  sentenceEl.innerHTML = `<span class="chain-starter">${escapeHtml(game.starter)}</span> `;
+  for (let i = 0; i < game.sentence.length; i++) {
+    const entry = game.sentence[i];
+    const isSkipped = entry.word === "...";
+    const isNew = i === game.sentence.length - 1;
+    const span = document.createElement("span");
+    span.className = `chain-word ${isNew ? "new-word" : ""} ${isSkipped ? "skipped" : ""}`;
+    span.textContent = entry.word + " ";
+    sentenceEl.appendChild(span);
+  }
+
+  // Turn indicator
+  const activeTurnOrder = game.turnOrder.filter(id =>
+    snapshot.players.some(p => p.id === id)
+  );
+  const currentPid = activeTurnOrder.length > 0
+    ? activeTurnOrder[game.currentTurn % activeTurnOrder.length]
+    : null;
+  const currentPlayer = snapshot.players.find(p => p.id === currentPid);
+  const isMyTurn = me && currentPid === me.id && !isSpectator;
+
+  const turnEl = $("chain-turn-indicator");
+  if (isMyTurn) {
+    turnEl.textContent = "YOUR TURN — add a word!";
+    turnEl.classList.add("your-turn");
+    $("chain-word-input-area").hidden = false;
+    $("chain-word-input").focus();
+  } else {
+    turnEl.textContent = `${currentPlayer?.name || "???"}'s turn...`;
+    turnEl.classList.remove("your-turn");
+    $("chain-word-input-area").hidden = true;
+  }
+
+  // Word count
+  $("chain-word-count").textContent = `${game.sentence.length}/20 words`;
+
+  // Accuse area — show for non-spectators, hide if already accused
+  if (!isSpectator && !hasAccused && game.sentence.length >= 2) {
+    $("chain-accuse-area").hidden = false;
+    const grid = $("chain-accuse-grid");
+    grid.innerHTML = "";
+    for (const p of snapshot.players) {
+      if (me && p.id === me.id) continue; // can't accuse yourself
+      const btn = document.createElement("button");
+      btn.className = "chain-accuse-btn";
+      btn.textContent = `Accuse ${p.name}`;
+      btn.addEventListener("click", () => {
+        if (hasAccused) return;
+        if (!confirm(`Accuse ${p.name} of being the Saboteur? This ends the round immediately!`)) return;
+        hasAccused = true;
+        socket.emit("game:chainAccuse", { accusedId: p.id });
+        $("chain-accuse-area").hidden = true;
+      });
+      grid.appendChild(btn);
+    }
+  } else {
+    $("chain-accuse-area").hidden = true;
+  }
+}
+
+function renderChainResultsPhase(snapshot) {
+  $("phase-chain-results").hidden = false;
+  const game = snapshot.game;
+  const amHost = me && snapshot.hostId === me.id;
+
+  // Result reveal
+  const reveal = $("chain-result-reveal");
+  let cardClass, labelText, detailText;
+
+  if (game.accusation && game.accusationCorrect) {
+    cardClass = "spy-caught";
+    const accuserName = snapshot.players.find(p => p.id === game.accusation.accuserId)?.name || "???";
+    labelText = `${accuserName} correctly accused`;
+    detailText = `${game.saboteurName} was the Saboteur!`;
+  } else if (game.accusation && !game.accusationCorrect) {
+    cardClass = "spy-escaped";
+    const accuserName = snapshot.players.find(p => p.id === game.accusation.accuserId)?.name || "???";
+    const wrongName = snapshot.players.find(p => p.id === game.accusation.accusedId)?.name || "???";
+    labelText = `${accuserName} accused ${wrongName}... WRONG!`;
+    detailText = `${game.saboteurName} was the real Saboteur!`;
+  } else if (game.wordSneakedIn) {
+    cardClass = "spy-guessed";
+    labelText = "Word sneaked in!";
+    detailText = `${game.saboteurName} got "${game.targetWord}" into the sentence!`;
+  } else {
+    cardClass = "spy-caught";
+    labelText = "Saboteur failed!";
+    detailText = `${game.saboteurName} couldn't sneak in "${game.targetWord}"`;
+  }
+
+  reveal.innerHTML = `
+    <div class="ws-result-card ${cardClass}">
+      <div class="ws-result-label">${labelText}</div>
+      <div class="ws-result-name">${escapeHtml(detailText)}</div>
+    </div>
+  `;
+
+  // Final sentence with target word highlighted
+  const sentenceEl = $("chain-sentence-final");
+  const targetLower = game.targetWord.toLowerCase();
+  let sentenceHtml = `<span class="chain-starter">${escapeHtml(game.starter)}</span> `;
+  for (const entry of game.sentence) {
+    const isTarget = entry.word.toLowerCase() === targetLower;
+    if (isTarget) {
+      sentenceHtml += `<span class="chain-target-inline">${escapeHtml(entry.word)}</span> `;
+    } else if (entry.word === "...") {
+      sentenceHtml += `<span class="chain-word skipped">...</span> `;
+    } else {
+      sentenceHtml += `${escapeHtml(entry.word)} `;
+    }
+  }
+  sentenceEl.innerHTML = sentenceHtml;
+
+  // Score table
+  const scoresEl = $("chain-round-scores");
+  scoresEl.innerHTML = "<h4 class='scores-subtitle'>This round</h4>";
+  const table = document.createElement("div");
+  table.className = "scores-table";
+
+  for (const p of snapshot.players) {
+    const delta = game.roundScoreDeltas?.[p.id] || 0;
+    const total = game.scores?.[p.id] || 0;
+    const isSab = p.id === game.saboteurId;
+
+    const row = document.createElement("div");
+    row.className = `score-row ${isSab ? "score-row-offkey" : ""} ${me && p.id === me.id ? "score-row-me" : ""}`;
+    row.innerHTML = `
+      <span class="score-name">${escapeHtml(p.name)}${isSab ? " ⛓️" : ""}</span>
+      <span class="score-delta ${delta > 0 ? "delta-pos" : delta < 0 ? "delta-neg" : ""}">${delta > 0 ? "+" + delta : delta === 0 ? "—" : delta}</span>
+      <span class="score-total">${total} pts</span>
+    `;
+    table.appendChild(row);
+  }
+  scoresEl.appendChild(table);
+
+  // Next round button
+  const nextArea = $("chain-next-round-area");
+  if (amHost) {
+    nextArea.hidden = false;
+    const btn = $("chain-next-round-btn");
+    if (game.round >= game.totalRounds) {
+      btn.textContent = "🏆 See Final Scores";
+    } else {
+      btn.textContent = "Next Round →";
+    }
+  } else {
+    nextArea.hidden = true;
+  }
+}
+
+// Chain event handlers
+$("chain-word-submit").addEventListener("click", () => {
+  const input = $("chain-word-input");
+  const word = input.value.trim().split(/\s+/)[0]; // single word only
+  if (!word) return;
+  socket.emit("game:chainWord", { word });
+  input.value = "";
+});
+
+$("chain-word-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("chain-word-submit").click();
+  }
+  // Block spaces — one word only
+  if (e.key === " ") {
+    e.preventDefault();
+  }
+});
+
+$("chain-next-round-btn").addEventListener("click", () => {
+  socket.emit("game:nextRound");
+});
+
+// ============================================================
 //   RATING PICKER
 // ============================================================
 
@@ -1065,82 +1446,6 @@ $("submit-rating-btn").addEventListener("click", () => {
   socket.emit("game:submitRating", { rating: selectedRating }, () => {});
   $("rating-submit-area").hidden = true;
   $("rating-waiting").hidden = false;
-});
-
-// ============================================================
-//   WORD SPY CONTROLS
-// ============================================================
-
-$("wordspy-clue-input").addEventListener("input", () => {
-  $("submit-clue-btn").disabled = $("wordspy-clue-input").value.trim() === "";
-});
-
-$("submit-clue-btn").addEventListener("click", () => {
-  if (hasSubmittedClue) return;
-  const clue = $("wordspy-clue-input").value.trim();
-  if (!clue) return;
-  hasSubmittedClue = true;
-  $("submit-clue-btn").disabled = true;
-  $("submit-clue-btn").textContent = "Sent!";
-  socket.emit("game:submitClue", { clue }, () => {});
-  $("wordspy-clue-submit-area").hidden = true;
-});
-
-$("wordspy-guess-input").addEventListener("input", () => {
-  $("submit-spy-guess-btn").disabled = $("wordspy-guess-input").value.trim() === "";
-});
-
-$("submit-spy-guess-btn").addEventListener("click", () => {
-  if (hasSubmittedSpyGuess) return;
-  const guess = $("wordspy-guess-input").value.trim();
-  if (!guess) return;
-  hasSubmittedSpyGuess = true;
-  $("submit-spy-guess-btn").disabled = true;
-  $("submit-spy-guess-btn").textContent = "Guessed!";
-  socket.emit("game:submitSpyGuess", { guess }, () => {});
-  $("wordspy-guess-area").hidden = true;
-  $("wordspy-guess-waiting").hidden = false;
-});
-
-// ============================================================
-//   ECHO CONTROLS
-// ============================================================
-
-$("echo-answer-input").addEventListener("input", () => {
-  $("submit-echo-answer-btn").disabled = $("echo-answer-input").value.trim() === "";
-});
-
-$("submit-echo-answer-btn").addEventListener("click", () => {
-  if (hasSubmittedAnswer) return;
-  const answer = $("echo-answer-input").value.trim();
-  if (!answer) return;
-  hasSubmittedAnswer = true;
-  $("submit-echo-answer-btn").disabled = true;
-  $("submit-echo-answer-btn").textContent = "Submitted!";
-  socket.emit("game:submitAnswer", { answer }, () => {});
-  $("echo-answer-submit-area").hidden = true;
-  $("echo-answer-waiting").hidden = false;
-});
-
-// ============================================================
-//   CHAIN CONTROLS
-// ============================================================
-
-$("chain-word-input").addEventListener("input", () => {
-  $("submit-chain-word-btn").disabled = $("chain-word-input").value.trim() === "";
-});
-
-$("submit-chain-word-btn").addEventListener("click", () => {
-  const word = $("chain-word-input").value.trim().split(/\s+/)[0];
-  if (!word) return;
-  $("submit-chain-word-btn").disabled = true;
-  socket.emit("game:addWord", { word }, (resp) => {
-    if (resp?.ok) {
-       $("chain-word-input").value = "";
-    } else {
-       $("submit-chain-word-btn").disabled = false;
-    }
-  });
 });
 
 // ============================================================
@@ -1225,7 +1530,7 @@ socket.on("room:update", (snapshot) => {
     const phase = snapshot.game.phase;
     // Switch to game view if a game started
     if (phase !== "gameover" || !wasInGame) {
-      // Reset round state on new round
+      // Frequency: reset round state on new round
       if (phase === "prompting" && (snapshot.game.round !== prevRound || prevPhase !== "prompting")) {
         hasSubmittedRating = false;
         hasSubmittedVote = false;
@@ -1236,15 +1541,26 @@ socket.on("room:update", (snapshot) => {
           b.disabled = false;
         });
       }
-      if (phase === "clues" && (snapshot.game.round !== prevRound || prevPhase !== "clues")) {
+      if (phase === "voting" && prevPhase !== "voting") {
+        hasSubmittedVote = false;
+      }
+
+      // Word Spy: reset round state on new round
+      if (phase === "ws-clues" && (snapshot.game.round !== prevRound || prevPhase !== "ws-clues")) {
         hasSubmittedClue = false;
         hasSubmittedVote = false;
         hasSubmittedSpyGuess = false;
-        $("wordspy-clue-input").value = "";
-        $("wordspy-guess-input").value = "";
       }
-      if (phase === "voting" && prevPhase !== "voting") {
+      if (phase === "ws-voting" && prevPhase !== "ws-voting") {
         hasSubmittedVote = false;
+      }
+      if (phase === "ws-spyguess") {
+        // Don't reset spy guess — it should persist
+      }
+
+      // Chain: reset round state on new round
+      if (phase === "chain-building" && (snapshot.game.round !== prevRound || prevPhase !== "chain-building")) {
+        hasAccused = false;
       }
 
       switchToGameView(snapshot);
@@ -1257,6 +1573,12 @@ socket.on("room:update", (snapshot) => {
     hasSubmittedVote = false;
     selectedRating = null;
     myPrompt = null;
+    myWord = null;
+    hasSubmittedClue = false;
+    hasSubmittedSpyGuess = false;
+    myChainRole = null;
+    hasAccused = false;
+    coinsAwardedThisGame = false;
     clearTimerInterval();
     show("view-room");
   }
@@ -1267,27 +1589,15 @@ socket.on("game:yourPrompt", ({ prompt, round }) => {
   $("prompt-text").textContent = prompt;
 });
 
-socket.on("game:yourWordSpy", ({ word, category, isSpy }) => {
-  myWordSpyInfo = { word, category, isSpy };
+socket.on("game:yourWord", ({ word, category, isSpy, round }) => {
+  myWord = { word, category, isSpy };
   hasSubmittedClue = false;
   hasSubmittedSpyGuess = false;
-  $("wordspy-clue-input").value = "";
-  $("wordspy-guess-input").value = "";
-  $("submit-clue-btn").textContent = "Send";
-  $("submit-spy-guess-btn").textContent = "Guess";
 });
 
-socket.on("game:yourEcho", ({ prompt, isEcho }) => {
-  myEchoInfo = { prompt, isEcho };
-  hasSubmittedAnswer = false;
-  $("echo-answer-input").value = "";
-  $("submit-echo-answer-btn").textContent = "Submit";
-});
-
-socket.on("game:yourChain", ({ isSaboteur, targetWord, startingPhrase }) => {
-  myChainInfo = { isSaboteur, targetWord, startingPhrase };
-  hasSubmittedWord = false;
-  $("chain-word-input").value = "";
+socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter, round }) => {
+  myChainRole = { isSaboteur, targetWord, starter };
+  hasAccused = false;
 });
 
 socket.on("chat:message", (msg) => {
@@ -1327,3 +1637,5 @@ if (codeInput) {
 }
 
 show("view-home");
+prefillName();
+updateCoinsDisplay();
