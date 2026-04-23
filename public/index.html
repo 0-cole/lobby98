@@ -3,357 +3,260 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lobby 98 — party games with friends</title>
+  <title>Lobby 98</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- === Ambient BG layers === -->
-  <div class="sky-bg" aria-hidden="true"></div>
-  <div class="orbs" aria-hidden="true"><span class="orb orb1"></span><span class="orb orb2"></span><span class="orb orb3"></span></div>
-  <div class="bubbles" aria-hidden="true">
+  <div class="sky-bg"></div>
+  <div class="orbs"><span class="orb orb1"></span><span class="orb orb2"></span><span class="orb orb3"></span></div>
+  <div class="bubbles">
     <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
     <span class="bubble b4"></span><span class="bubble b5"></span><span class="bubble b6"></span>
     <span class="bubble b7"></span><span class="bubble b8"></span><span class="bubble b9"></span>
   </div>
-  <div class="bokeh" aria-hidden="true">
-    <span class="bokeh-dot bk1"></span><span class="bokeh-dot bk2"></span>
-    <span class="bokeh-dot bk3"></span><span class="bokeh-dot bk4"></span>
-  </div>
 
-  <!-- === Header === -->
-  <header class="site-header">
-    <div class="brand" id="brand-home">
-      <span class="brand-logo" aria-hidden="true"></span>
-      <h1 class="brand-name">Lobby&nbsp;<span class="brand-98">98</span></h1>
+  <!-- === NAV (hidden when not logged in) === -->
+  <nav class="top-nav" id="top-nav" hidden>
+    <div class="nav-left">
+      <div class="nav-brand">Lobby <span class="b98">98</span></div>
     </div>
-    <div class="header-right" id="header-right">
-      <button class="header-btn coins" id="coins-btn" title="Your coins">0</button>
-      <button class="header-btn" id="profile-btn">Profile</button>
-      <button class="header-btn" id="shop-btn">Shop</button>
+    <div class="nav-links">
+      <button class="nav-link active" data-page="dashboard">Home</button>
+      <button class="nav-link" data-page="play">Play</button>
+      <button class="nav-link" data-page="arcade">Arcade</button>
+      <button class="nav-link" data-page="shop">Shop</button>
+      <button class="nav-link" data-page="settings">Settings</button>
     </div>
-  </header>
+    <div class="nav-right">
+      <span class="nav-coins" id="nav-coins">🪙 0</span>
+      <span class="nav-user" id="nav-user">User</span>
+    </div>
+  </nav>
 
-  <main class="stage">
+  <main class="stage" id="stage">
 
-    <!-- ===================== HOME / TITLE PAGE ===================== -->
-    <section class="view" id="view-home" hidden>
-      <div class="glass-panel hero">
-        <div class="hero-logo" aria-hidden="true"></div>
-        <div class="hero-brand">Lobby&nbsp;<span class="brand-98">98</span></div>
-        <p class="hero-tagline">Social deduction party games for you and your friends</p>
-        <p class="hero-body">
-          One player always knows something the others don't. Can the group sniff them out? Play <em>Frequency</em>, <em>Word Spy</em>, <em>Chain</em>, and more — right in your browser.
-        </p>
-        <p class="hero-body small">
-          No accounts, no signups. Make a room, share the code, play. Rooms disappear when everyone leaves.
-        </p>
+    <!-- ============== AUTH ============== -->
+    <section class="page" id="page-auth" hidden>
+      <div class="auth-hero glass-card">
+        <div class="hero-logo"></div>
+        <h1 class="hero-brand">Lobby <span class="b98">98</span></h1>
+        <p class="hero-tagline">Party games, arcade games, and vibes.</p>
       </div>
-
       <div class="auth-grid">
-        <div class="glass-panel">
-          <h3 class="panel-title">Start a room</h3>
-          <form class="auth-form" id="form-create">
-            <label>
-              <span class="label-text">Your name</span>
-              <input class="neo-input" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="create-name-input" />
-            </label>
-            <button type="submit" class="neo-btn neo-btn-primary">Create room</button>
-            <p class="form-error" id="create-error"></p>
+        <div class="glass-card">
+          <h3 class="card-title">Sign Up</h3>
+          <form id="form-register" class="auth-form">
+            <label><span class="lbl">Username</span><input class="inp" type="text" name="username" required maxlength="16" autocomplete="off" placeholder="3-16 chars" /></label>
+            <label><span class="lbl">Password</span><input class="inp" type="password" name="password" required minlength="4" placeholder="4+ chars" /></label>
+            <button type="submit" class="btn btn-primary">Create Account</button>
+            <p class="form-err" id="register-error"></p>
           </form>
         </div>
-        <div class="glass-panel">
-          <h3 class="panel-title">Join a room</h3>
-          <form class="auth-form" id="form-join">
-            <label>
-              <span class="label-text">Your name</span>
-              <input class="neo-input" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="join-name-input" />
-            </label>
-            <label>
-              <span class="label-text">Room code</span>
-              <input class="neo-input code-input" type="text" name="code" required maxlength="5" autocomplete="off" placeholder="ABCD" />
-            </label>
-            <button type="submit" class="neo-btn neo-btn-primary">Join</button>
-            <p class="form-error" id="join-error"></p>
+        <div class="glass-card">
+          <h3 class="card-title">Log In</h3>
+          <form id="form-login" class="auth-form">
+            <label><span class="lbl">Username</span><input class="inp" type="text" name="username" required maxlength="16" autocomplete="off" /></label>
+            <label><span class="lbl">Password</span><input class="inp" type="password" name="password" required /></label>
+            <button type="submit" class="btn btn-primary">Log In</button>
+            <p class="form-err" id="login-error"></p>
           </form>
         </div>
-      </div>
-
-      <div class="site-stats">
-        <span class="stat-chip">✨ Best with 3+ friends</span>
-        <span class="stat-chip">🎮 3 games playable</span>
-        <span class="stat-chip">💬 Chat included</span>
       </div>
     </section>
 
-    <!-- ===================== ROOM LOBBY ===================== -->
-    <section class="view" id="view-room" hidden>
-      <div class="glass-panel room-header">
-        <div class="room-code-display">
-          <span class="room-code-label">Room code</span>
-          <span class="room-code" id="room-code">????</span>
-          <button class="neo-btn neo-btn-ghost neo-btn-small" id="copy-code-btn">Copy</button>
+    <!-- ============== DASHBOARD ============== -->
+    <section class="page" id="page-dashboard" hidden>
+      <div class="glass-card dash-welcome">
+        <h2 class="dash-greeting" id="dash-greeting">Welcome back!</h2>
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="ds-val" id="ds-coins">0</div><div class="ds-label">Coins</div></div>
+          <div class="dash-stat"><div class="ds-val" id="ds-games">0</div><div class="ds-label">Games</div></div>
+          <div class="dash-stat"><div class="ds-val" id="ds-wins">0</div><div class="ds-label">Wins</div></div>
+          <div class="dash-stat"><div class="ds-val" id="ds-points">0</div><div class="ds-label">Points</div></div>
         </div>
-        <button class="neo-btn neo-btn-ghost neo-btn-small" id="leave-btn">← Leave room</button>
       </div>
+      <div class="dash-grid">
+        <div class="glass-card dash-card" data-goto="play">
+          <div class="dc-icon">🎭</div>
+          <h3 class="dc-title">Party Games</h3>
+          <p class="dc-desc">Frequency, Word Spy, Chain — play with friends in rooms.</p>
+        </div>
+        <div class="glass-card dash-card" data-goto="arcade">
+          <div class="dc-icon">🕹️</div>
+          <h3 class="dc-title">Arcade</h3>
+          <p class="dc-desc">Solo games. Earn coins. Memory, Minesweeper, Click Speed, Math Rush.</p>
+        </div>
+        <div class="glass-card dash-card" data-goto="shop">
+          <div class="dc-icon">🛍️</div>
+          <h3 class="dc-title">Shop</h3>
+          <p class="dc-desc">Spend coins on name colors, titles, and more.</p>
+        </div>
+        <div class="glass-card dash-card" data-goto="settings">
+          <div class="dc-icon">⚙️</div>
+          <h3 class="dc-title">Settings</h3>
+          <p class="dc-desc">Change password, view stats, manage your profile.</p>
+        </div>
+      </div>
+    </section>
 
+    <!-- ============== PLAY (party games) ============== -->
+    <section class="page" id="page-play" hidden>
+      <div class="glass-card">
+        <h2 class="card-title">Party Games</h2>
+        <p class="card-desc">Create a room or join one with a code. 3+ players needed.</p>
+      </div>
+      <div class="auth-grid">
+        <div class="glass-card">
+          <h3 class="card-title">Create Room</h3>
+          <form id="form-create" class="auth-form">
+            <label><span class="lbl">Your name in-game</span><input class="inp" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="create-name-input" /></label>
+            <button type="submit" class="btn btn-primary">Create</button>
+            <p class="form-err" id="create-error"></p>
+          </form>
+        </div>
+        <div class="glass-card">
+          <h3 class="card-title">Join Room</h3>
+          <form id="form-join" class="auth-form">
+            <label><span class="lbl">Your name in-game</span><input class="inp" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="join-name-input" /></label>
+            <label><span class="lbl">Room code</span><input class="inp code-input" type="text" name="code" required maxlength="5" autocomplete="off" placeholder="ABCD" /></label>
+            <button type="submit" class="btn btn-primary">Join</button>
+            <p class="form-err" id="join-error"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== ROOM LOBBY ============== -->
+    <section class="page" id="page-room" hidden>
+      <div class="glass-card room-header">
+        <div class="room-code-display"><span class="room-code-label">Room</span><span class="room-code" id="room-code">????</span><button class="btn btn-ghost btn-sm" id="copy-code-btn">Copy</button></div>
+        <button class="btn btn-ghost btn-sm" id="leave-btn">← Leave</button>
+      </div>
       <div class="lobby-grid">
-        <div class="glass-panel players-panel">
-          <h3 class="panel-title">Players <span class="count-badge" id="player-count">0/12</span></h3>
+        <div class="glass-card">
+          <h3 class="card-title">Players <span class="count-badge" id="player-count">0/12</span></h3>
           <ul class="player-list" id="player-list"></ul>
-
-          <h3 class="panel-title" style="margin-top: 22px;">Pick a game</h3>
-          <p class="panel-sub" id="host-note">(waiting for host to pick)</p>
+          <h3 class="card-title" style="margin-top:18px">Pick a game</h3>
+          <p class="card-sub" id="host-note">(waiting for host)</p>
           <ul class="game-list" id="game-list">
-            <li class="game-card" data-mode="frequency">
-              <div class="game-icon">◈</div>
-              <div class="game-body"><div class="game-name">Frequency</div><div class="game-desc">Rate a prompt 1–10. One player sees a different prompt. Find them.</div></div>
-            </li>
-            <li class="game-card" data-mode="wordspy">
-              <div class="game-icon">◆</div>
-              <div class="game-body"><div class="game-name">Word Spy</div><div class="game-desc">Everyone has a word. The spy doesn't. Describe yours without giving it away.</div></div>
-            </li>
-            <li class="game-card" data-mode="chain">
-              <div class="game-icon">◁</div>
-              <div class="game-body"><div class="game-name">Chain</div><div class="game-desc">Build a sentence one word at a time. One player has a secret target word to sneak in.</div></div>
-            </li>
-            <li class="game-card soon" data-mode="echo" title="Coming soon">
-              <div class="game-icon">◇</div>
-              <div class="game-body"><div class="game-name">Echo</div><div class="game-desc">Same prompt for everyone — except the Echo, who sees a twist.</div></div>
-              <span class="game-badge">soon</span>
-            </li>
-            <li class="game-card soon" data-mode="twotruths" title="Coming soon">
-              <div class="game-icon">◰</div>
-              <div class="game-body"><div class="game-name">Two Truths, One Ghost</div><div class="game-desc">Two facts are real, one is a lie — stolen from somebody else.</div></div>
-              <span class="game-badge">soon</span>
-            </li>
-            <li class="game-card soon" data-mode="draw" title="Coming soon">
-              <div class="game-icon">✎</div>
-              <div class="game-body"><div class="game-name">Draw</div><div class="game-desc">Everyone draws the same thing. Someone's drawing something different.</div></div>
-              <span class="game-badge">soon</span>
-            </li>
+            <li class="game-card" data-mode="frequency"><div class="gc-icon">◈</div><div class="gc-body"><div class="gc-name">Frequency</div><div class="gc-desc">Rate a prompt 1–10. One player sees a different prompt.</div></div></li>
+            <li class="game-card" data-mode="wordspy"><div class="gc-icon">◆</div><div class="gc-body"><div class="gc-name">Word Spy</div><div class="gc-desc">Everyone has a word. The spy doesn't.</div></div></li>
+            <li class="game-card" data-mode="chain"><div class="gc-icon">◁</div><div class="gc-body"><div class="gc-name">Chain</div><div class="gc-desc">Build a sentence. One player sneaks in a target word.</div></div></li>
+            <li class="game-card soon" data-mode="echo"><div class="gc-icon">◇</div><div class="gc-body"><div class="gc-name">Echo</div><div class="gc-desc">Coming soon</div></div><span class="gc-badge">soon</span></li>
           </ul>
-
-          <div class="start-game-area" id="start-game-area" hidden>
-            <div style="margin-bottom: 12px;">
-              <label for="rounds-select" style="font-weight: 700; color: var(--deep); font-size: 14px; margin-right: 8px;">Rounds:</label>
-              <select id="rounds-select" class="neo-input" style="padding: 6px 12px; width: auto; display: inline-block;">
-                <option value="3">Best of 3</option>
-                <option value="5" selected>Best of 5</option>
-                <option value="7">Best of 7</option>
-                <option value="10">Best of 10</option>
-              </select>
-            </div>
-            <p class="start-game-note" id="start-game-note"></p>
-            <button class="neo-btn neo-btn-primary neo-btn-large" id="start-game-btn">Start Game</button>
+          <div class="start-area" id="start-game-area" hidden>
+            <div style="margin-bottom:10px"><label class="lbl" style="margin-right:8px">Rounds:</label><select id="rounds-select" class="inp" style="width:auto;display:inline-block;padding:6px 12px"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="10">10</option></select></div>
+            <p class="start-note" id="start-game-note"></p>
+            <button class="btn btn-primary btn-lg" id="start-game-btn">Start Game</button>
           </div>
         </div>
-
-        <div class="glass-panel chat-panel">
-          <h3 class="panel-title">Room chat</h3>
+        <div class="glass-card chat-panel">
+          <h3 class="card-title">Chat</h3>
           <ul class="chat-messages" id="chat-messages"></ul>
-          <form class="chat-form" id="chat-form" autocomplete="off">
-            <input class="neo-input" type="text" id="chat-input" maxlength="300" placeholder="say something…" />
-            <button type="submit" class="neo-btn neo-btn-primary">Send</button>
-          </form>
+          <form class="chat-form" id="chat-form" autocomplete="off"><input class="inp" type="text" id="chat-input" maxlength="300" placeholder="say something…" /><button type="submit" class="btn btn-primary">Send</button></form>
         </div>
       </div>
     </section>
 
-    <!-- ===================== GAME VIEW ===================== -->
-    <section class="view" id="view-game" hidden>
-      <div class="glass-panel room-header game-header">
-        <div class="game-timer-wrapper"><span id="game-timer" class="game-timer">--s</span></div>
-        <div class="game-header-left">
-          <span class="game-mode-badge" id="game-mode-badge">🎵 Frequency</span>
-          <span class="game-round-badge" id="game-round-badge">Round 1/3</span>
-        </div>
-        <div class="room-code-display">
-          <span class="room-code-label">Room</span>
-          <span class="room-code room-code-sm" id="game-room-code">????</span>
-        </div>
+    <!-- ============== GAME VIEW ============== -->
+    <section class="page" id="page-game" hidden>
+      <div class="glass-card game-header">
+        <div class="timer-wrap"><span id="game-timer" class="game-timer">--s</span></div>
+        <div class="gh-left"><span class="mode-badge" id="game-mode-badge">🎵 Frequency</span><span class="round-badge" id="game-round-badge">Round 1/3</span></div>
+        <div class="room-code-display"><span class="room-code-label">Room</span><span class="room-code room-code-sm" id="game-room-code">????</span></div>
       </div>
-
       <div class="game-grid">
-        <div class="glass-panel game-area">
-
-          <!-- FREQUENCY: PROMPTING -->
-          <div class="game-phase" id="phase-prompting" hidden>
-            <h3 class="phase-title">Your Prompt</h3>
-            <div class="prompt-card glass-panel" id="prompt-card"><p class="prompt-text" id="prompt-text">Loading...</p></div>
-            <p class="phase-instruction">Rate this on a scale of 1 to 10</p>
-            <div class="rating-picker" id="rating-picker">
-              <button class="rating-btn" data-val="1">1</button><button class="rating-btn" data-val="2">2</button>
-              <button class="rating-btn" data-val="3">3</button><button class="rating-btn" data-val="4">4</button>
-              <button class="rating-btn" data-val="5">5</button><button class="rating-btn" data-val="6">6</button>
-              <button class="rating-btn" data-val="7">7</button><button class="rating-btn" data-val="8">8</button>
-              <button class="rating-btn" data-val="9">9</button><button class="rating-btn" data-val="10">10</button>
-            </div>
-            <div class="submit-area" id="rating-submit-area"><button class="neo-btn neo-btn-primary neo-btn-large" id="submit-rating-btn" disabled>Lock in</button></div>
-            <div class="waiting-indicator" id="rating-waiting" hidden><div class="waiting-spinner"></div><p class="waiting-text">Waiting for others… <span id="ratings-progress">0/0</span></p></div>
-          </div>
-
-          <!-- FREQUENCY: VOTING -->
-          <div class="game-phase" id="phase-voting" hidden>
-            <h3 class="phase-title">Who's the Off-Key? 🔍</h3>
-            <p class="phase-instruction">Everyone rated the prompt — but someone had a <em>different</em> prompt. Vote for who you think it was!</p>
-            <div class="ratings-reveal" id="ratings-reveal"></div>
-            <div class="waiting-indicator" id="vote-waiting" hidden><div class="waiting-spinner"></div><p class="waiting-text">Waiting for votes… <span id="votes-progress">0/0</span></p></div>
-          </div>
-
-          <!-- FREQUENCY: RESULTS -->
-          <div class="game-phase" id="phase-results" hidden>
-            <h3 class="phase-title">Round Results</h3>
-            <div class="offkey-reveal" id="offkey-reveal"></div>
-            <div class="prompts-comparison" id="prompts-comparison"></div>
-            <div class="round-scores" id="round-scores"></div>
-            <div class="next-round-area" id="next-round-area" hidden><button class="neo-btn neo-btn-primary neo-btn-large" id="next-round-btn">Next Round →</button></div>
-          </div>
-
-          <!-- SHARED: GAMEOVER -->
-          <div class="game-phase" id="phase-gameover" hidden>
-            <h3 class="phase-title">🏆 Game Over!</h3>
-            <div class="final-scoreboard" id="final-scoreboard"></div>
-            <div class="next-round-area" id="back-lobby-area" hidden><button class="neo-btn neo-btn-primary neo-btn-large" id="back-lobby-btn">← Back to Lobby</button></div>
-          </div>
-
-          <!-- WORD SPY: CLUES -->
-          <div class="game-phase" id="phase-ws-clues" hidden>
-            <h3 class="phase-title">🕵️ Give Your Clue</h3>
-            <div class="ws-word-card glass-panel" id="ws-word-card"><p class="ws-word-label" id="ws-word-label">Your word</p><p class="ws-word-text" id="ws-word-text">loading...</p><p class="ws-category-text" id="ws-category-text">Category: ...</p></div>
-            <div class="ws-clue-section">
-              <p class="ws-turn-indicator" id="ws-turn-indicator">Waiting...</p>
-              <div class="ws-clue-input-area" id="ws-clue-input-area" hidden><input class="neo-input" type="text" id="ws-clue-input" maxlength="40" placeholder="one word or short phrase..." /><button class="neo-btn neo-btn-primary" id="ws-clue-submit">Submit clue</button></div>
-              <ul class="ws-clue-list" id="ws-clue-list"></ul>
-            </div>
-            <div class="waiting-indicator" id="ws-clue-waiting" hidden><div class="waiting-spinner"></div><p class="waiting-text">Waiting for clues…</p></div>
-          </div>
-
-          <!-- WORD SPY: DISCUSS -->
-          <div class="game-phase" id="phase-ws-discuss" hidden>
-            <h3 class="phase-title">🔍 Discussion Time</h3>
-            <p class="phase-instruction">All clues are in. Discuss — who's the Spy?</p>
-            <div class="ws-word-card glass-panel"><p class="ws-word-label" id="ws-discuss-word-label">Your word</p><p class="ws-word-text" id="ws-discuss-word-text">—</p><p class="ws-category-text" id="ws-discuss-category-text">Category: ...</p></div>
-            <ul class="ws-clue-list" id="ws-discuss-clue-list"></ul>
-          </div>
-
-          <!-- WORD SPY: VOTING -->
-          <div class="game-phase" id="phase-ws-voting" hidden>
-            <h3 class="phase-title">🗳️ Vote — Who's the Spy?</h3>
-            <p class="phase-instruction">Look at the clues and pick who you think is the Spy.</p>
-            <ul class="ws-clue-list" id="ws-voting-clue-list"></ul>
-            <div class="ws-vote-grid" id="ws-vote-grid"></div>
-            <div class="waiting-indicator" id="ws-vote-waiting" hidden><div class="waiting-spinner"></div><p class="waiting-text">Waiting for votes… <span id="ws-votes-progress">0/0</span></p></div>
-          </div>
-
-          <!-- WORD SPY: SPY GUESS -->
-          <div class="game-phase" id="phase-ws-spyguess" hidden>
-            <h3 class="phase-title">🎯 Spy — Guess the Word!</h3>
-            <p class="phase-instruction" id="ws-spyguess-instruction">The group caught you! You have one chance to guess the word to still win.</p>
-            <p class="ws-category-text" id="ws-spyguess-category">Category: ...</p>
-            <div class="ws-guess-input-area" id="ws-guess-input-area" hidden><input class="neo-input" type="text" id="ws-guess-input" maxlength="60" placeholder="what's the word?" /><button class="neo-btn neo-btn-primary neo-btn-large" id="ws-guess-submit">Guess!</button></div>
-            <div class="waiting-indicator" id="ws-guess-waiting" hidden><div class="waiting-spinner"></div><p class="waiting-text" id="ws-guess-waiting-text">Waiting for the Spy's guess...</p></div>
-          </div>
-
-          <!-- WORD SPY: RESULTS -->
-          <div class="game-phase" id="phase-ws-results" hidden>
-            <h3 class="phase-title">Round Results</h3>
-            <div class="ws-result-reveal" id="ws-result-reveal"></div>
-            <div class="ws-word-reveal" id="ws-word-reveal"></div>
-            <div class="round-scores" id="ws-round-scores"></div>
-            <div class="next-round-area" id="ws-next-round-area" hidden><button class="neo-btn neo-btn-primary neo-btn-large" id="ws-next-round-btn">Next Round →</button></div>
-          </div>
-
-          <!-- CHAIN: BUILDING -->
-          <div class="game-phase" id="phase-chain-building" hidden>
-            <h3 class="phase-title">⛓️ Build the Sentence</h3>
-            <div class="chain-role-card glass-panel" id="chain-role-card"><p class="chain-role-label" id="chain-role-label">Your role</p><p class="chain-role-text" id="chain-role-text">loading...</p></div>
-            <div class="chain-sentence-display" id="chain-sentence-display"><span class="chain-starter" id="chain-starter"></span></div>
-            <div class="chain-turn-indicator" id="chain-turn-indicator">Waiting...</div>
-            <div class="chain-word-input-area" id="chain-word-input-area" hidden><input class="neo-input" type="text" id="chain-word-input" maxlength="25" placeholder="add one word..." /><button class="neo-btn neo-btn-primary" id="chain-word-submit">Add</button></div>
-            <div class="chain-accuse-area" id="chain-accuse-area" hidden><p class="chain-accuse-label">Think you know who the Saboteur is?</p><div class="chain-accuse-grid" id="chain-accuse-grid"></div></div>
-            <p class="chain-word-count" id="chain-word-count">0/20 words</p>
-          </div>
-
-          <!-- CHAIN: RESULTS -->
-          <div class="game-phase" id="phase-chain-results" hidden>
-            <h3 class="phase-title">Round Results</h3>
-            <div class="chain-result-reveal" id="chain-result-reveal"></div>
-            <div class="chain-sentence-final" id="chain-sentence-final"></div>
-            <div class="round-scores" id="chain-round-scores"></div>
-            <div class="next-round-area" id="chain-next-round-area" hidden><button class="neo-btn neo-btn-primary neo-btn-large" id="chain-next-round-btn">Next Round →</button></div>
-          </div>
-
+        <div class="glass-card game-area">
+          <!-- Frequency phases -->
+          <div class="game-phase" id="phase-prompting" hidden><h3 class="ph-title">Your Prompt</h3><div class="prompt-card glass-card"><p class="prompt-text" id="prompt-text">Loading...</p></div><p class="ph-inst">Rate this 1 to 10</p><div class="rating-picker" id="rating-picker"><button class="rating-btn" data-val="1">1</button><button class="rating-btn" data-val="2">2</button><button class="rating-btn" data-val="3">3</button><button class="rating-btn" data-val="4">4</button><button class="rating-btn" data-val="5">5</button><button class="rating-btn" data-val="6">6</button><button class="rating-btn" data-val="7">7</button><button class="rating-btn" data-val="8">8</button><button class="rating-btn" data-val="9">9</button><button class="rating-btn" data-val="10">10</button></div><div class="submit-area" id="rating-submit-area"><button class="btn btn-primary btn-lg" id="submit-rating-btn" disabled>Lock in</button></div><div class="wait-ind" id="rating-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting… <span id="ratings-progress">0/0</span></p></div></div>
+          <div class="game-phase" id="phase-voting" hidden><h3 class="ph-title">Who's the Off-Key? 🔍</h3><p class="ph-inst">Someone had a <em>different</em> prompt. Vote!</p><div class="ratings-reveal" id="ratings-reveal"></div><div class="wait-ind" id="vote-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting for votes… <span id="votes-progress">0/0</span></p></div></div>
+          <div class="game-phase" id="phase-results" hidden><h3 class="ph-title">Round Results</h3><div id="offkey-reveal"></div><div id="prompts-comparison"></div><div class="round-scores" id="round-scores"></div><div class="next-area" id="next-round-area" hidden><button class="btn btn-primary btn-lg" id="next-round-btn">Next Round →</button></div></div>
+          <div class="game-phase" id="phase-gameover" hidden><h3 class="ph-title">🏆 Game Over!</h3><div id="final-scoreboard"></div><div class="next-area" id="back-lobby-area" hidden><button class="btn btn-primary btn-lg" id="back-lobby-btn">← Back to Lobby</button></div></div>
+          <!-- Word Spy phases -->
+          <div class="game-phase" id="phase-ws-clues" hidden><h3 class="ph-title">🕵️ Give Your Clue</h3><div class="ws-word-card glass-card"><p class="ws-word-label" id="ws-word-label">Your word</p><p class="ws-word-text" id="ws-word-text">loading...</p><p class="ws-cat" id="ws-category-text">Category: ...</p></div><p class="ws-turn" id="ws-turn-indicator">Waiting...</p><div class="ws-clue-input" id="ws-clue-input-area" hidden><input class="inp" type="text" id="ws-clue-input" maxlength="40" placeholder="one word or short phrase..." /><button class="btn btn-primary" id="ws-clue-submit">Submit</button></div><ul class="clue-list" id="ws-clue-list"></ul><div class="wait-ind" id="ws-clue-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting for clues…</p></div></div>
+          <div class="game-phase" id="phase-ws-discuss" hidden><h3 class="ph-title">🔍 Discussion</h3><p class="ph-inst">All clues are in. Who's the Spy?</p><div class="ws-word-card glass-card"><p class="ws-word-label" id="ws-discuss-word-label">Your word</p><p class="ws-word-text" id="ws-discuss-word-text">—</p><p class="ws-cat" id="ws-discuss-category-text">Category: ...</p></div><ul class="clue-list" id="ws-discuss-clue-list"></ul></div>
+          <div class="game-phase" id="phase-ws-voting" hidden><h3 class="ph-title">🗳️ Vote — Who's the Spy?</h3><p class="ph-inst">Pick the Spy based on their clue.</p><ul class="clue-list" id="ws-voting-clue-list"></ul><div class="vote-grid" id="ws-vote-grid"></div><div class="wait-ind" id="ws-vote-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting… <span id="ws-votes-progress">0/0</span></p></div></div>
+          <div class="game-phase" id="phase-ws-spyguess" hidden><h3 class="ph-title">🎯 Spy — Guess the Word!</h3><p class="ph-inst" id="ws-spyguess-instruction">You were caught! Guess the word to still win.</p><p class="ws-cat" id="ws-spyguess-category">Category: ...</p><div class="ws-guess-inp" id="ws-guess-input-area" hidden><input class="inp" type="text" id="ws-guess-input" maxlength="60" placeholder="the word is..." /><button class="btn btn-primary btn-lg" id="ws-guess-submit">Guess!</button></div><div class="wait-ind" id="ws-guess-waiting" hidden><div class="spinner"></div><p class="wait-txt" id="ws-guess-waiting-text">Waiting for guess…</p></div></div>
+          <div class="game-phase" id="phase-ws-results" hidden><h3 class="ph-title">Round Results</h3><div id="ws-result-reveal"></div><div id="ws-word-reveal"></div><div class="round-scores" id="ws-round-scores"></div><div class="next-area" id="ws-next-round-area" hidden><button class="btn btn-primary btn-lg" id="ws-next-round-btn">Next Round →</button></div></div>
+          <!-- Chain phases -->
+          <div class="game-phase" id="phase-chain-building" hidden><h3 class="ph-title">⛓️ Build the Sentence</h3><div class="chain-role glass-card"><p class="chain-role-label" id="chain-role-label">Your role</p><p class="chain-role-text" id="chain-role-text">loading...</p></div><div class="chain-sentence" id="chain-sentence-display"><span class="chain-starter" id="chain-starter"></span></div><div class="chain-turn" id="chain-turn-indicator">Waiting...</div><div class="chain-word-inp" id="chain-word-input-area" hidden><input class="inp" type="text" id="chain-word-input" maxlength="25" placeholder="add one word..." /><button class="btn btn-primary" id="chain-word-submit">Add</button></div><div class="chain-accuse" id="chain-accuse-area" hidden><p class="chain-accuse-label">Think you know the Saboteur?</p><div class="chain-accuse-grid" id="chain-accuse-grid"></div></div><p class="chain-count" id="chain-word-count">0/20 words</p></div>
+          <div class="game-phase" id="phase-chain-results" hidden><h3 class="ph-title">Round Results</h3><div id="chain-result-reveal"></div><div class="chain-sentence-final" id="chain-sentence-final"></div><div class="round-scores" id="chain-round-scores"></div><div class="next-area" id="chain-next-round-area" hidden><button class="btn btn-primary btn-lg" id="chain-next-round-btn">Next Round →</button></div></div>
+          <!-- Shared -->
+          <div class="game-phase" id="phase-discuss" hidden></div>
+          <div class="game-phase" id="phase-intermission" hidden></div>
         </div>
-
-        <!-- RIGHT: chat -->
-        <div class="glass-panel chat-panel">
-          <h3 class="panel-title">Room chat</h3>
+        <div class="glass-card chat-panel">
+          <h3 class="card-title">Chat</h3>
           <ul class="chat-messages" id="game-chat-messages"></ul>
-          <form class="chat-form" id="game-chat-form" autocomplete="off">
-            <input class="neo-input" type="text" id="game-chat-input" maxlength="300" placeholder="say something…" />
-            <button type="submit" class="neo-btn neo-btn-primary">Send</button>
+          <form class="chat-form" id="game-chat-form" autocomplete="off"><input class="inp" type="text" id="game-chat-input" maxlength="300" placeholder="say something…" /><button type="submit" class="btn btn-primary">Send</button></form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== KICKED ============== -->
+    <section class="page" id="page-kicked" hidden>
+      <div class="glass-card" style="text-align:center;padding:40px">
+        <h2 class="ph-title" style="color:var(--danger)">You were kicked</h2>
+        <p>The host removed you from the room. <span id="kicked-by"></span></p>
+        <button class="btn btn-primary" id="back-home-btn" style="margin-top:16px">← Back</button>
+      </div>
+    </section>
+
+    <!-- ============== ARCADE ============== -->
+    <section class="page" id="page-arcade" hidden>
+      <div class="glass-card"><h2 class="card-title">🕹️ Arcade</h2><p class="card-desc">Play solo games and earn coins. Max 50 coins per round.</p></div>
+      <div class="arcade-grid">
+        <div class="glass-card arcade-card" data-arcade="memory"><div class="ac-icon">🧠</div><h3 class="ac-title">Memory Match</h3><p class="ac-desc">Flip cards, find pairs. Fewer moves = more coins.</p></div>
+        <div class="glass-card arcade-card" data-arcade="minesweeper"><div class="ac-icon">💣</div><h3 class="ac-title">Minesweeper</h3><p class="ac-desc">Clear the board without hitting a mine.</p></div>
+        <div class="glass-card arcade-card" data-arcade="clickspeed"><div class="ac-icon">🎯</div><h3 class="ac-title">Click Speed</h3><p class="ac-desc">Click 20 targets as fast as possible.</p></div>
+        <div class="glass-card arcade-card" data-arcade="mathrush"><div class="ac-icon">🔢</div><h3 class="ac-title">Math Rush</h3><p class="ac-desc">Solve math problems. 30 seconds. Go.</p></div>
+      </div>
+      <div class="glass-card" id="arcade-play-area" hidden>
+        <button class="btn btn-ghost btn-sm" id="arcade-back" style="margin-bottom:12px">← Back to arcade</button>
+        <div id="arcade-game-container"></div>
+      </div>
+    </section>
+
+    <!-- ============== SHOP ============== -->
+    <section class="page" id="page-shop" hidden>
+      <div class="glass-card shop-header">
+        <h2 class="card-title">🛍️ Shop</h2>
+        <div class="shop-balance"><span class="shop-coins" id="shop-coins">🪙 0</span><span class="shop-sub">Earn coins by playing games</span></div>
+      </div>
+      <div id="shop-content"></div>
+    </section>
+
+    <!-- ============== SETTINGS ============== -->
+    <section class="page" id="page-settings" hidden>
+      <div class="glass-card">
+        <h2 class="card-title">⚙️ Settings</h2>
+        <div class="settings-section">
+          <h3 class="settings-label">Change Password</h3>
+          <form id="form-password" class="auth-form">
+            <label><span class="lbl">Current password</span><input class="inp" type="password" name="current" required /></label>
+            <label><span class="lbl">New password</span><input class="inp" type="password" name="newpass" required minlength="4" /></label>
+            <button type="submit" class="btn btn-primary">Update Password</button>
+            <p class="form-err" id="password-error"></p>
+            <p class="form-ok" id="password-ok"></p>
           </form>
         </div>
+        <div class="settings-section">
+          <h3 class="settings-label">Account Stats</h3>
+          <div class="settings-stats" id="settings-stats"></div>
+        </div>
+        <div class="settings-section">
+          <button class="btn btn-ghost" id="logout-btn">Log Out</button>
+        </div>
       </div>
     </section>
 
-    <!-- ===================== KICKED ===================== -->
-    <section class="view" id="view-kicked" hidden>
-      <div class="glass-panel kicked-box">
-        <h2 class="phase-title" style="color:var(--danger)">You were kicked</h2>
-        <p class="hero-body">The host removed you from the room. <span id="kicked-by"></span></p>
-        <button class="neo-btn neo-btn-primary" id="back-home-btn">← Back to home</button>
-      </div>
-    </section>
   </main>
-
-  <!-- ===================== PROFILE OVERLAY ===================== -->
-  <div class="overlay-panel" id="profile-overlay" hidden>
-    <div class="overlay-content">
-      <button class="overlay-close" id="profile-close">✕</button>
-      <h2 class="overlay-title">Your Profile</h2>
-      <div class="profile-section">
-        <p class="profile-section-title">Display Name</p>
-        <input class="neo-input" type="text" id="profile-name-input" maxlength="16" placeholder="your name" />
-      </div>
-      <div class="profile-section">
-        <p class="profile-section-title">Name Color</p>
-        <div class="color-picker-grid" id="color-picker"></div>
-      </div>
-      <div class="profile-section">
-        <p class="profile-section-title">Equipped Title</p>
-        <p id="profile-equipped-title" style="font-weight:700; color: var(--deep);">None</p>
-      </div>
-      <div class="profile-stats">
-        <div class="profile-stat"><div class="profile-stat-val" id="stat-games">0</div><div class="profile-stat-label">Games</div></div>
-        <div class="profile-stat"><div class="profile-stat-val" id="stat-wins">0</div><div class="profile-stat-label">Wins</div></div>
-        <div class="profile-stat"><div class="profile-stat-val" id="stat-points">0</div><div class="profile-stat-label">Points</div></div>
-      </div>
-      <button class="neo-btn neo-btn-primary" id="profile-save" style="width:100%; margin-top: 10px;">Save changes</button>
-    </div>
-  </div>
-
-  <!-- ===================== SHOP OVERLAY ===================== -->
-  <div class="overlay-panel" id="shop-overlay" hidden>
-    <div class="overlay-content">
-      <button class="overlay-close" id="shop-close">✕</button>
-      <h2 class="overlay-title">Cosmetic Shop</h2>
-      <div class="shop-balance">
-        <div class="shop-balance-amount" id="shop-coins">0</div>
-        <div class="shop-balance-label">coins · earned by scoring points in games</div>
-      </div>
-      <div id="shop-categories"></div>
-    </div>
-  </div>
-
-  <footer class="site-footer">
-    <span>Lobby 98 · made with ♥ by Cole · 2026</span>
-  </footer>
-
+  <footer class="site-footer"><span>Lobby 98 · made by Cole · 2026</span></footer>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="js/arcade.js"></script>
   <script type="module" src="js/client.js"></script>
 </body>
 </html>

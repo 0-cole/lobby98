@@ -14,16 +14,212 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import path from "path";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import cookie from "cookie";
 import { pickPrompts } from "./prompts.js";
 import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
+import {
+  createUser, getUserByName, getUserById, createSession, getSession,
+  deleteSession, addCoins, setColor, setTitle, getOwnedItems,
+  addOwnedItem, recordGame, safeUserData, changePassword, setCoins
+} from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
+// ============================================================
+//   AUTH HELPERS
+// ============================================================
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,16}$/;
+function makeToken() { return crypto.randomBytes(32).toString("hex"); }
+function setCookie(res, token) {
+  res.setHeader("Set-Cookie", cookie.serialize("session", token, {
+    httpOnly: true, path: "/", maxAge: 60*60*24*30, sameSite: "lax"
+  }));
+}
+function clearCookie(res) {
+  res.setHeader("Set-Cookie", cookie.serialize("session", "", {
+    httpOnly: true, path: "/", maxAge: 0
+  }));
+}
+
+// ============================================================
+//   AUTH ENDPOINTS
+// ============================================================
+app.post("/api/register", async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: "Missing fields" });
+  if (!USERNAME_RE.test(username)) return res.status(400).json({ error: "Username: 3-16 chars, letters/numbers/underscore" });
+  if (password.length < 4) return res.status(400).json({ error: "Password must be 4+ chars" });
+  if (getUserByName(username)) return res.status(409).json({ error: "Username taken" });
+  const hash = await bcrypt.hash(password, 10);
+  const user = createUser(username, hash);
+  const token = makeToken();
+  createSession(token, user.id);
+  setCookie(res, token);
+  res.json({ ok: true, user: safeUserData(user) });
+});
+
+app.post("/api/login", async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: "Missing fields" });
+  const user = getUserByName(username);
+  if (!user) return res.status(401).json({ error: "Invalid username or password" });
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: "Invalid username or password" });
+  const token = makeToken();
+  createSession(token, user.id);
+  setCookie(res, token);
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
+app.post("/api/logout", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  if (cookies.session) deleteSession(cookies.session);
+  clearCookie(res);
+  res.json({ ok: true });
+});
+
+app.get("/api/me", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  if (!cookies.session) return res.json({ loggedIn: false });
+  const sess = getSession(cookies.session);
+  if (!sess) return res.json({ loggedIn: false });
+  const user = getUserById(sess.user_id);
+  res.json({ loggedIn: true, user: safeUserData(user) });
+});
+
+// ============================================================
+//   SHOP ENDPOINTS
+// ============================================================
+const SHOP_ITEMS = {
+  colors: [
+    { id: "default", name: "Default", color: "#0b4d6e", price: 0 },
+    { id: "cyan", name: "Cyan", color: "#1ab5d5", price: 30 },
+    { id: "emerald", name: "Emerald", color: "#2d9e5a", price: 30 },
+    { id: "sunset", name: "Sunset", color: "#e87830", price: 50 },
+    { id: "magenta", name: "Magenta", color: "#c740a0", price: 50 },
+    { id: "gold", name: "Gold", color: "#c89020", price: 80 },
+    { id: "violet", name: "Violet", color: "#7c3aed", price: 80 },
+    { id: "crimson", name: "Crimson", color: "#dc2626", price: 100 },
+    { id: "ice", name: "Ice Blue", color: "#38bdf8", price: 100 },
+    { id: "forest", name: "Forest", color: "#15803d", price: 120 },
+    { id: "aurora", name: "Aurora", color: "linear-gradient(90deg,#1ab5d5,#2d9e5a,#c89020)", price: 200, gradient: true },
+    { id: "neon", name: "Neon Pink", color: "#f43f8e", price: 200 },
+  ],
+  titles: [
+    { id: "none", name: "None", price: 0 },
+    { id: "spy-hunter", name: "Spy Hunter", price: 60 },
+    { id: "offkey-legend", name: "Off-Key Legend", price: 60 },
+    { id: "chain-breaker", name: "Chain Breaker", price: 60 },
+    { id: "smooth-talker", name: "Smooth Talker", price: 100 },
+    { id: "detective", name: "Detective", price: 100 },
+    { id: "speedrunner", name: "Speedrunner", price: 100 },
+    { id: "brainiac", name: "Brainiac", price: 120 },
+    { id: "mastermind", name: "Mastermind", price: 150 },
+    { id: "shadow", name: "The Shadow", price: 200 },
+    { id: "arcade-king", name: "Arcade King", price: 250 },
+    { id: "lobby-legend", name: "Lobby Legend", price: 400 },
+  ]
+};
+
+app.get("/api/shop", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  const user = sess ? getUserById(sess.user_id) : null;
+  res.json({ items: SHOP_ITEMS, user: user ? safeUserData(user) : null });
+});
+
+app.post("/api/shop/buy", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!user) return res.status(401).json({ error: "User not found" });
+  const { itemId } = req.body || {};
+  // Find item in shop
+  const allItems = [...SHOP_ITEMS.colors, ...SHOP_ITEMS.titles];
+  const item = allItems.find(i => i.id === itemId);
+  if (!item) return res.status(400).json({ error: "Item not found" });
+  const owned = getOwnedItems(user.id);
+  if (owned.includes(itemId)) return res.status(400).json({ error: "Already owned" });
+  if (user.coins < item.price) return res.status(400).json({ error: "Not enough coins" });
+  setCoins(user.id, user.coins - item.price);
+  addOwnedItem(user.id, itemId);
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
+app.post("/api/shop/equip", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { type, itemId } = req.body || {};
+  const owned = getOwnedItems(user.id);
+  if (!owned.includes(itemId)) return res.status(400).json({ error: "Not owned" });
+  if (type === "color") setColor(user.id, itemId);
+  else if (type === "title") setTitle(user.id, itemId);
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
+// ============================================================
+//   ARCADE SCORING
+// ============================================================
+app.post("/api/arcade/score", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { game, score } = req.body || {};
+  // Validate and cap coins to prevent cheating — max 50 coins per arcade round
+  const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), 50);
+  if (coins > 0) {
+    addCoins(user.id, coins);
+    recordGame(user.id, coins >= 10, coins);
+  }
+  res.json({ ok: true, coinsEarned: coins, user: safeUserData(getUserById(user.id)) });
+});
+
+app.post("/api/settings/password", async (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { currentPassword, newPassword } = req.body || {};
+  const user = getUserById(sess.user_id);
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) return res.status(400).json({ error: "Current password is wrong" });
+  if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: "New password must be 4+ chars" });
+  const hash = await bcrypt.hash(newPassword, 10);
+  changePassword(user.id, hash);
+  res.json({ ok: true });
+});
+
+// ============================================================
+//   GAME COMPLETION — award coins to logged-in players
+// ============================================================
+function awardGameCoins(room) {
+  const g = room.game;
+  if (!g) return;
+  for (const [pid, score] of g.scores) {
+    const sock = io.sockets.sockets.get(pid);
+    if (sock?.data?.user?.id && score > 0) {
+      const allScores = [...g.scores.values()];
+      const maxScore = Math.max(...allScores);
+      const won = score === maxScore;
+      recordGame(sock.data.user.id, won, score);
+      // Notify the client their coins updated
+      const updated = getUserById(sock.data.user.id);
+      if (updated) sock.emit("user:updated", safeUserData(updated));
+    }
+  }
+}
 
 // ============================================================
 //   ROOM SYSTEM
@@ -428,6 +624,7 @@ function advanceToNextRound(room) {
   if (g.round >= g.totalRounds) {
     g.phase = "gameover";
     clearRoomTimer(room);
+    awardGameCoins(room);
     addSystemMessage(room, `🏆 Game over! Check the final scores.`);
     broadcastRoom(room);
 
@@ -843,6 +1040,7 @@ function wsAdvanceToNextRound(room) {
   if (g.round >= g.totalRounds) {
     g.phase = "gameover";
     clearRoomTimer(room);
+    awardGameCoins(room);
     addSystemMessage(room, `🏆 Game over! Check the final scores.`);
     broadcastRoom(room);
     // Auto-return after 30 seconds
@@ -1172,6 +1370,7 @@ function chainAdvanceToNextRound(room) {
   if (g.round >= g.totalRounds) {
     g.phase = "gameover";
     clearRoomTimer(room);
+    awardGameCoins(room);
     addSystemMessage(room, `🏆 Game over! Check the final scores.`);
     broadcastRoom(room);
     setTimeout(() => {
@@ -1279,6 +1478,21 @@ function chainHandleGameDisconnect(room, socketId) {
 // ============================================================
 //   SOCKET.IO EVENTS
 // ============================================================
+
+// Socket auth — attach user if logged in, allow anonymous connections
+io.use((socket, next) => {
+  const cookies = cookie.parse(socket.handshake.headers.cookie || "");
+  if (cookies.session) {
+    const sess = getSession(cookies.session);
+    if (sess) {
+      const user = getUserById(sess.user_id);
+      if (user) {
+        socket.data.user = safeUserData(user);
+      }
+    }
+  }
+  next();
+});
 
 io.on("connection", (socket) => {
 
