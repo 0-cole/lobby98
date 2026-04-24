@@ -26,6 +26,9 @@ function showPage(id) {
   // Update nav
   const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
+  // Show/hide global chat sidebar
+  if (user && !GCHAT_HIDDEN_PAGES.has(id)) showGChat();
+  else hideGChat();
 }
 
 // Nav links
@@ -1221,21 +1224,39 @@ async function loadBugReports() {
 }
 
 // ============================================================
-//   GLOBAL CHAT
+//   GLOBAL CHAT — persistent sidebar
 // ============================================================
-const gchatPanel = $('gchat-panel');
-const gchatToggle = $('gchat-toggle');
+const gchatSidebar = $('gchat-sidebar');
 const gchatMessages = $('gchat-messages');
 const gchatForm = $('gchat-form');
 const gchatInput = $('gchat-input');
-const gchatClose = $('gchat-close');
-let gchatOpen = false, gchatUnread = false;
+const gchatCollapse = $('gchat-collapse');
+let gchatVisible = false;
+
+// Pages where chat sidebar is HIDDEN (party game rooms with their own chat)
+const GCHAT_HIDDEN_PAGES = new Set(['page-auth','page-room','page-game','page-kicked']);
+
+function showGChat() {
+  if (!gchatSidebar) return;
+  gchatSidebar.hidden = false;
+  gchatVisible = true;
+  document.body.classList.add('gchat-open');
+  scrollGlobalChat();
+}
+function hideGChat() {
+  if (!gchatSidebar) return;
+  gchatSidebar.hidden = true;
+  gchatVisible = false;
+  document.body.classList.remove('gchat-open');
+}
 
 function initChat() {
-  if (!gchatToggle || !window._socket) return;
-  gchatToggle.hidden = false;
-  gchatToggle.addEventListener('click', () => { gchatOpen = true; gchatPanel.hidden = false; gchatToggle.hidden = true; gchatUnread = false; gchatToggle.classList.remove('has-new'); scrollGlobalChat(); });
-  gchatClose.addEventListener('click', () => { gchatOpen = false; gchatPanel.hidden = true; gchatToggle.hidden = false; });
+  if (!gchatSidebar || !window._socket) return;
+  // Collapse toggle
+  gchatCollapse.addEventListener('click', () => {
+    gchatSidebar.classList.toggle('collapsed');
+    if (!gchatSidebar.classList.contains('collapsed')) scrollGlobalChat();
+  });
   gchatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = gchatInput.value.trim();
@@ -1251,8 +1272,16 @@ function initChat() {
   // Listen for new messages
   window._socket.on('gchat:msg', (msg) => {
     addGChatMsg(msg);
-    if (!gchatOpen) { gchatUnread = true; gchatToggle.classList.add('has-new'); }
     scrollGlobalChat();
+  });
+  // Blocked message feedback (Word Spy anti-cheat, profanity, etc.)
+  window._socket.on('gchat:blocked', (reason) => {
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.innerHTML = `<span class="chat-msg-text" style="color:#ef4444;font-style:italic">⚠️ ${esc(reason)}</span>`;
+    gchatMessages.appendChild(div);
+    scrollGlobalChat();
+    setTimeout(() => div.remove(), 5000);
   });
 }
 
@@ -1264,7 +1293,7 @@ function addGChatMsg(msg) {
   const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
   div.innerHTML = `<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>`;
   gchatMessages.appendChild(div);
-  if (gchatMessages.children.length > 100) gchatMessages.removeChild(gchatMessages.firstChild);
+  if (gchatMessages.children.length > 150) gchatMessages.removeChild(gchatMessages.firstChild);
 }
 
 function scrollGlobalChat() {

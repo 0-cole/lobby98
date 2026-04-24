@@ -459,19 +459,18 @@
   </div>
 
   </main>
-  <!-- Global Chat Panel -->
-  <div class="chat-panel" id="gchat-panel" hidden>
-    <div class="chat-header">
-      <span>💬 Global Chat</span>
-      <button class="btn btn-ghost btn-sm" id="gchat-close" style="font-size:11px;padding:2px 8px">✕</button>
+  <!-- Global Chat Sidebar (persistent, always visible except party games) -->
+  <aside class="gchat-sidebar" id="gchat-sidebar" hidden>
+    <div class="gchat-head">
+      <span>💬 Chat</span>
+      <button class="gchat-collapse-btn" id="gchat-collapse" title="Collapse">‹</button>
     </div>
-    <div class="chat-messages" id="gchat-messages"></div>
-    <form class="chat-input-form" id="gchat-form">
-      <input class="inp" type="text" id="gchat-input" placeholder="Type a message..." maxlength="200" autocomplete="off" />
-      <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 12px">Send</button>
+    <div class="gchat-body" id="gchat-messages"></div>
+    <form class="gchat-foot" id="gchat-form" autocomplete="off">
+      <input class="inp" type="text" id="gchat-input" placeholder="Type a message..." maxlength="200" />
+      <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 10px;flex-shrink:0">▶</button>
     </form>
-  </div>
-  <button class="chat-toggle" id="gchat-toggle" hidden>💬</button>
+  </aside>
 
   <div class="news-ticker" id="news-ticker">
     <span class="ticker-label">📰 LOBBY 98 NEWS</span>

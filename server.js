@@ -2196,6 +2196,31 @@ io.on("connection", (socket) => {
     if (!socket.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
+    // Profanity filter
+    if (containsProfanity(text)) return;
+    // Word Spy anti-cheat: block messages containing the active spy word
+    const roomCode = socketToRoom.get(socket.id);
+    if (roomCode) {
+      const room = rooms.get(roomCode);
+      if (room && room.game && room.game.type === "wordspy" && room.game.wordData) {
+        const word = room.game.wordData.word.toLowerCase();
+        const normalized = text.toLowerCase().replace(/[^a-z]/g, "");
+        const wordNorm = word.replace(/[^a-z]/g, "");
+        if (wordNorm.length >= 3 && normalized.includes(wordNorm)) {
+          socket.emit("gchat:blocked", "Can't say that word during Word Spy!");
+          return;
+        }
+        // Also check each individual word of multi-word spy words
+        const wordParts = word.split(/\s+/).filter(w => w.length >= 3);
+        for (const part of wordParts) {
+          const partNorm = part.replace(/[^a-z]/g, "");
+          if (partNorm.length >= 3 && normalized.includes(partNorm)) {
+            socket.emit("gchat:blocked", "Can't say that word during Word Spy!");
+            return;
+          }
+        }
+      }
+    }
     const entry = {
       user: socket.user.username,
       color: socket.user.name_color || "#8ec8e8",
