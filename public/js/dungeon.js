@@ -27,9 +27,14 @@ const MONSTER_DB={
   bone_dragon:{name:"Bone Dragon",emoji:"🐲",mhp:55,dmg:14,arm:10,spd:50,xp:16,rw:2},
   lich:{name:"Lich",emoji:"☠️",mhp:42,dmg:18,arm:6,spd:42,xp:15,rw:2},
   ancient:{name:"The Ancient",emoji:"⚫",mhp:220,dmg:22,arm:18,spd:55,xp:80,rw:8,boss:1},
+  dummy:{name:"Dummy",emoji:"🎯",mhp:8,dmg:1,arm:0,spd:100,xp:2,rw:1},
+  dummy_boss:{name:"Tough Dummy",emoji:"🥊",mhp:20,dmg:2,arm:1,spd:90,xp:5,rw:2,boss:1},
 };
 
 const AREAS=[
+  {name:"Training Grounds",color:"#2a3a2a",tutorial:true,floors:[
+    [{m:"dummy",n:1}],[{m:"dummy",n:2}],[{m:"dummy_boss",n:1,boss:1}]
+  ]},
   {name:"Mossy Caverns",color:"#2d5a1e",floors:[
     [{m:"slime",n:2}],[{m:"rat",n:3}],[{m:"mushroom",n:2}],[{m:"slime",n:2},{m:"mushroom",n:1}],[{m:"ogre",n:1,boss:1}]
   ]},
@@ -144,14 +149,22 @@ function recalc(){
 function genItem(aLvl,fType,fRar){
   const ti=fType??Math.floor(Math.random()*ITEM_TYPES.length);
   const t=ITEM_TYPES[ti];let ri=fRar??0;
-  if(fRar===undefined){const r=Math.random();if(r<.02)ri=4;else if(r<.08)ri=3;else if(r<.22)ri=2;else if(r<.5)ri=1;}
+  if(fRar===undefined){const r=Math.random();if(r<.02)ri=4;else if(r<.06)ri=3;else if(r<.18)ri=2;else if(r<.45)ri=1;}
   const rar=RARITIES[ri],stats={},aNames=[];
+  // Base stat scales with area level + random variance (±20%)
+  const variance=()=>0.8+Math.random()*0.4;
   for(const[s,base]of Object.entries(t.base)){if(s==="isSpd")continue;
-    const v=t.base.isSpd?Math.round(base*(1+aLvl*.3)):Math.round(base*aLvl*rar.multi);if(v>0)stats[s]=v;}
+    const baseVal=base*aLvl*rar.multi*variance();
+    const v=t.base.isSpd?Math.round(1+aLvl*0.4*rar.multi*variance()):Math.round(Math.max(1,baseVal));
+    if(v>0)stats[s]=v;}
+  // Random affixes — scale with level, rarity adds more lines
   const pool=[...AFFIX_POOL].sort(()=>Math.random()-.5);
   for(let i=0;i<rar.affixes&&i<pool.length;i++){const a=pool[i];
-    const v=a.flat?Math.round(a.base*(1+aLvl*.1)*10)/10:Math.round(a.base*aLvl*rar.multi);
-    if(v>0){stats[a.stat]=(stats[a.stat]||0)+v;aNames.push(`${a.label}+${v}`);}}
+    let v;
+    if(a.flat){v=Math.round((a.base+aLvl*0.3)*rar.multi*variance()*10)/10;}
+    else{v=Math.round(a.base*aLvl*rar.multi*variance());}
+    v=Math.max(1,v);
+    stats[a.stat]=(stats[a.stat]||0)+v;aNames.push(`${a.label}+${v}`);}
   return{name:t.name,icon:t.icon,typeIdx:ti,slot:t.slot,rarity:ri,rarName:rar.name,rarCol:rar.color,stats,aNames,lvl:aLvl};
 }
 
@@ -173,7 +186,14 @@ function startFloor(){
       g.enemies.push(m);}}
   g.player.atkTimer=g.player.spd;g.player.target=0;g.player.atkCount=0;
   g.player.resUsed=false;g.player.revUsed=false;
-  log(`Floor ${g.floor+1}/${area.floors.length}`);g.tab=TAB.BATTLE;
+  log(`Floor ${g.floor+1}/${area.floors.length}`);
+  // Tutorial messages
+  if(area.tutorial){
+    if(g.floor===0)log("📖 Welcome! Combat is automatic — you attack on a timer. Click enemies to target them.");
+    if(g.floor===1)log("📖 Tip: When you get items, go to [≡] Stats to equip them. Click items in your inventory!");
+    if(g.floor===2)log("📖 Tip: Unwanted items? Use the [⚒] Forge to dismantle them for rewards!");
+  }
+  g.tab=TAB.BATTLE;
 }
 
 // ══════ COMBAT ══════
@@ -199,7 +219,7 @@ function updateBattle(dt){
       g.player.xp=(g.player.xp||0)+(m.xp||5);
       while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts++;if(g.lvl%3===0)g.passivePts++;
         log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;}
-      if(Math.random()<(m.boss?.95:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);}
+      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);}
       const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
     if(e.atkTimer<=0){e.atkTimer=e.spd;const d=calcDmg(e.dmg,eArm);
@@ -217,7 +237,8 @@ function floorCleared(){
   g.player.hp=Math.min(g.player.mhp,Math.ceil(g.player.hp+g.player.mhp*.15));
   g.player.es=Math.round(g.player.mhp*g.player.mes/100);
   if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
-    g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);}
+    g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);
+    if(a.tutorial)log("📖 Tutorial complete! Use [≡] to spend stat points, equip loot, and grow stronger!");}
   else startFloor();
 }
 
@@ -298,6 +319,7 @@ function renderTopPanel(ctx){
 // ─── MAP ───
 function renderMap(ctx){
   const AREA_BG=[
+    ["📖","✏️","🎯","⭐","📖","✏️","🎯","⭐","📖","✏️","🎯","⭐","📖","✏️","🎯"],
     ["🪨","🌿","🍃","🌱","🪵","🍀","🌿","🪨","🍃","🌱","🪵","🍀","🌿","🪨","🍃"],
     ["🧊","❄️","💎","🔷","❄️","🧊","💎","❄️","🔷","🧊","❄️","💎","🔷","❄️","🧊"],
     ["🔥","🌋","💥","🟠","🔥","🌋","💥","🔥","🟠","🌋","🔥","💥","🟠","🔥","🌋"],
@@ -324,7 +346,7 @@ function renderMap(ctx){
   ctx.fillStyle=a.color;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.fill();
   ctx.strokeStyle="#8ec8e8";ctx.lineWidth=3;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.stroke();
   // Area emoji (big)
-  ctx.font="48px serif";ctx.fillText(["🌿","❄️","🔥","👁️","💀"][currentArea],cx,cy-15);
+  ctx.font="48px serif";ctx.fillText(["📚","🌿","❄️","🔥","👁️","💀"][currentArea],cx,cy-15);
   // Area name
   ctx.fillStyle="#fff";ctx.font="bold 22px Nunito,sans-serif";ctx.fillText(a.name,cx,cy+25);
   // Floor count

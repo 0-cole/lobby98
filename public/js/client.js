@@ -89,6 +89,15 @@ async function checkSession() {
   } catch { user = null; updateUI(); }
 }
 
+// Refresh user data WITHOUT navigating — use after profile/shop changes
+async function refreshUser() {
+  try {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+    if (data.loggedIn) { user = data.user; updateUI(); }
+  } catch {}
+}
+
 async function authSubmit(endpoint, form, errorEl) {
   errorEl.textContent = "";
   const fd = new FormData(form);
@@ -492,11 +501,15 @@ $("arcade-back").addEventListener("click", () => {
 //   SHOP
 // ============================================================
 async function loadShop() {
+  const shopPage = $("page-shop");
+  const scrollY = shopPage ? shopPage.scrollTop || window.scrollY : 0;
   try {
     const res = await fetch("/api/shop");
     const data = await res.json();
     if (data.user) { user = data.user; updateUI(); }
     renderShop(data.items, data.user);
+    // Restore scroll position after rebuild
+    requestAnimationFrame(() => { window.scrollTo(0, scrollY); });
   } catch {}
 }
 function renderShop(items, u) {
@@ -1005,7 +1018,7 @@ function loadProfile() {
     btn.style.cssText = `cursor:pointer;padding:6px;border-radius:10px;transition:all 0.15s;${user.pfpEmoji === emoji ? "background:var(--accent);box-shadow:0 0 0 2px var(--accent);" : ""}`;
     btn.addEventListener("click", async () => {
       await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ pfpEmoji: emoji }) });
-      await checkSession(); loadProfile();
+      await refreshUser(); loadProfile();
     });
     pfpPicker.appendChild(btn);
   }
@@ -1020,7 +1033,7 @@ function loadProfile() {
     swatch.title = c.name;
     swatch.addEventListener("click", async () => {
       await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ nameColor: c.id }) });
-      await checkSession(); loadProfile();
+      await refreshUser(); loadProfile();
     });
     colorPicker.appendChild(swatch);
   }
@@ -1035,7 +1048,7 @@ function loadProfile() {
     btn.style.fontSize = "12px";
     btn.addEventListener("click", async () => {
       await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ title: t.id }) });
-      await checkSession(); loadProfile();
+      await refreshUser(); loadProfile();
     });
     titlePicker.appendChild(btn);
   }
@@ -1130,7 +1143,7 @@ const staffSelfCoinsBtn = document.getElementById("staff-selfcoins-btn");
 if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
   if (!user) return;
   await fetch("/api/staff/givecoins", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:user.username,amount:1000}) });
-  await checkSession();
+  await refreshUser();
 });
 
 // ============================================================
