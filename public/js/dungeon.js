@@ -2,7 +2,7 @@
 // Two-panel: top panel (switches), bottom panel (persistent HP + equip + inventory)
 // Nav buttons: [M]ap [I]nv/Stats [F]orge [S]kills
 (function(){
-const W=640,H=520,MID=260,CELL=44,PAD=4;
+const W=800,H=600,MID=300,CELL=48,PAD=5;
 
 // ══════ DATA ══════
 const MONSTER_DB={
@@ -59,7 +59,7 @@ const ITEM_TYPES=[
   {name:"Amulet",icon:"📿",slot:5,base:{}},
 ];
 const RARITIES=[
-  {name:"Common",color:"#888",affixes:0,multi:1.0},
+  {name:"Common",color:"#ccc",affixes:0,multi:1.0},
   {name:"Uncommon",color:"#4caf50",affixes:1,multi:1.15},
   {name:"Rare",color:"#2196f3",affixes:2,multi:1.3},
   {name:"Legendary",color:"#ff9800",affixes:3,multi:1.5},
@@ -71,22 +71,26 @@ const AFFIX_POOL=[
   {stat:"hpr",label:"Regen",base:0.02,flat:1},{stat:"cri",label:"Crit",base:5,flat:1},
   {stat:"lfl",label:"Leech",base:2,flat:1},
 ];
+// Skill tree: 3 branches (HP, ATK, DEF), 5 tiers each. Must unlock in order.
 const PASSIVES=[
-  {name:"Toughness",desc:"+30% HP",icon:"❤️",e:{mhpMul:1.3}},
-  {name:"Fury",desc:"+25% DMG",icon:"⚔️",e:{dmgMul:1.25}},
-  {name:"Iron Skin",desc:"+35% ARM",icon:"🛡️",e:{armMul:1.35}},
-  {name:"Swiftness",desc:"+15% SPD",icon:"⚡",e:{spdMul:0.85}},
-  {name:"Regen",desc:"3% HP/sec",icon:"💚",e:{hprPct:0.03}},
-  {name:"Critical",desc:"3rd hit=2x",icon:"💥",e:{cri:3}},
-  {name:"Splash",desc:"25% to adj",icon:"💫",e:{spl:25}},
-  {name:"Leech",desc:"3% lifesteal",icon:"🩸",e:{lfl:3}},
-  {name:"Last Stand",desc:"Heal 30%@<40%",icon:"🔥",e:{res:30}},
-  {name:"Revive",desc:"Revive@15%",icon:"💀",e:{rev:15}},
-  {name:"Sweep",desc:"5th=hit all",icon:"🌀",e:{swp:5}},
-  {name:"Berserker",desc:"+50%dmg -20%arm",icon:"😤",e:{dmgMul:1.5,armMul:0.8}},
-  {name:"Fortify",desc:"+50%arm vs1",icon:"🏰",e:{irn:50}},
-  {name:"Vs Odds",desc:"+30%dmg vs3+",icon:"⚡",e:{ods:30}},
-  {name:"E.Shield",desc:"30%hp shield",icon:"🔮",e:{mes:30}},
+  // ── VITALITY branch (green) ── idx 0-4
+  {name:"Toughness",desc:"+30% Max HP",icon:"❤️",e:{mhpMul:1.3},branch:"hp",tier:0,req:-1},
+  {name:"Regen",desc:"3% HP/sec regen",icon:"💚",e:{hprPct:0.03},branch:"hp",tier:1,req:0},
+  {name:"Last Stand",desc:"Heal 30% at <40% HP",icon:"🔥",e:{res:30},branch:"hp",tier:2,req:1},
+  {name:"Revive",desc:"Revive once at 15% HP",icon:"💀",e:{rev:15},branch:"hp",tier:3,req:2},
+  {name:"E. Shield",desc:"30% HP as shield layer",icon:"🔮",e:{mes:30},branch:"hp",tier:4,req:3},
+  // ── POWER branch (red) ── idx 5-9
+  {name:"Fury",desc:"+25% Damage",icon:"⚔️",e:{dmgMul:1.25},branch:"atk",tier:0,req:-1},
+  {name:"Critical",desc:"Every 3rd hit = 2x dmg",icon:"💥",e:{cri:3},branch:"atk",tier:1,req:5},
+  {name:"Splash",desc:"25% dmg to neighbors",icon:"💫",e:{spl:25},branch:"atk",tier:2,req:6},
+  {name:"Sweep",desc:"Every 5th hit = all",icon:"🌀",e:{swp:5},branch:"atk",tier:3,req:7},
+  {name:"Berserker",desc:"+50% dmg, -20% armor",icon:"😤",e:{dmgMul:1.5,armMul:0.8},branch:"atk",tier:4,req:8},
+  // ── DEFENSE branch (blue) ── idx 10-14
+  {name:"Iron Skin",desc:"+35% Armor",icon:"🛡️",e:{armMul:1.35},branch:"def",tier:0,req:-1},
+  {name:"Swiftness",desc:"+15% Atk Speed",icon:"⚡",e:{spdMul:0.85},branch:"def",tier:1,req:10},
+  {name:"Leech",desc:"3% lifesteal",icon:"🩸",e:{lfl:3},branch:"def",tier:2,req:11},
+  {name:"Fortify",desc:"+50% armor vs 1 enemy",icon:"🏰",e:{irn:50},branch:"def",tier:3,req:12},
+  {name:"Vs Odds",desc:"+30% dmg vs 3+ enemies",icon:"⚡",e:{ods:30},branch:"def",tier:4,req:13},
 ];
 const FORGE_MS=[
   {at:3,r:"stat",n:1,d:"1 Stat Point"},{at:8,r:"stat",n:1,d:"1 Stat Point"},
@@ -112,7 +116,7 @@ function newGame(){
     equips:[null,null,null,null,null,null],
     inv:[],// max 20
     forgeProg:0,
-    lvl:1,xp:0,areaIdx:0,floor:0,areasCleared:0,
+    lvl:1,xp:0,areaIdx:0,floor:0,areasCleared:0,_mapViewArea:0,
     enemies:[],totalKills:0,totalCoins:0,log:[],
   };
 }
@@ -212,7 +216,7 @@ function floorCleared(){
   const a=AREAS[g.areaIdx];g.floor++;
   g.player.hp=Math.min(g.player.mhp,Math.ceil(g.player.hp+g.player.mhp*.15));
   g.player.es=Math.round(g.player.mhp*g.player.mes/100);
-  if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g.totalCoins+=(g.areaIdx+1)*15;
+  if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
     g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);}
   else startFloor();
 }
@@ -242,7 +246,7 @@ function render(ctx){
   // Background
   ctx.fillStyle="#000";ctx.fillRect(0,0,W,H);
   // Top panel border
-  ctx.strokeStyle="#444";ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,MID-8);
+  ctx.strokeStyle="#bbb";ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,MID-8);
   // Bottom panel border
   ctx.strokeRect(4,MID+4,W-8,H-MID-8);
 
@@ -262,7 +266,7 @@ function render(ctx){
     ctx.fillText(p.text,p.x,p.y-pr*30);ctx.globalAlpha=1;return true;});
 
   // ─── TOOLTIP ───
-  if(_tooltip){ctx.fillStyle="rgba(0,0,0,0.92)";ctx.strokeStyle="#666";ctx.lineWidth=1;
+  if(_tooltip){ctx.fillStyle="rgba(0,0,0,0.92)";ctx.strokeStyle="#aaa";ctx.lineWidth=1;
     const tw=180,th=_tooltip.lines.length*15+12;const tx=Math.min(_tooltip.x,W-tw-8),ty=Math.max(_tooltip.y-th,8);
     rr(ctx,tx,ty,tw,th,4);ctx.fill();rr(ctx,tx,ty,tw,th,4);ctx.stroke();
     ctx.fillStyle="#ddd";ctx.font="11px Nunito,sans-serif";ctx.textAlign="left";
@@ -273,9 +277,9 @@ function renderNav(ctx){
   const labels=["M","≡","⚒","✦"];const tabs=[TAB.MAP,TAB.STATS,TAB.FORGE,TAB.SKILLS];
   g._nav=[];
   for(let i=0;i<4;i++){const x=W-180+i*42,y=MID-36;const active=g.tab===tabs[i];
-    ctx.fillStyle=active?"#2a3a2a":"#111";ctx.strokeStyle=active?"#4caf50":"#444";ctx.lineWidth=active?2:1;
+    ctx.fillStyle=active?"#2a3a2a":"#111";ctx.strokeStyle=active?"#4caf50":"#bbb";ctx.lineWidth=active?2:1;
     rr(ctx,x,y,34,28,3);ctx.fill();rr(ctx,x,y,34,28,3);ctx.stroke();
-    ctx.fillStyle=active?"#4caf50":"#888";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=active?"#4caf50":"#ccc";ctx.font="bold 15px Nunito,sans-serif";ctx.textAlign="center";
     ctx.fillText(labels[i],x+17,y+19);
     g._nav.push({x,y,w:34,h:28,tab:tabs[i]});}
 }
@@ -293,28 +297,65 @@ function renderTopPanel(ctx){
 
 // ─── MAP ───
 function renderMap(ctx){
-  ctx.fillStyle="#8ec8e8";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
-  ctx.fillText("⚔️ World Map",W/2,30);
-  g._areas=[];
-  AREAS.forEach((a,i)=>{
-    const cols=Math.min(AREAS.length,3),row=Math.floor(i/cols),col=i%cols;
-    const aw=160,ah=80,gap=16;
-    const totalW=Math.min(AREAS.length,cols)*aw+(Math.min(AREAS.length,cols)-1)*gap;
-    const ox=(W-totalW)/2;
-    const x=ox+col*(aw+gap),y=50+row*(ah+gap);
-    const unlocked=i<=g.areasCleared,cleared=i<g.areasCleared;
-    ctx.globalAlpha=unlocked?1:.3;
-    ctx.fillStyle=unlocked?a.color:"#111";rr(ctx,x,y,aw,ah,6);ctx.fill();
-    if(unlocked&&!cleared){ctx.strokeStyle="#8ec8e8";ctx.lineWidth=2;rr(ctx,x,y,aw,ah,6);ctx.stroke();}
-    ctx.fillStyle="#fff";ctx.font="18px serif";ctx.textAlign="center";ctx.fillText(["🌿","❄️","🔥","👁️","💀"][i],x+aw/2,y+30);
-    ctx.font="bold 11px Nunito,sans-serif";ctx.fillText(a.name,x+aw/2,y+50);
-    ctx.font="10px Nunito,sans-serif";ctx.fillStyle=cleared?"#4caf50":"#aaa";
-    ctx.fillText(cleared?"✓ Cleared":unlocked?`${a.floors.length} floors`:"🔒",x+aw/2,y+66);
-    ctx.globalAlpha=1;g._areas.push({x,y,w:aw,h:ah,idx:i,unlocked});
-  });
-  // Info
-  ctx.fillStyle="#556";ctx.font="11px Nunito,sans-serif";ctx.textAlign="center";
-  ctx.fillText(`Lv.${g.lvl} | Kills:${g.totalKills} | Coins:${g.totalCoins}`,W/2,MID-42);
+  const AREA_BG=[
+    ["🪨","🌿","🍃","🌱","🪵","🍀","🌿","🪨","🍃","🌱","🪵","🍀","🌿","🪨","🍃"],
+    ["🧊","❄️","💎","🔷","❄️","🧊","💎","❄️","🔷","🧊","❄️","💎","🔷","❄️","🧊"],
+    ["🔥","🌋","💥","🟠","🔥","🌋","💥","🔥","🟠","🌋","🔥","💥","🟠","🔥","🌋"],
+    ["👁️","🌑","💜","🟣","🌑","👁️","💜","🌑","🟣","👁️","🌑","💜","🟣","🌑","👁️"],
+    ["💀","☠️","⚫","🖤","💀","☠️","⚫","💀","🖤","☠️","💀","⚫","🖤","💀","☠️"],
+  ];
+  const currentArea=Math.max(0,Math.min(g._mapViewArea||0,g.areasCleared,AREAS.length-1));
+  const a=AREAS[currentArea];
+  // Transition animation
+  const transProgress=g._mapTrans||0;
+  if(transProgress>0&&transProgress<1){g._mapTrans=Math.min(1,transProgress+0.02);}
+  // Themed emoji background (scattered, faded)
+  const bgEmojis=AREA_BG[currentArea]||AREA_BG[0];
+  ctx.globalAlpha=0.08;ctx.font="24px serif";ctx.textAlign="center";
+  for(let row=0;row<5;row++)for(let col=0;col<10;col++){
+    const ei=(row*10+col)%bgEmojis.length;
+    ctx.fillText(bgEmojis[ei],40+col*75+(row%2)*35,30+row*52);}
+  ctx.globalAlpha=1;
+  // Area number / total
+  ctx.fillStyle="#8ec8e8";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText(`⚔️ World Map — Area ${currentArea+1} of ${AREAS.length}`,W/2,24);
+  // Main area card (large, centered)
+  const cx=W/2,cy=130,cw=340,ch=140;
+  ctx.fillStyle=a.color;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.fill();
+  ctx.strokeStyle="#8ec8e8";ctx.lineWidth=3;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.stroke();
+  // Area emoji (big)
+  ctx.font="48px serif";ctx.fillText(["🌿","❄️","🔥","👁️","💀"][currentArea],cx,cy-15);
+  // Area name
+  ctx.fillStyle="#fff";ctx.font="bold 22px Nunito,sans-serif";ctx.fillText(a.name,cx,cy+25);
+  // Floor count
+  ctx.fillStyle="#ccc";ctx.font="14px Nunito,sans-serif";
+  const cleared=currentArea<g.areasCleared;
+  ctx.fillText(cleared?"✓ Cleared — Click to replay":`${a.floors.length} floors — Click to enter`,cx,cy+48);
+  g._areas=[{x:cx-cw/2,y:cy-ch/2,w:cw,h:ch,idx:currentArea,unlocked:true}];
+  // Progress dots (shows all areas as dots at bottom)
+  const dotY=MID-60;
+  for(let i=0;i<AREAS.length;i++){
+    const dx=W/2+(i-(AREAS.length-1)/2)*40;
+    ctx.beginPath();ctx.arc(dx,dotY,8,0,Math.PI*2);
+    ctx.fillStyle=i<g.areasCleared?"#4caf50":i===currentArea?"#8ec8e8":"#333";ctx.fill();
+    if(i===currentArea){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();}
+    ctx.fillStyle="#fff";ctx.font="8px Nunito,sans-serif";ctx.fillText(i+1,dx,dotY+3);
+  }
+  // Stats
+  ctx.fillStyle="#ccc";ctx.font="12px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText(`Lv.${g.lvl} | Kills:${g.totalKills} | Coins:${g.totalCoins}`,W/2,MID-36);
+  // Nav arrows
+  g._mapNav=[];
+  if(currentArea>0){
+    ctx.fillStyle="rgba(255,255,255,0.15)";rr(ctx,20,cy-20,40,40,8);ctx.fill();
+    ctx.fillStyle="#fff";ctx.font="bold 20px sans-serif";ctx.textAlign="center";ctx.fillText("◀",40,cy+6);
+    g._mapNav.push({x:20,y:cy-20,w:40,h:40,dir:-1});
+  }
+  if(currentArea<g.areasCleared&&currentArea<AREAS.length-1){
+    ctx.fillStyle="rgba(255,255,255,0.15)";rr(ctx,W-60,cy-20,40,40,8);ctx.fill();
+    ctx.fillStyle="#fff";ctx.font="bold 20px sans-serif";ctx.textAlign="center";ctx.fillText("▶",W-40,cy+6);
+    g._mapNav.push({x:W-60,y:cy-20,w:40,h:40,dir:1});
+  }
 }
 
 // ─── STATS ───
@@ -328,7 +369,7 @@ function renderStats(ctx){
   g._statBtns=[];
   rows.forEach((r,i)=>{
     const y=20+i*46;
-    ctx.fillStyle="#ddd";ctx.font="bold 15px Nunito,sans-serif";ctx.textAlign="left";
+    ctx.fillStyle="#ddd";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="left";
     ctx.fillText(r.label,24,y+20);
     ctx.textAlign="right";ctx.fillText(r.val,W-80,y+20);
     if(g.statPts>0){
@@ -352,45 +393,81 @@ function renderForge(ctx){
   const prevAt=FORGE_MS.filter(m=>m.at<=g.forgeProg).pop()?.at||0;
   const nextAt=nextMs?.at||g.forgeProg+10;
   // Milestone icon (left)
-  ctx.fillStyle="#222";rr(ctx,20,44,40,40,4);ctx.fill();ctx.strokeStyle="#555";rr(ctx,20,44,40,40,4);ctx.stroke();
+  ctx.fillStyle="#222";rr(ctx,20,44,40,40,4);ctx.fill();ctx.strokeStyle="#999";rr(ctx,20,44,40,40,4);ctx.stroke();
   ctx.fillStyle="#ff9800";ctx.font="16px serif";ctx.textAlign="center";ctx.fillText("🔨",40,70);
   // Progress bar
   bar(ctx,70,54,W-160,20,(g.forgeProg-prevAt)/(nextAt-prevAt),"#2196f3");
   ctx.fillStyle="#fff";ctx.font="10px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText(`${g.forgeProg}/${nextAt}`,70+(W-160)/2,69);
   // Reward icon (right)
-  ctx.fillStyle="#222";rr(ctx,W-60,44,40,40,4);ctx.fill();ctx.strokeStyle="#555";rr(ctx,W-60,44,40,40,4);ctx.stroke();
+  ctx.fillStyle="#222";rr(ctx,W-60,44,40,40,4);ctx.fill();ctx.strokeStyle="#999";rr(ctx,W-60,44,40,40,4);ctx.stroke();
   ctx.fillStyle="#4caf50";ctx.font="14px serif";ctx.textAlign="center";ctx.fillText("✦",W-40,70);
   // Next reward
-  ctx.fillStyle="#aaa";ctx.font="11px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillStyle="#ddd";ctx.font="13px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText(nextMs?`Next: ${nextMs.d}`:"All rewards claimed!",W/2,100);
   // Instructions
-  ctx.fillStyle="#666";ctx.font="11px Nunito,sans-serif";
+  ctx.fillStyle="#aaa";ctx.font="11px Nunito,sans-serif";
   ctx.fillText("Click items in inventory below to dismantle them.",W/2,125);
   ctx.fillText("Dismantle enough to claim rewards!",W/2,140);
   // Show milestones
   ctx.font="9px Nunito,sans-serif";ctx.textAlign="left";
   FORGE_MS.forEach((ms,i)=>{const x=20+(i%5)*124,y=155+Math.floor(i/5)*16;
-    ctx.fillStyle=g.forgeProg>=ms.at?"#4caf50":"#444";
+    ctx.fillStyle=g.forgeProg>=ms.at?"#4caf50":"#bbb";
     ctx.fillText(`${g.forgeProg>=ms.at?"✓":"○"} ${ms.at}: ${ms.d}`,x,y+10);});
 }
 
 // ─── SKILLS ───
 function renderSkills(ctx){
   ctx.fillStyle="#e040fb";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
-  ctx.fillText(`✦ Skills (${g.passivePts} points)`,W/2,28);
+  ctx.fillText(`✦ Skill Tree (${g.passivePts} points)`,W/2,24);
+  // Branch labels
+  const branches=[
+    {label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",x:40},
+    {label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",x:W/2-110},
+    {label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",x:W-330},
+  ];
   g._skillBtns=[];
-  PASSIVES.forEach((ps,i)=>{
-    const cols=5,x=16+(i%cols)*124,y=42+Math.floor(i/cols)*64;
-    const active=g.activePassives.has(i);
-    ctx.fillStyle=active?"#1a2a1a":"#111";ctx.strokeStyle=active?"#4caf50":"#2a2a3a";ctx.lineWidth=active?2:1;
-    rr(ctx,x,y,118,56,4);ctx.fill();rr(ctx,x,y,118,56,4);ctx.stroke();
-    ctx.font="18px serif";ctx.textAlign="center";ctx.fillText(ps.icon,x+20,y+26);
-    ctx.fillStyle=active?"#8f8":"#888";ctx.font="bold 10px Nunito,sans-serif";ctx.textAlign="left";
-    ctx.fillText(ps.name,x+36,y+20);
-    ctx.fillStyle=active?"#6a8":"#555";ctx.font="9px Nunito,sans-serif";
-    ctx.fillText(ps.desc,x+36,y+34);
-    g._skillBtns.push({x,y,w:118,h:56,idx:i});
+  branches.forEach((br,bi)=>{
+    const bx=br.x,startIdx=bi*5;
+    // Branch header
+    ctx.fillStyle=br.color;ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
+    ctx.fillText(br.label,bx+115,48);
+    // Draw connecting lines between tiers
+    for(let t=0;t<4;t++){
+      const y1=58+t*46+40,y2=58+(t+1)*46;
+      ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(bx+115,y1);ctx.lineTo(bx+115,y2);ctx.stroke();
+    }
+    // Draw skill nodes
+    for(let t=0;t<5;t++){
+      const idx=startIdx+t;const ps=PASSIVES[idx];if(!ps)continue;
+      const sx=bx+10,sy=58+t*46,sw=210,sh=40;
+      const active=g.activePassives.has(idx);
+      const reqMet=ps.req===-1||g.activePassives.has(ps.req);
+      const canLearn=reqMet&&g.passivePts>0&&!active;
+      const locked=!reqMet&&!active;
+      // Node background
+      ctx.fillStyle=active?br.hoverCol:locked?"#0a0a10":"#111";
+      ctx.strokeStyle=active?br.color:locked?"#1a1a2a":"#2a2a3a";
+      ctx.lineWidth=active?2:1;
+      rr(ctx,sx,sy,sw,sh,6);ctx.fill();rr(ctx,sx,sy,sw,sh,6);ctx.stroke();
+      // Lock overlay
+      if(locked){ctx.globalAlpha=0.5;}
+      // Icon
+      ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(ps.icon,sx+22,sy+27);
+      // Name
+      ctx.fillStyle=active?"#fff":locked?"#555":"#ddd";ctx.font="bold 11px Nunito,sans-serif";ctx.textAlign="left";
+      ctx.fillText(ps.name,sx+40,sy+17);
+      // Desc
+      ctx.fillStyle=active?"#aaa":locked?"#444":"#999";ctx.font="10px Nunito,sans-serif";
+      ctx.fillText(ps.desc,sx+40,sy+32);
+      // Active indicator
+      if(active){ctx.fillStyle=br.color;ctx.beginPath();ctx.arc(sx+sw-14,sy+sh/2,5,0,Math.PI*2);ctx.fill();}
+      // "NEW" indicator if can learn
+      if(canLearn&&!active){ctx.fillStyle="#ffd700";ctx.font="bold 8px Nunito,sans-serif";ctx.textAlign="right";ctx.fillText("LEARN",sx+sw-6,sy+14);}
+      ctx.globalAlpha=1;
+      g._skillBtns.push({x:sx,y:sy,w:sw,h:sh,idx});
+    }
   });
 }
 
@@ -467,7 +544,7 @@ function renderBottomPanel(ctx){
     ctx.fillStyle="#fff";ctx.font="9px Nunito,sans-serif";ctx.fillText(`${Math.round(p.es)}`,14+hpW+56,MID+24);}
   // XP bar (tiny)
   bar(ctx,14,MID+32,hpW,4,(g.player.xp||0)/xpNeed(g.lvl),"#a78bfa");
-  ctx.fillStyle="#777";ctx.font="8px Nunito,sans-serif";ctx.textAlign="left";
+  ctx.fillStyle="#bbb";ctx.font="8px Nunito,sans-serif";ctx.textAlign="left";
   ctx.fillText(`Lv.${g.lvl} XP:${g.player.xp||0}/${xpNeed(g.lvl)}`,14,MID+46);
 
   // Equipment slots (right side, column)
@@ -478,7 +555,7 @@ function renderBottomPanel(ctx){
     const ey=MID+12+i*40;const it=g.equips[i];
     cell(ctx,eqX,ey,36,!!it,it?"#2244aa":"#2a2a3a");
     if(it){ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(it.icon,eqX+18,ey+26);}
-    else{ctx.fillStyle="#333";ctx.font="16px serif";ctx.textAlign="center";ctx.fillText(ITEM_TYPES[i].icon,eqX+18,ey+26);}
+    else{ctx.fillStyle="#667";ctx.font="16px serif";ctx.textAlign="center";ctx.fillText(ITEM_TYPES[i].icon,eqX+18,ey+26);}
     g._eqSlots.push({x:eqX,y:ey,w:36,h:36,slot:i});
   }
 
@@ -515,11 +592,23 @@ function handleClick(mx,my,onFinish){
   for(const n of(g._nav||[])){if(hit(mx,my,n)){if(g.tab===TAB.BATTLE&&n.tab!==TAB.BATTLE)return;// can't nav during battle except via flee
     if(g.tab===TAB.VICTORY||g.tab===TAB.DEFEAT)return;g.tab=n.tab;return;}}
   // Top panel clicks
-  if(g.tab===TAB.MAP){for(const a of(g._areas||[])){if(hit(mx,my,a)&&a.unlocked)startArea(a.idx);}}
+  if(g.tab===TAB.MAP){
+    // Nav arrows
+    for(const n of(g._mapNav||[])){if(hit(mx,my,n)){g._mapViewArea=(g._mapViewArea||0)+n.dir;return;}}
+    for(const a of(g._areas||[])){if(hit(mx,my,a)&&a.unlocked)startArea(a.idx);}}
   if(g.tab===TAB.STATS){for(const b of(g._statBtns||[])){if(hit(mx,my,b)&&g.statPts>0){g.spentStats[b.key]++;g.statPts--;recalc();}}}
   if(g.tab===TAB.SKILLS){for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
-    if(g.activePassives.has(b.idx)){g.activePassives.delete(b.idx);g.passivePts++;recalc();}
-    else if(g.passivePts>0){g.activePassives.add(b.idx);g.passivePts--;recalc();}return;}}}
+    const ps=PASSIVES[b.idx];
+    if(g.activePassives.has(b.idx)){
+      // Can't unlearn if a later skill depends on this one
+      const dependent=PASSIVES.findIndex((p,i)=>p.req===b.idx&&g.activePassives.has(i));
+      if(dependent>=0)return;
+      g.activePassives.delete(b.idx);g.passivePts++;recalc();
+    } else if(g.passivePts>0){
+      const reqMet=ps.req===-1||g.activePassives.has(ps.req);
+      if(!reqMet)return;
+      g.activePassives.add(b.idx);g.passivePts--;recalc();
+    }return;}}}
   if(g.tab===TAB.BATTLE){
     for(const b of(g._eBtns||[])){if(hit(mx,my,b))g.player.target=b.idx;}
     if(hit(mx,my,g._fleeBt)){g.tab=TAB.MAP;log("Fled!");}}
@@ -566,9 +655,36 @@ function handleHover(mx,my){
 }
 
 // ══════ PUBLIC API ══════
+// ══════ SAVE/LOAD ══════
+function saveGame(){
+  if(!g)return;try{
+    const save={player:{...g.player},baseStats:g.baseStats,statPts:g.statPts,passivePts:g.passivePts,
+      spentStats:g.spentStats,activePassives:[...g.activePassives],slots:g.slots,
+      equips:g.equips,inv:g.inv,forgeProg:g.forgeProg,lvl:g.lvl,xp:g.xp,
+      areasCleared:g.areasCleared,totalKills:g.totalKills,totalCoins:g.totalCoins};
+    localStorage.setItem("dd_save",JSON.stringify(save));
+  }catch(e){console.warn("Save failed",e);}
+}
+function loadGame(){
+  try{
+    const raw=localStorage.getItem("dd_save");if(!raw)return false;
+    const s=JSON.parse(raw);if(!s||!s.player)return false;
+    g.player={...g.player,...s.player};g.baseStats=s.baseStats||g.baseStats;
+    g.statPts=s.statPts||0;g.passivePts=s.passivePts||0;
+    g.spentStats=s.spentStats||g.spentStats;g.activePassives=new Set(s.activePassives||[]);
+    g.slots=s.slots||g.slots;g.equips=s.equips||g.equips;g.inv=s.inv||g.inv;
+    g.forgeProg=s.forgeProg||0;g.lvl=s.lvl||1;g.xp=s.xp||0;
+    g.areasCleared=s.areasCleared||0;g.totalKills=s.totalKills||0;g.totalCoins=s.totalCoins||0;
+    g._mapViewArea=g.areasCleared>0?Math.min(g.areasCleared,AREAS.length-1):0;
+    recalc();return true;
+  }catch(e){console.warn("Load failed",e);return false;}
+}
+
 window.DungeonGame={
   init(container,onFinish){
-    g=newGame();_particles=[];_tooltip=null;recalc();g.player.hp=g.player.mhp;
+    g=newGame();_particles=[];_tooltip=null;
+    const loaded=loadGame();
+    if(!loaded){recalc();g.player.hp=g.player.mhp;}
     container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)"></canvas>`;
     const cv=document.getElementById("dg-canvas"),ctx=cv.getContext("2d");
     const xy=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height)];};
@@ -580,7 +696,11 @@ window.DungeonGame={
     const loop=()=>{const now=Date.now();const dt=Math.min((now-last)/16.67,3);last=now;
       updateBattle(dt);render(ctx);_raf=requestAnimationFrame(loop);};
     _raf=requestAnimationFrame(loop);
-    this.cleanup=()=>{if(_raf)cancelAnimationFrame(_raf);cv.removeEventListener("click",onClick);cv.removeEventListener("contextmenu",onCtx);cv.removeEventListener("mousemove",onMove);};
+    // Auto-save: on page leave, every 30s, and on tab switch
+    const doSave=()=>saveGame();
+    window.addEventListener("beforeunload",doSave);
+    setInterval(doSave,30000);
+    this.cleanup=()=>{doSave();if(_raf)cancelAnimationFrame(_raf);cv.removeEventListener("click",onClick);cv.removeEventListener("contextmenu",onCtx);cv.removeEventListener("mousemove",onMove);};
   },
   cleanup(){if(_raf)cancelAnimationFrame(_raf);}
 };
