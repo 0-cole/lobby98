@@ -70,6 +70,7 @@ app.post("/api/register", async (req, res) => {
   createSession(token, user.id);
   setCookie(res, token);
   res.json({ ok: true, user: safeUserData(user) });
+  triggerBackup();
 });
 
 app.post("/api/login", async (req, res) => {
@@ -2409,8 +2410,9 @@ function handleLeave(socket, opts = {}) {
 const PORT = process.env.PORT || 3000;
 
 // Periodic backup to PostgreSQL (if DATABASE_URL is set)
+let _backupSave = null;
 if (process.env.DATABASE_URL) {
-  const backupSave = async () => {
+  _backupSave = async () => {
     try {
       const dbPath = path.join(process.env.DB_DIR || path.join(__dirname, "data"), "lobby98.db");
       if (!fs.existsSync(dbPath)) return;
@@ -2422,15 +2424,22 @@ if (process.env.DATABASE_URL) {
          ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`, [data]
       );
       await pool.end();
+      console.log(`💾 Backup saved (${(data.length/1024).toFixed(1)} KB)`);
     } catch (err) {
       console.error("⚠️ Backup save failed:", err.message);
     }
   };
-  // Save every 60 seconds + on startup after 15s
-  setTimeout(backupSave, 15000);
-  setInterval(backupSave, 60000);
-  console.log("💾 Auto-backup to PostgreSQL enabled (every 60s)");
+  // Save immediately on startup, then every 30 seconds
+  setTimeout(_backupSave, 5000);
+  setInterval(_backupSave, 30000);
+  // Save on shutdown signals (Railway sends SIGTERM)
+  process.on("SIGTERM", async () => { console.log("🛑 SIGTERM — saving..."); await _backupSave(); process.exit(0); });
+  process.on("SIGINT", async () => { console.log("🛑 SIGINT — saving..."); await _backupSave(); process.exit(0); });
+  console.log("💾 Auto-backup to PostgreSQL enabled (every 30s + on shutdown)");
 }
+
+// Trigger backup after important events (register/login)
+function triggerBackup() { if (_backupSave) setTimeout(_backupSave, 2000); }
 
 httpServer.listen(PORT, () => {
   console.log(`🎮 Lobby 98 running at http://localhost:${PORT}`);

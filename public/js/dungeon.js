@@ -422,26 +422,26 @@ function renderSkills(ctx){
   ctx.fillText(`✦ Skill Tree (${g.passivePts} points)`,W/2,24);
   // Branch labels
   const branches=[
-    {label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",x:40},
-    {label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",x:W/2-110},
-    {label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",x:W-330},
+    {label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",x:8},
+    {label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",x:270},
+    {label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",x:532},
   ];
   g._skillBtns=[];
   branches.forEach((br,bi)=>{
     const bx=br.x,startIdx=bi*5;
     // Branch header
     ctx.fillStyle=br.color;ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
-    ctx.fillText(br.label,bx+115,48);
+    ctx.fillText(br.label,bx+129,48);
     // Draw connecting lines between tiers
     for(let t=0;t<4;t++){
-      const y1=58+t*46+40,y2=58+(t+1)*46;
+      const y1=58+t*48+42,y2=58+(t+1)*48;
       ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.beginPath();
-      ctx.moveTo(bx+115,y1);ctx.lineTo(bx+115,y2);ctx.stroke();
+      ctx.moveTo(bx+129,y1);ctx.lineTo(bx+129,y2);ctx.stroke();
     }
     // Draw skill nodes
     for(let t=0;t<5;t++){
       const idx=startIdx+t;const ps=PASSIVES[idx];if(!ps)continue;
-      const sx=bx+10,sy=58+t*46,sw=210,sh=40;
+      const sx=bx+4,sy=58+t*48,sw=250,sh=42;
       const active=g.activePassives.has(idx);
       const reqMet=ps.req===-1||g.activePassives.has(ps.req);
       const canLearn=reqMet&&g.passivePts>0&&!active;
@@ -551,7 +551,13 @@ function renderBottomPanel(ctx){
   g._eqSlots=[];
   const eqX=W-58;
   for(let i=0;i<6;i++){
-    if(!g.slots[i])continue;
+    if(!g.slots[i]){
+      // Show locked slot as dark with lock
+      const ey=MID+12+i*40;
+      cell(ctx,eqX,ey,36,false,"#1a1a1a");
+      ctx.fillStyle="#333";ctx.font="14px serif";ctx.textAlign="center";ctx.fillText("🔒",eqX+18,ey+24);
+      continue;
+    }
     const ey=MID+12+i*40;const it=g.equips[i];
     cell(ctx,eqX,ey,36,!!it,it?"#2244aa":"#2a2a3a");
     if(it){ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(it.icon,eqX+18,ey+26);}
@@ -621,9 +627,10 @@ function handleClick(mx,my,onFinish){
     const it=g.inv[s.idx];if(!it)return;
     if(g.tab===TAB.FORGE){forgeItem(s.idx);return;}
     // Equip: click item in inventory to equip it
-    if(it.slot!==undefined&&g.slots[it.slot]){
+    if(it.slot!==undefined){
+      if(!g.slots[it.slot]){log(`🔒 ${ITEM_TYPES[it.slot].name} slot locked! Forge more items.`);return;}
       const old=g.equips[it.slot];g.equips[it.slot]=it;g.inv.splice(s.idx,1);
-      if(old)g.inv.push(old);recalc();log(`Equipped ${it.icon} ${it.name}`);return;}}}
+      if(old)g.inv.push(old);recalc();log(`✅ Equipped ${it.icon} ${it.name}`);return;}}}
   // Equipment slot clicks — unequip
   for(const s of(g._eqSlots||[])){if(hit(mx,my,s)){
     const it=g.equips[s.slot];if(!it)return;
@@ -637,6 +644,7 @@ function handleRightClick(mx,my){
 
 function handleHover(mx,my){
   _tooltip=null;
+  if(!g)return;
   // Inventory tooltips
   for(const s of(g._invSlots||[])){if(hit(mx,my,s)&&g.inv[s.idx]){
     const it=g.inv[s.idx];const lines=[`${it.rarName} ${it.name}`];
@@ -649,8 +657,8 @@ function handleHover(mx,my){
     for(const[k,v]of Object.entries(it.stats||{}))lines.push(`${k.toUpperCase()}: +${Math.round(v)}`);
     lines.push("Click to unequip");
     _tooltip={x:mx+12,y:my,lines,col:it.rarCol};return;}}
-  // Skill tooltips
-  for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
+  // Skill tooltips (only on skills tab)
+  if(g.tab===TAB.SKILLS) for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
     const ps=PASSIVES[b.idx];_tooltip={x:mx+12,y:my,lines:[ps.name,ps.desc,g.activePassives.has(b.idx)?"Click to unlearn":"Click to learn"],col:g.activePassives.has(b.idx)?"#4caf50":"#e040fb"};return;}}
 }
 

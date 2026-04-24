@@ -415,3 +415,7 @@ label{display:flex;flex-direction:column;gap:4px}
 .ticker-text{white-space:nowrap;font-family:"Nunito",sans-serif;font-size:13px;font-weight:600;color:rgba(200,220,240,0.85);position:absolute;animation:tickerScroll var(--ticker-dur, 30s) linear infinite;padding-left:100%}
 @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
 .site-footer{padding-bottom:48px}
+
+/* Dungeon container — no glass overlay */
+.dungeon-container{padding:12px;margin-bottom:16px;border-radius:var(--r);background:transparent}
+.dungeon-container::before{display:none!important}
