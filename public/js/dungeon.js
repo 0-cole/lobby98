@@ -349,13 +349,18 @@ function renderMap(ctx){
   // Themed emoji background (scattered, faded)
   const bgEmojis=AREA_BG[currentArea]||AREA_BG[0];
   ctx.globalAlpha=0.14;ctx.font="26px serif";ctx.textAlign="center";
-  const tileH=50,cols=11,rows=7;
-  const scrollY=(Date.now()/30)%tileH;
-  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
-    const ei=(row*cols+col)%bgEmojis.length;
-    const x=30+col*70+(row%2)*35;
-    const y=-10+row*tileH-scrollY;
-    ctx.fillText(bgEmojis[ei],x,y);}
+  const tileH=50,cols=11;
+  const totalScroll=Date.now()/30;
+  const scrollOff=totalScroll%tileH;
+  const rowShift=Math.floor(totalScroll/tileH);
+  for(let row=-1;row<8;row++){
+    const y=row*tileH-scrollOff;
+    if(y<-40||y>MID+10)continue;
+    for(let col=0;col<cols;col++){
+      const ri=((row+rowShift)%50+50)%50;
+      const ei=(ri*cols+col)%bgEmojis.length;
+      const x=30+col*70+(ri%2)*35;
+      ctx.fillText(bgEmojis[ei],x,y);}}
   ctx.globalAlpha=1;
   // Area number / total
   ctx.fillStyle="#8ec8e8";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
