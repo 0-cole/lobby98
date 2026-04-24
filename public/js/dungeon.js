@@ -27,8 +27,8 @@ const MONSTER_DB={
   bone_dragon:{name:"Bone Dragon",emoji:"🐲",mhp:55,dmg:14,arm:10,spd:50,xp:16,rw:2},
   lich:{name:"Lich",emoji:"☠️",mhp:42,dmg:18,arm:6,spd:42,xp:15,rw:2},
   ancient:{name:"The Ancient",emoji:"⚫",mhp:220,dmg:22,arm:18,spd:55,xp:80,rw:8,boss:1},
-  dummy:{name:"Dummy",emoji:"🎯",mhp:8,dmg:1,arm:0,spd:100,xp:2,rw:1},
-  dummy_boss:{name:"Tough Dummy",emoji:"🥊",mhp:20,dmg:2,arm:1,spd:90,xp:5,rw:2,boss:1},
+  dummy:{name:"Dummy",emoji:"🎯",mhp:8,dmg:1,arm:0,spd:200,xp:2,rw:1},
+  dummy_boss:{name:"Tough Dummy",emoji:"🥊",mhp:20,dmg:2,arm:1,spd:160,xp:5,rw:2,boss:1},
 };
 
 const AREAS=[
@@ -71,7 +71,7 @@ const RARITIES=[
   {name:"Ancient",color:"#e040fb",affixes:3,multi:1.8},
 ];
 const AFFIX_POOL=[
-  {stat:"dmg",label:"DMG",base:0.15},{stat:"arm",label:"ARM",base:0.22},
+  {stat:"dmg",label:"DMG",base:0.15},{stat:"arm",label:"Armor",base:0.22},
   {stat:"mhp",label:"HP",base:0.20},{stat:"spd",label:"SPD",base:0.12,isSpd:1},
   {stat:"hpr",label:"Regen",base:0.02,flat:1},{stat:"cri",label:"Crit",base:5,flat:1},
   {stat:"lfl",label:"Leech",base:2,flat:1},
@@ -122,7 +122,7 @@ function newGame(){
     inv:[],// max 20
     forgeProg:0,
     lvl:1,xp:0,areaIdx:0,floor:0,areasCleared:0,_mapViewArea:0,
-    enemies:[],totalKills:0,totalCoins:0,log:[],
+    enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,
   };
 }
 function xpNeed(l){return Math.round(20*l+5*l*l);}
@@ -184,14 +184,15 @@ function startFloor(){
       if(m.mod==="poison")m.poisonDmg=Math.ceil(m.dmg*.15);
       if(m.mod==="shielding")m.shielding=true;
       g.enemies.push(m);}}
-  g.player.atkTimer=g.player.spd;g.player.target=0;g.player.atkCount=0;
+  g.player.atkTimer=AREAS[g.areaIdx]?.tutorial?120:g.player.spd;g.player.target=0;g.player.atkCount=0;
   g.player.resUsed=false;g.player.revUsed=false;
   log(`Floor ${g.floor+1}/${area.floors.length}`);
   // Tutorial messages
   if(area.tutorial){
-    if(g.floor===0)log("📖 Welcome! Combat is automatic — you attack on a timer. Click enemies to target them.");
-    if(g.floor===1)log("📖 Tip: When you get items, go to [≡] Stats to equip them. Click items in your inventory!");
-    if(g.floor===2)log("📖 Tip: Unwanted items? Use the [⚒] Forge to dismantle them for rewards!");
+    g.tutPaused=true;g.player.atkTimer=999;
+    if(g.floor===0){log("📖 Click the enemy to start fighting!");log("📖 Welcome! Combat is automatic, but YOU choose which enemy to target.");}
+    if(g.floor===1){log("📖 Click an enemy to begin!");log("📖 Tip: After battle, press [≡] to see your stats and equip items you find.");}
+    if(g.floor===2){log("📖 Click to start the boss!");log("📖 Tip: Use [⚒] Forge to dismantle unwanted items for rewards and new equip slots!");}
   }
   g.tab=TAB.BATTLE;
 }
@@ -199,7 +200,7 @@ function startFloor(){
 // ══════ COMBAT ══════
 function calcDmg(a,d){return Math.max(1,a-Math.floor(a/Math.pow(2,a/Math.max(d,1))));}
 function updateBattle(dt){
-  if(g.tab!==TAB.BATTLE)return;const p=g.player;
+  if(g.tab!==TAB.BATTLE)return;if(g.tutPaused)return;const p=g.player;
   const alive=g.enemies.filter(e=>e.hp>0);if(!alive.length){floorCleared();return;}
   const eArm=p.arm+(alive.length===1&&p.irn>0?Math.round(p.arm*p.irn/100):0);
   const eDmg=p.dmg+(alive.length>=3&&p.ods>0?Math.round(p.dmg*p.ods/100):0);
@@ -238,7 +239,13 @@ function floorCleared(){
   g.player.es=Math.round(g.player.mhp*g.player.mes/100);
   if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
     g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);
-    if(a.tutorial)log("📖 Tutorial complete! Use [≡] to spend stat points, equip loot, and grow stronger!");}
+    if(a.tutorial){
+      log("📖 Tutorial complete! You now know the basics:");
+      log("📖 • Click enemies to target them");
+      log("📖 • [≡] Stats: Spend points & equip items");
+      log("📖 • [⚒] Forge: Dismantle items for rewards");
+      log("📖 • [✦] Skills: Unlock passive abilities");
+    }}
   else startFloor();
 }
 
@@ -383,9 +390,9 @@ function renderMap(ctx){
 // ─── STATS ───
 function renderStats(ctx){
   const rows=[
-    {key:"mhp",label:"Max Life",val:g.player.mhp,per:"+5"},
-    {key:"dmg",label:"Damage",val:g.player.dmg,per:"+2"},
-    {key:"arm",label:"Armor",val:g.player.arm,per:"+2"},
+    {key:"mhp",label:"Max Life",val:g.player.mhp,per:"+5 HP"},
+    {key:"dmg",label:"Damage",val:g.player.dmg,per:"+2 Damage"},
+    {key:"arm",label:"Armor",val:g.player.arm,per:"+2 Armor"},
     {key:"spd",label:"Atk Speed",val:g.player.spd,per:"-3 (faster)"},
   ];
   g._statBtns=[];
@@ -638,7 +645,8 @@ function handleClick(mx,my,onFinish){
       g.activePassives.add(b.idx);g.passivePts--;recalc();
     }return;}}}
   if(g.tab===TAB.BATTLE){
-    for(const b of(g._eBtns||[])){if(hit(mx,my,b))g.player.target=b.idx;}
+    for(const b of(g._eBtns||[])){if(hit(mx,my,b)){g.player.target=b.idx;
+      if(g.tutPaused){g.tutPaused=false;g.player.atkTimer=g.player.spd;log("⚔️ Battle started! Watch the blue timer bar — you attack when it fills up.");}}}
     if(hit(mx,my,g._fleeBt)){g.tab=TAB.MAP;log("Fled!");}}
   if(g.tab===TAB.VICTORY||g.tab===TAB.DEFEAT){
     for(const b of(g._endBtns||[])){if(hit(mx,my,b)){
