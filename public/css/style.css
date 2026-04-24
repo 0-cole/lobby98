@@ -377,6 +377,22 @@ label{display:flex;flex-direction:column;gap:4px}
 /* Staff nav link */
 .nav-staff{color:var(--danger)!important;font-weight:800!important}
 .nav-staff.active{background:linear-gradient(180deg,#ffdce0,#ffb3ba)!important;color:#8c2b38!important}
+#staff-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){#staff-grid{grid-template-columns:1fr}}
+.staff-user-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid rgba(10,61,92,0.06);font-size:12px}
+.staff-user-row:last-child{border-bottom:none}
+.staff-user-name{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.staff-user-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px}
+.staff-user-badge.online{background:rgba(76,175,80,0.15);color:var(--success)}
+.staff-user-badge.banned{background:rgba(224,72,88,0.15);color:var(--danger)}
+.staff-user-badge.mod{background:rgba(34,174,209,0.15);color:var(--accent)}
+.staff-user-badge.muted{background:rgba(245,166,35,0.15);color:var(--warn)}
+.gchat-delete-btn{display:none;background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;padding:0 3px;margin-left:3px;opacity:0.6}
+.gchat-delete-btn:hover{opacity:1}
+body.is-staff .gchat-body .chat-msg:hover .gchat-delete-btn{display:inline}
+.gchat-role-badge{font-size:8px;font-weight:800;padding:1px 4px;border-radius:3px;margin-right:3px;vertical-align:middle;letter-spacing:.3px}
+.gchat-role-badge.staff-badge{background:rgba(224,72,88,0.2);color:var(--danger)}
+.gchat-role-badge.mod-badge{background:rgba(34,174,209,0.2);color:var(--accent)}
 
 /* Leaderboard */
 .lb-table{display:flex;flex-direction:column;gap:6px}

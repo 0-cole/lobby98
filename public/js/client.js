@@ -472,6 +472,8 @@ socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter }) => { myCha
 socket.on("chat:message", msg => { addChat(msg); scrollChat(); });
 socket.on("room:kicked", ({ by }) => { $("kicked-by").textContent = by ? `(by ${by})` : ""; resetRoomState(); showPage("page-kicked"); });
 socket.on("disconnect", () => { if (me) { resetRoomState(); showPage("page-dashboard"); } });
+socket.on("kicked", ({ reason }) => { alert("You've been kicked: " + (reason || "No reason")); location.reload(); });
+socket.on("banned", ({ reason }) => { alert("You've been banned: " + (reason || "No reason")); location.reload(); });
 
 // ============================================================
 //   ARCADE
@@ -671,12 +673,18 @@ const fnBtn = document.getElementById('fake-news-refresh');
 if (fnBtn) fnBtn.addEventListener('click', loadFakeNews);
 
 // Staff check
+let isStaffUser = false, isModUser = false;
 async function checkStaff() {
   try {
     const res = await fetch('/api/staff/check');
     const data = await res.json();
+    isStaffUser = data.isStaff;
+    isModUser = data.isMod;
     const link = document.getElementById('nav-staff-link');
-    if (link) link.hidden = !data.isStaff;
+    if (link) link.hidden = !(data.isStaff || data.isMod);
+    // Staff/mod users get delete buttons on chat messages
+    if (data.isStaff || data.isMod) document.body.classList.add('is-staff');
+    else document.body.classList.remove('is-staff');
   } catch {}
 }
 
@@ -745,7 +753,14 @@ if (staffLookupBtn) staffLookupBtn.addEventListener('click', async () => {
     const data = await res.json();
     if (data.user) {
       const p = data.user;
-      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong><br>Coins: ${p.coins} · Games: ${p.gamesPlayed} · Wins: ${p.gamesWon} · Points: ${p.totalPoints}<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
+      let statusBadges = '';
+      if (p.isBanned) statusBadges += '<span class="staff-user-badge banned">Banned</span> ';
+      if (p.isMod) statusBadges += '<span class="staff-user-badge mod">Mod</span> ';
+      if (p.mutedUntil && p.mutedUntil > Date.now()) {
+        const mins = Math.ceil((p.mutedUntil - Date.now()) / 60000);
+        statusBadges += `<span class="staff-user-badge muted">Muted ${mins}m</span> `;
+      }
+      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong> ${statusBadges}<br>🪙 ${p.coins} coins · 🎮 ${p.gamesPlayed} games · 🏆 ${p.gamesWon} wins · ⭐ ${p.totalPoints} pts<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
     } else r.innerHTML = `<p style="color:var(--danger)">Not found</p>`;
   } catch { r.innerHTML = 'Error'; }
 });
@@ -1154,6 +1169,129 @@ if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
   await refreshUser();
 });
 
+// ── Timeout / Mute ──
+const staffMuteBtn = document.getElementById("staff-mute-btn");
+if (staffMuteBtn) staffMuteBtn.addEventListener("click", async () => {
+  const u = $("staff-mute-user").value.trim();
+  const mins = $("staff-mute-mins").value || "10";
+  const msg = $("staff-mute-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/timeout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,minutes:Number(mins)}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffUnmuteBtn = document.getElementById("staff-unmute-btn");
+if (staffUnmuteBtn) staffUnmuteBtn.addEventListener("click", async () => {
+  const u = $("staff-mute-user").value.trim();
+  const msg = $("staff-mute-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/timeout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,minutes:0}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Kick User ──
+const staffKickBtn = document.getElementById("staff-kick-btn");
+if (staffKickBtn) staffKickBtn.addEventListener("click", async () => {
+  const u = $("staff-kick-user").value.trim();
+  const msg = $("staff-kick-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/kick", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Make / Remove Mod ──
+const staffMakeModBtn = document.getElementById("staff-makemod-btn");
+if (staffMakeModBtn) staffMakeModBtn.addEventListener("click", async () => {
+  const u = $("staff-mod-user").value.trim();
+  const msg = $("staff-mod-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/makemod", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeMod:true}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffRemoveModBtn = document.getElementById("staff-removemod-btn");
+if (staffRemoveModBtn) staffRemoveModBtn.addEventListener("click", async () => {
+  const u = $("staff-mod-user").value.trim();
+  const msg = $("staff-mod-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/makemod", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeMod:false}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Chat Controls ──
+const staffDelMsgBtn = document.getElementById("staff-delmsg-btn");
+if (staffDelMsgBtn) staffDelMsgBtn.addEventListener("click", async () => {
+  const id = $("staff-delmsg-id").value.trim();
+  const msg = $("staff-chat-msg"); msg.textContent = "";
+  if (!id) return;
+  try {
+    const res = await fetch("/api/staff/deletechat", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({messageId:Number(id)}) });
+    const data = await res.json(); msg.textContent = data.ok?"Deleted":"Error: "+(data.error||"failed"); msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffClearAllBtn = document.getElementById("staff-clearall-btn");
+if (staffClearAllBtn) staffClearAllBtn.addEventListener("click", async () => {
+  if (!confirm("Delete ALL chat messages? This cannot be undone.")) return;
+  const msg = $("staff-chat-msg"); msg.textContent = "";
+  try {
+    const res = await fetch("/api/staff/clearallchat", { method:"POST" });
+    const data = await res.json(); msg.textContent = data.ok?"All messages cleared":"Error"; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Reset Password ──
+const staffResetPwBtn = document.getElementById("staff-resetpw-btn");
+if (staffResetPwBtn) staffResetPwBtn.addEventListener("click", async () => {
+  const u = $("staff-resetpw-user").value.trim();
+  const pw = $("staff-resetpw-pass").value.trim();
+  const msg = $("staff-resetpw-msg"); msg.textContent = "";
+  if (!u || !pw) { msg.textContent = "Enter username and new password"; return; }
+  try {
+    const res = await fetch("/api/staff/resetpassword", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,newPassword:pw}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+    if (res.ok) { $("staff-resetpw-user").value = ""; $("staff-resetpw-pass").value = ""; }
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── User List ──
+const staffUsersRefresh = document.getElementById("staff-users-refresh");
+if (staffUsersRefresh) staffUsersRefresh.addEventListener("click", async () => {
+  const list = $("staff-users-list");
+  list.innerHTML = '<p style="color:var(--ink3)">Loading...</p>';
+  try {
+    const res = await fetch("/api/staff/users");
+    const data = await res.json();
+    if (!data.users || !data.users.length) { list.innerHTML = '<p style="color:var(--ink3)">No users</p>'; return; }
+    list.innerHTML = data.users.map(u => {
+      let badges = '';
+      if (u.online) badges += '<span class="staff-user-badge online">Online</span>';
+      if (u.is_banned) badges += '<span class="staff-user-badge banned">Banned</span>';
+      if (u.is_mod) badges += '<span class="staff-user-badge mod">Mod</span>';
+      if (u.muted_until && u.muted_until > Date.now()) badges += '<span class="staff-user-badge muted">Muted</span>';
+      return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">🪙${u.coins}</span>${badges}</div>`;
+    }).join('');
+  } catch { list.innerHTML = '<p style="color:var(--ink3)">Error loading</p>'; }
+});
+
+// ── Online count updater (staff panel) ──
+setInterval(async () => {
+  const el = $("staff-online-count");
+  if (!el || document.getElementById("page-staff").hidden) return;
+  try {
+    const res = await fetch("/api/staff/onlinecount");
+    const data = await res.json();
+    el.textContent = data.count || 0;
+  } catch {}
+}, 5000);
+
 // ============================================================
 //   BUG REPORTS
 // ============================================================
@@ -1286,15 +1424,47 @@ function initChat() {
     scrollGlobalChat();
     setTimeout(() => div.remove(), 5000);
   });
+  // Message deleted by staff
+  window._socket.on('gchat:deleted', ({ messageId }) => {
+    const el = gchatMessages.querySelector(`[data-msg-id="${messageId}"]`);
+    if (el) { el.style.transition='opacity .2s'; el.style.opacity='0'; setTimeout(() => el.remove(), 200); }
+  });
+  // All messages cleared
+  window._socket.on('gchat:cleared', () => {
+    gchatMessages.innerHTML = '';
+  });
+  // Muted notification
+  window._socket.on('gchat:muted', ({ minutes }) => {
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.innerHTML = `<span class="chat-msg-text" style="color:#ef4444;font-style:italic">🔇 You've been muted for ${minutes} minute${minutes!==1?'s':''}</span>`;
+    gchatMessages.appendChild(div);
+    scrollGlobalChat();
+  });
 }
 
 function addGChatMsg(msg) {
   if (!gchatMessages) return;
   const div = document.createElement('div');
   div.className = 'chat-msg';
+  if (msg.id) div.dataset.msgId = msg.id;
   const time = new Date(msg.time);
   const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
-  div.innerHTML = `<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>`;
+  // Role badge
+  let badge = '';
+  if (msg.isStaff) badge = '<span class="gchat-role-badge staff-badge">STAFF</span>';
+  else if (msg.isMod) badge = '<span class="gchat-role-badge mod-badge">MOD</span>';
+  // Delete button (only visible to staff/mod via CSS)
+  const delBtn = msg.id ? `<button class="gchat-delete-btn" data-del-id="${msg.id}" title="Delete message">✕</button>` : '';
+  div.innerHTML = `${badge}<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>${delBtn}`;
+  // Wire delete button
+  const delBtnEl = div.querySelector('.gchat-delete-btn');
+  if (delBtnEl) {
+    delBtnEl.addEventListener('click', () => {
+      const id = delBtnEl.dataset.delId;
+      fetch('/api/staff/deletechat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messageId:Number(id)}) });
+    });
+  }
   gchatMessages.appendChild(div);
   if (gchatMessages.children.length > 150) gchatMessages.removeChild(gchatMessages.firstChild);
 }

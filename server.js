@@ -31,7 +31,8 @@ import {
   getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint,
   submitBugReport, getBugReports, resolveBugReport, deleteBugReport,
   getUserAchievements, hasAchievement, awardAchievement,
-  saveChatMsg, getChatHistory, trimChat
+  saveChatMsg, getChatHistory, trimChat, deleteChatMsg, clearAllChat,
+  setMod, setMutedUntil, getAllUsers
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -320,9 +321,9 @@ function isStaff(username) {
 app.get("/api/staff/check", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");
   const sess = cookies.session ? getSession(cookies.session) : null;
-  if (!sess) return res.json({ isStaff: false });
+  if (!sess) return res.json({ isStaff: false, isMod: false });
   const user = getUserById(sess.user_id);
-  res.json({ isStaff: isStaff(user?.username) });
+  res.json({ isStaff: isStaff(user?.username), isMod: !!(user && user.is_mod) });
 });
 
 app.post("/api/staff/givecoins", (req, res) => {
@@ -427,6 +428,131 @@ app.post("/api/staff/confetti", (req, res) => {
   if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
   io.emit("site:userEvent", { event: "confetti", user: staff.username });
   res.json({ ok: true });
+});
+
+// Check if user is staff OR mod (for actions mods can perform)
+function isStaffOrMod(user) {
+  if (!user) return false;
+  return isStaff(user.username) || !!user.is_mod;
+}
+
+app.post("/api/staff/makemod", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username, makeMod } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isStaff(target.username)) return res.status(400).json({ error: "Can't modify staff" });
+  setMod(target.id, !!makeMod);
+  res.json({ ok: true, message: makeMod ? `${target.username} is now a mod` : `${target.username} is no longer a mod` });
+});
+
+app.post("/api/staff/timeout", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaffOrMod(staff)) return res.status(403).json({ error: "Not staff/mod" });
+  const { username, minutes } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isStaff(target.username)) return res.status(400).json({ error: "Can't timeout staff" });
+  const mins = Math.max(0, Math.min(Number(minutes) || 0, 1440)); // max 24 hours
+  if (mins === 0) {
+    setMutedUntil(target.id, 0);
+    return res.json({ ok: true, message: `Unmuted ${target.username}` });
+  }
+  const until = Date.now() + mins * 60000;
+  setMutedUntil(target.id, until);
+  // Notify the user if online
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === target.id) {
+      s.emit("gchat:muted", { minutes: mins, until });
+    }
+  }
+  res.json({ ok: true, message: `Muted ${target.username} for ${mins} minutes` });
+});
+
+app.post("/api/staff/deletechat", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaffOrMod(staff)) return res.status(403).json({ error: "Not staff/mod" });
+  const { messageId } = req.body || {};
+  if (!messageId) return res.status(400).json({ error: "Missing messageId" });
+  deleteChatMsg(messageId);
+  io.emit("gchat:deleted", { messageId });
+  res.json({ ok: true });
+});
+
+app.post("/api/staff/clearallchat", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  clearAllChat();
+  io.emit("gchat:cleared");
+  res.json({ ok: true });
+});
+
+app.post("/api/staff/kick", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaffOrMod(staff)) return res.status(403).json({ error: "Not staff/mod" });
+  const { username } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isStaff(target.username)) return res.status(400).json({ error: "Can't kick staff" });
+  let kicked = 0;
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === target.id) {
+      s.emit("kicked", { reason: "Kicked by staff" });
+      s.disconnect(true);
+      kicked++;
+    }
+  }
+  res.json({ ok: true, message: kicked > 0 ? `Kicked ${target.username}` : `${target.username} is not online` });
+});
+
+app.post("/api/staff/resetpassword", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username, newPassword } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: "Password must be at least 4 chars" });
+  const hash = bcrypt.hashSync(newPassword, 10);
+  changePassword(target.id, hash);
+  res.json({ ok: true, message: `Password reset for ${target.username}` });
+});
+
+app.get("/api/staff/users", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const users = getAllUsers();
+  // Count online users
+  const onlineIds = new Set();
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id) onlineIds.add(s.data.user.id);
+  }
+  res.json({ users: users.map(u => ({ ...u, online: onlineIds.has(u.id) })) });
+});
+
+app.get("/api/staff/onlinecount", (req, res) => {
+  res.json({ count: io.sockets.sockets.size });
 });
 
 // Profile endpoints
@@ -2196,8 +2322,18 @@ io.on("connection", (socket) => {
     if (!socket.data.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
+    // Check mute
+    const freshUser = getUserById(socket.data.user.id);
+    if (freshUser && freshUser.muted_until && freshUser.muted_until > Date.now()) {
+      const remaining = Math.ceil((freshUser.muted_until - Date.now()) / 60000);
+      socket.emit("gchat:blocked", `You're muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
+      return;
+    }
     // Profanity filter
-    if (containsProfanity(text)) return;
+    if (containsProfanity(text)) {
+      socket.emit("gchat:blocked", "Message blocked for inappropriate language");
+      return;
+    }
     // Word Spy anti-cheat: block messages containing the active spy word
     const roomCode = socketToRoom.get(socket.id);
     if (roomCode) {
@@ -2210,7 +2346,6 @@ io.on("connection", (socket) => {
           socket.emit("gchat:blocked", "Can't say that word during Word Spy!");
           return;
         }
-        // Also check each individual word of multi-word spy words
         const wordParts = word.split(/\s+/).filter(w => w.length >= 3);
         for (const part of wordParts) {
           const partNorm = part.replace(/[^a-z]/g, "");
@@ -2221,21 +2356,32 @@ io.on("connection", (socket) => {
         }
       }
     }
+    const isUserStaff = isStaff(socket.data.user.username);
+    const isUserMod = !!(freshUser && freshUser.is_mod);
     const entry = {
       user: socket.data.user.username,
       color: socket.data.user.nameColor || "#22aed1",
       text,
       time: Date.now(),
+      isStaff: isUserStaff,
+      isMod: isUserMod,
     };
-    try { saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
+    try { entry.id = saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
     io.emit("gchat:msg", entry);
-    // Achievement: first chat
     checkAchievement(socket.data.user.id, "chat_first");
   });
 
   socket.on("gchat:history", (_, ack) => {
     if (typeof ack === "function") {
-      try { ack(getChatHistory()); } catch { ack([]); }
+      try {
+        const history = getChatHistory();
+        // Attach role info to history messages
+        const enriched = history.map(m => {
+          const u = getUserByName(m.username);
+          return { ...m, user: m.username, isStaff: isStaff(m.username), isMod: !!(u && u.is_mod) };
+        });
+        ack(enriched);
+      } catch { ack([]); }
     }
   });
 

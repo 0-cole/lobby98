@@ -58,6 +58,8 @@ try { db.exec("ALTER TABLE users ADD COLUMN pfp_emoji TEXT DEFAULT '😎'"); } c
 try { db.exec("ALTER TABLE users ADD COLUMN custom_title TEXT"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN stock_cash REAL DEFAULT 1000"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN pfp_border TEXT DEFAULT 'none'"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN is_mod INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN muted_until INTEGER DEFAULT 0"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS portfolios (
@@ -124,6 +126,9 @@ const s = {
   upsertShares: db.prepare("INSERT INTO portfolios (user_id, stock_id, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, stock_id) DO UPDATE SET shares = ?"),
   deleteShares: db.prepare("DELETE FROM portfolios WHERE user_id = ? AND stock_id = ?"),
   setPfpBorder: db.prepare("UPDATE users SET pfp_border = ? WHERE id = ?"),
+  setMod: db.prepare("UPDATE users SET is_mod = ? WHERE id = ?"),
+  setMutedUntil: db.prepare("UPDATE users SET muted_until = ? WHERE id = ?"),
+  allUsers: db.prepare("SELECT id, username, coins, is_banned, is_mod, muted_until, games_played, games_won, total_points, created_at FROM users ORDER BY id DESC"),
 };
 
 export function userCount() { return s.countUsers.get().n; }
@@ -170,6 +175,9 @@ export function setShares(userId, stockId, shares) {
   else s.upsertShares.run(userId, stockId, shares, shares);
 }
 export function setPfpBorder(userId, border) { s.setPfpBorder.run(border, userId); }
+export function setMod(userId, isMod) { s.setMod.run(isMod ? 1 : 0, userId); }
+export function setMutedUntil(userId, until) { s.setMutedUntil.run(until, userId); }
+export function getAllUsers() { return s.allUsers.all(); }
 
 // Bug reports
 const bugStmts = {
@@ -210,16 +218,25 @@ export function leaderboardQuery() {
 
 // Global chat persistence
 const chatInsert = db.prepare("INSERT INTO global_chat (username, color, text, time) VALUES (?, ?, ?, ?)");
-const chatHistory = db.prepare("SELECT username, color, text, time FROM global_chat ORDER BY id DESC LIMIT 100");
+const chatHistory = db.prepare("SELECT id, username, color, text, time FROM global_chat ORDER BY id DESC LIMIT 100");
 const chatTrim = db.prepare("DELETE FROM global_chat WHERE id NOT IN (SELECT id FROM global_chat ORDER BY id DESC LIMIT 200)");
+const chatDeleteOne = db.prepare("DELETE FROM global_chat WHERE id = ?");
+const chatClearAll = db.prepare("DELETE FROM global_chat");
 export function saveChatMsg(username, color, text, time) {
-  chatInsert.run(username, color, text, time);
+  const info = chatInsert.run(username, color, text, time);
+  return info.lastInsertRowid;
 }
 export function getChatHistory() {
   return chatHistory.all().reverse(); // oldest first
 }
 export function trimChat() {
   chatTrim.run();
+}
+export function deleteChatMsg(id) {
+  chatDeleteOne.run(id);
+}
+export function clearAllChat() {
+  chatClearAll.run();
 }
 
 export function safeUserData(u) {
@@ -231,6 +248,8 @@ export function safeUserData(u) {
     totalPoints: u.total_points,
     ownedItems: (() => { try { return JSON.parse(u.owned_items); } catch { return ["default","none"]; } })(),
     isBanned: !!u.is_banned, banReason: u.ban_reason,
+    isMod: !!u.is_mod,
+    mutedUntil: u.muted_until || 0,
     pfpEmoji: u.pfp_emoji || '😎',
     customTitle: u.custom_title || null,
     stockCash: u.stock_cash ?? 1000,
