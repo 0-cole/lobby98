@@ -29,6 +29,58 @@ const MONSTER_DB={
   ancient:{name:"The Ancient",emoji:"⚫",mhp:220,dmg:22,arm:18,spd:55,xp:80,rw:8,boss:1},
   dummy:{name:"Dummy",emoji:"🎯",mhp:8,dmg:1,arm:0,spd:200,xp:2,rw:1},
   dummy_boss:{name:"Tough Dummy",emoji:"🥊",mhp:20,dmg:2,arm:1,spd:160,xp:5,rw:2,boss:1},
+  // ── Area 6-10 monsters ──
+  crystal_bug:{name:"Crystal Bug",emoji:"🪲",mhp:55,dmg:17,arm:9,spd:42,xp:16,rw:2},
+  gem_golem:{name:"Gem Golem",emoji:"💎",mhp:80,dmg:15,arm:16,spd:60,xp:18,rw:2},
+  prism_lord:{name:"Prism Lord",emoji:"🌈",mhp:180,dmg:20,arm:15,spd:55,xp:50,rw:6,boss:1},
+  merfolk:{name:"Merfolk",emoji:"🧜",mhp:58,dmg:18,arm:8,spd:40,xp:17,rw:2},
+  kraken_eye:{name:"Kraken Eye",emoji:"🦑",mhp:65,dmg:20,arm:7,spd:45,xp:18,rw:2},
+  leviathan:{name:"Leviathan",emoji:"🐋",mhp:200,dmg:22,arm:16,spd:58,xp:55,rw:7,boss:1},
+  bog_witch:{name:"Bog Witch",emoji:"🧙‍♀️",mhp:50,dmg:22,arm:6,spd:48,xp:18,rw:2},
+  toxic_toad:{name:"Toxic Toad",emoji:"🐸",mhp:60,dmg:16,arm:10,spd:50,xp:16,rw:2},
+  swamp_hydra:{name:"Swamp Hydra",emoji:"🐲",mhp:220,dmg:24,arm:14,spd:52,xp:60,rw:7,boss:1},
+  iron_knight:{name:"Iron Knight",emoji:"🤖",mhp:75,dmg:18,arm:20,spd:55,xp:20,rw:2},
+  siege_tank:{name:"Siege Cannon",emoji:"💣",mhp:60,dmg:28,arm:12,spd:70,xp:22,rw:2},
+  mech_titan:{name:"Mech Titan",emoji:"⚙️",mhp:250,dmg:26,arm:22,spd:50,xp:65,rw:8,boss:1},
+  storm_hawk:{name:"Storm Hawk",emoji:"🦅",mhp:55,dmg:24,arm:8,spd:32,xp:22,rw:2},
+  thunder_ele:{name:"Thunder Elemental",emoji:"⛈️",mhp:70,dmg:22,arm:10,spd:38,xp:24,rw:3},
+  storm_king:{name:"Storm King",emoji:"👑",mhp:260,dmg:28,arm:18,spd:45,xp:70,rw:8,boss:1},
+  // ── Area 11-15 monsters ──
+  bone_archer:{name:"Bone Archer",emoji:"🏹",mhp:65,dmg:28,arm:8,spd:35,xp:26,rw:3},
+  crypt_wraith:{name:"Crypt Wraith",emoji:"👤",mhp:72,dmg:25,arm:12,spd:42,xp:28,rw:3},
+  death_knight:{name:"Death Knight",emoji:"⚰️",mhp:300,dmg:30,arm:24,spd:48,xp:80,rw:9,boss:1},
+  treant:{name:"Treant",emoji:"🌳",mhp:90,dmg:22,arm:18,spd:55,xp:28,rw:3},
+  fae_sprite:{name:"Fae Sprite",emoji:"🧚",mhp:50,dmg:30,arm:6,spd:28,xp:30,rw:3},
+  forest_god:{name:"Forest God",emoji:"🦌",mhp:320,dmg:32,arm:20,spd:42,xp:85,rw:10,boss:1},
+  magma_worm:{name:"Magma Worm",emoji:"🪱",mhp:80,dmg:30,arm:14,spd:45,xp:32,rw:3},
+  lava_titan:{name:"Lava Titan",emoji:"🌋",mhp:350,dmg:35,arm:25,spd:55,xp:90,rw:10,boss:1},
+  wisp:{name:"Wisp",emoji:"✨",mhp:60,dmg:35,arm:5,spd:25,xp:34,rw:3},
+  void_stalker:{name:"Void Stalker",emoji:"🕳️",mhp:85,dmg:32,arm:15,spd:38,xp:36,rw:3},
+  planar_warden:{name:"Planar Warden",emoji:"🌀",mhp:380,dmg:38,arm:22,spd:45,xp:100,rw:11,boss:1},
+  wyrm:{name:"Elder Wyrm",emoji:"🐲",mhp:100,dmg:35,arm:20,spd:42,xp:40,rw:4},
+  dragon_lord:{name:"Dragon Lord",emoji:"🐉",mhp:450,dmg:42,arm:28,spd:48,xp:120,rw:12,boss:1},
+  // ── Area 16-20 monsters ──
+  corrupt_priest:{name:"Corrupt Priest",emoji:"⛪",mhp:90,dmg:38,arm:14,spd:40,xp:42,rw:4},
+  shadow_beast:{name:"Shadow Beast",emoji:"👾",mhp:100,dmg:36,arm:18,spd:35,xp:44,rw:4},
+  fallen_angel:{name:"Fallen Angel",emoji:"😇",mhp:500,dmg:45,arm:30,spd:42,xp:140,rw:13,boss:1},
+  deep_one:{name:"Deep One",emoji:"🐙",mhp:110,dmg:40,arm:16,spd:38,xp:48,rw:4},
+  abyssal_maw:{name:"Abyssal Maw",emoji:"🦷",mhp:550,dmg:48,arm:32,spd:45,xp:150,rw:14,boss:1},
+  star_knight:{name:"Star Knight",emoji:"⭐",mhp:120,dmg:42,arm:22,spd:35,xp:52,rw:4},
+  nova_spirit:{name:"Nova Spirit",emoji:"☀️",mhp:105,dmg:45,arm:18,spd:30,xp:54,rw:4},
+  astral_titan:{name:"Astral Titan",emoji:"🪐",mhp:600,dmg:52,arm:35,spd:40,xp:160,rw:15,boss:1},
+  chaos_imp:{name:"Chaos Imp",emoji:"🃏",mhp:100,dmg:48,arm:15,spd:28,xp:56,rw:5},
+  entropy_lord:{name:"Entropy Lord",emoji:"🌪️",mhp:650,dmg:55,arm:35,spd:38,xp:180,rw:16,boss:1},
+  // ── Area 21-25 monsters ──
+  elder_thing:{name:"Elder Thing",emoji:"🦠",mhp:130,dmg:50,arm:25,spd:35,xp:60,rw:5},
+  cosmic_horror:{name:"Cosmic Horror",emoji:"🌌",mhp:700,dmg:58,arm:38,spd:42,xp:200,rw:18,boss:1},
+  forge_golem:{name:"Forge Golem",emoji:"🔨",mhp:150,dmg:48,arm:35,spd:50,xp:64,rw:5},
+  titan_smith:{name:"Titan Smith",emoji:"⚒️",mhp:750,dmg:60,arm:42,spd:45,xp:220,rw:20,boss:1},
+  nightmare:{name:"Nightmare",emoji:"😱",mhp:140,dmg:55,arm:22,spd:30,xp:68,rw:5},
+  dream_eater:{name:"Dream Eater",emoji:"🌙",mhp:800,dmg:62,arm:40,spd:38,xp:240,rw:22,boss:1},
+  star_corpse:{name:"Star Corpse",emoji:"💫",mhp:160,dmg:58,arm:28,spd:32,xp:72,rw:5},
+  nebula_king:{name:"Nebula King",emoji:"🔭",mhp:850,dmg:65,arm:42,spd:40,xp:260,rw:24,boss:1},
+  infinity_eye:{name:"Infinity Eye",emoji:"♾️",mhp:180,dmg:62,arm:30,spd:28,xp:80,rw:6},
+  the_end:{name:"THE END",emoji:"🕳️",mhp:1000,dmg:70,arm:50,spd:35,xp:500,rw:30,boss:1},
 };
 
 const AREAS=[
@@ -53,6 +105,63 @@ const AREAS=[
     [{m:"lich",n:1,mod:"shielding"},{m:"bone_dragon",n:2}],[{m:"demon",n:3,mod:"powerful"}],[{m:"bone_dragon",n:2,mod:"shielding"},{m:"lich",n:1}],
     [{m:"demon",n:2,mod:"poison"},{m:"lich",n:2}],[{m:"bone_dragon",n:3,mod:"powerful"}],[{m:"ancient",n:1,boss:1}]
   ]},
+  {name:"Crystal Caves",color:"#2a4a5a",floors:[
+    [{m:"crystal_bug",n:2}],[{m:"gem_golem",n:2}],[{m:"crystal_bug",n:3,mod:"shielding"}],[{m:"gem_golem",n:2,mod:"powerful"}],[{m:"crystal_bug",n:2},{m:"gem_golem",n:1}],[{m:"prism_lord",n:1,boss:1}]
+  ]},
+  {name:"Sunken Temple",color:"#1a3a4a",floors:[
+    [{m:"merfolk",n:2}],[{m:"kraken_eye",n:2}],[{m:"merfolk",n:3,mod:"poison"}],[{m:"kraken_eye",n:2,mod:"powerful"}],[{m:"merfolk",n:2},{m:"kraken_eye",n:2}],[{m:"kraken_eye",n:3,mod:"shielding"}],[{m:"leviathan",n:1,boss:1}]
+  ]},
+  {name:"Poison Marsh",color:"#2a3a1a",floors:[
+    [{m:"toxic_toad",n:2}],[{m:"bog_witch",n:2,mod:"poison"}],[{m:"toxic_toad",n:3}],[{m:"bog_witch",n:2,mod:"powerful"}],[{m:"toxic_toad",n:2,mod:"poison"},{m:"bog_witch",n:1}],[{m:"swamp_hydra",n:1,boss:1}]
+  ]},
+  {name:"Iron Fortress",color:"#3a3a3a",floors:[
+    [{m:"iron_knight",n:2}],[{m:"siege_tank",n:2}],[{m:"iron_knight",n:3,mod:"shielding"}],[{m:"siege_tank",n:2,mod:"powerful"}],[{m:"iron_knight",n:2},{m:"siege_tank",n:2}],[{m:"iron_knight",n:3,mod:"powerful"}],[{m:"mech_titan",n:1,boss:1}]
+  ]},
+  {name:"Storm Peaks",color:"#2a3a5a",floors:[
+    [{m:"storm_hawk",n:3}],[{m:"thunder_ele",n:2}],[{m:"storm_hawk",n:2,mod:"powerful"}],[{m:"thunder_ele",n:3,mod:"poison"}],[{m:"storm_hawk",n:2},{m:"thunder_ele",n:2}],[{m:"storm_king",n:1,boss:1}]
+  ]},
+  {name:"Bone Catacombs",color:"#3a2a1a",floors:[
+    [{m:"bone_archer",n:2}],[{m:"crypt_wraith",n:2}],[{m:"bone_archer",n:3,mod:"poison"}],[{m:"crypt_wraith",n:2,mod:"shielding"}],[{m:"bone_archer",n:2},{m:"crypt_wraith",n:2,mod:"powerful"}],[{m:"crypt_wraith",n:3,mod:"poison"}],[{m:"death_knight",n:1,boss:1}]
+  ]},
+  {name:"Enchanted Forest",color:"#1a4a2a",floors:[
+    [{m:"treant",n:2}],[{m:"fae_sprite",n:3}],[{m:"treant",n:2,mod:"shielding"}],[{m:"fae_sprite",n:2,mod:"powerful"}],[{m:"treant",n:2},{m:"fae_sprite",n:2}],[{m:"forest_god",n:1,boss:1}]
+  ]},
+  {name:"Volcanic Core",color:"#5a1a0a",floors:[
+    [{m:"magma_worm",n:2}],[{m:"imp",n:3,mod:"powerful"}],[{m:"magma_worm",n:3,mod:"poison"}],[{m:"magma_worm",n:2},{m:"imp",n:2,mod:"powerful"}],[{m:"magma_worm",n:3,mod:"shielding"}],[{m:"lava_titan",n:1,boss:1}]
+  ]},
+  {name:"Ethereal Plane",color:"#3a2a5a",floors:[
+    [{m:"wisp",n:3}],[{m:"void_stalker",n:2}],[{m:"wisp",n:2,mod:"powerful"},{m:"void_stalker",n:1}],[{m:"void_stalker",n:3,mod:"poison"}],[{m:"wisp",n:3,mod:"shielding"}],[{m:"void_stalker",n:2,mod:"powerful"}],[{m:"planar_warden",n:1,boss:1}]
+  ]},
+  {name:"Dragon's Lair",color:"#4a2a0a",floors:[
+    [{m:"wyrm",n:2}],[{m:"wyrm",n:2,mod:"powerful"}],[{m:"wyrm",n:3,mod:"poison"}],[{m:"wyrm",n:2,mod:"shielding"},{m:"wyrm",n:1}],[{m:"wyrm",n:3,mod:"powerful"}],[{m:"dragon_lord",n:1,boss:1}]
+  ]},
+  {name:"Corrupted Shrine",color:"#4a1a2a",floors:[
+    [{m:"corrupt_priest",n:2}],[{m:"shadow_beast",n:2}],[{m:"corrupt_priest",n:2,mod:"poison"},{m:"shadow_beast",n:1}],[{m:"shadow_beast",n:3,mod:"powerful"}],[{m:"corrupt_priest",n:2,mod:"shielding"},{m:"shadow_beast",n:2}],[{m:"shadow_beast",n:3,mod:"poison"}],[{m:"fallen_angel",n:1,boss:1}]
+  ]},
+  {name:"Abyssal Trench",color:"#0a1a2a",floors:[
+    [{m:"deep_one",n:2}],[{m:"deep_one",n:3,mod:"poison"}],[{m:"deep_one",n:2,mod:"powerful"},{m:"deep_one",n:1,mod:"shielding"}],[{m:"deep_one",n:3,mod:"powerful"}],[{m:"abyssal_maw",n:1,boss:1}]
+  ]},
+  {name:"Celestial Tower",color:"#2a2a5a",floors:[
+    [{m:"star_knight",n:2}],[{m:"nova_spirit",n:2}],[{m:"star_knight",n:2,mod:"powerful"}],[{m:"nova_spirit",n:3,mod:"shielding"}],[{m:"star_knight",n:2},{m:"nova_spirit",n:2,mod:"powerful"}],[{m:"nova_spirit",n:3,mod:"poison"}],[{m:"star_knight",n:3,mod:"powerful"}],[{m:"astral_titan",n:1,boss:1}]
+  ]},
+  {name:"Chaos Realm",color:"#3a0a2a",floors:[
+    [{m:"chaos_imp",n:3}],[{m:"chaos_imp",n:3,mod:"powerful"}],[{m:"chaos_imp",n:3,mod:"poison"}],[{m:"chaos_imp",n:3,mod:"shielding"}],[{m:"chaos_imp",n:3,mod:"powerful"},{m:"chaos_imp",n:1,mod:"poison"}],[{m:"entropy_lord",n:1,boss:1}]
+  ]},
+  {name:"Eldritch Void",color:"#1a0a2a",floors:[
+    [{m:"elder_thing",n:2}],[{m:"elder_thing",n:3,mod:"poison"}],[{m:"elder_thing",n:2,mod:"powerful"},{m:"elder_thing",n:1,mod:"shielding"}],[{m:"elder_thing",n:3,mod:"powerful"}],[{m:"cosmic_horror",n:1,boss:1}]
+  ]},
+  {name:"Titan's Forge",color:"#4a3a1a",floors:[
+    [{m:"forge_golem",n:2}],[{m:"forge_golem",n:2,mod:"shielding"}],[{m:"forge_golem",n:3,mod:"powerful"}],[{m:"forge_golem",n:2,mod:"poison"},{m:"forge_golem",n:1,mod:"shielding"}],[{m:"forge_golem",n:3,mod:"powerful"}],[{m:"titan_smith",n:1,boss:1}]
+  ]},
+  {name:"Nightmare Realm",color:"#2a0a1a",floors:[
+    [{m:"nightmare",n:2}],[{m:"nightmare",n:3,mod:"poison"}],[{m:"nightmare",n:2,mod:"powerful"},{m:"nightmare",n:1}],[{m:"nightmare",n:3,mod:"shielding"}],[{m:"nightmare",n:3,mod:"powerful"}],[{m:"dream_eater",n:1,boss:1}]
+  ]},
+  {name:"Star Graveyard",color:"#0a0a2a",floors:[
+    [{m:"star_corpse",n:2}],[{m:"star_corpse",n:3,mod:"poison"}],[{m:"star_corpse",n:2,mod:"powerful"},{m:"star_corpse",n:1,mod:"shielding"}],[{m:"star_corpse",n:3,mod:"powerful"}],[{m:"star_corpse",n:3,mod:"shielding"}],[{m:"nebula_king",n:1,boss:1}]
+  ]},
+  {name:"Infinity Gate",color:"#1a1a3a",floors:[
+    [{m:"infinity_eye",n:2}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"infinity_eye",n:2,mod:"poison"},{m:"infinity_eye",n:1,mod:"shielding"}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"infinity_eye",n:3,mod:"shielding"},{m:"infinity_eye",n:1,mod:"powerful"}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"the_end",n:1,boss:1}]
+  ]},
 ];
 
 const ITEM_TYPES=[
@@ -70,6 +179,17 @@ const RARITIES=[
   {name:"Legendary",color:"#ff9800",affixes:3,multi:1.5},
   {name:"Ancient",color:"#e040fb",affixes:3,multi:1.8},
 ];
+const UNIQUE_ITEMS=[
+  {name:"Flame Blade",icon:"🔥",slot:0,rarity:4,rarName:"Unique",rarCol:"#ff4444",stats:{dmg:15,lfl:4},aNames:["DMG+15","Leech+4"],desc:"Burns with eternal fire",lvl:5},
+  {name:"Frost Edge",icon:"❄️",slot:0,rarity:4,rarName:"Unique",rarCol:"#44aaff",stats:{dmg:12,spd:8},aNames:["DMG+12","Speed+8"],desc:"Slows enemies with cold",lvl:7},
+  {name:"Shadow Dagger",icon:"🗡️",slot:0,rarity:4,rarName:"Unique",rarCol:"#aa44ff",stats:{dmg:18,cri:2},aNames:["DMG+18","Crit every 2"],desc:"Strikes from the shadows",lvl:10},
+  {name:"Titan Shield",icon:"🛡️",slot:1,rarity:4,rarName:"Unique",rarCol:"#ff8800",stats:{arm:25,mhp:40},aNames:["Armor+25","HP+40"],desc:"Forged by titans",lvl:12},
+  {name:"Void Armor",icon:"🧥",slot:2,rarity:4,rarName:"Unique",rarCol:"#8844ff",stats:{mhp:80,arm:15,hpr:2},aNames:["HP+80","Armor+15","Regen+2"],desc:"Absorbs damage into nothing",lvl:15},
+  {name:"Storm Gauntlets",icon:"🧤",slot:3,rarity:4,rarName:"Unique",rarCol:"#44ddff",stats:{spd:15,dmg:8},aNames:["Speed+15","DMG+8"],desc:"Lightning-fast strikes",lvl:13},
+  {name:"Infinity Ring",icon:"💍",slot:4,rarity:4,rarName:"Unique",rarCol:"#ffffff",stats:{dmg:10,arm:10,mhp:30,lfl:3},aNames:["All+10","HP+30","Leech+3"],desc:"Contains infinite power",lvl:20},
+  {name:"Godslayer",icon:"⚔️",slot:0,rarity:4,rarName:"Mythic",rarCol:"#ff0000",stats:{dmg:35,cri:2,lfl:5},aNames:["DMG+35","Crit/2","Leech+5"],desc:"The weapon that killed a god",lvl:25},
+];
+
 const AFFIX_POOL=[
   {stat:"dmg",label:"DMG",base:0.15},{stat:"arm",label:"Armor",base:0.22},
   {stat:"mhp",label:"HP",base:0.20},{stat:"spd",label:"SPD",base:0.12,isSpd:1},
@@ -226,7 +346,14 @@ function updateBattle(dt){
       while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts++;if(g.lvl%3===0)g.passivePts++;
         log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;
         if(g.autoLevelOn)autoLevelStats();}
-      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);
+      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){
+        // Chance for unique item from bosses in area 6+
+        let it;
+        if(m.boss&&g.areaIdx>=6&&Math.random()<0.15){
+          const eligible=UNIQUE_ITEMS.filter(u=>u.lvl<=g.areaIdx+1);
+          if(eligible.length>0){it={...eligible[Math.floor(Math.random()*eligible.length)]};it.typeIdx=it.slot;}
+          else it=genItem(g.areaIdx+1);
+        }else it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);
         if(g.autoEquipOn)autoEquipBest();}
       const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
@@ -340,6 +467,26 @@ function renderMap(ctx){
     ["🔥","🌋","💥","🟠","🔥","🌋","💥","🔥","🟠","🌋","🔥","💥","🟠","🔥","🌋"],
     ["👁️","🌑","💜","🟣","🌑","👁️","💜","🌑","🟣","👁️","🌑","💜","🟣","🌑","👁️"],
     ["💀","☠️","⚫","🖤","💀","☠️","⚫","💀","🖤","☠️","💀","⚫","🖤","💀","☠️"],
+    ["💎","🔮","💠","🪨","💎","🔮","💠","💎","🪨","🔮","💎","💠","🪨","💎","🔮"],
+    ["🌊","🐚","🪸","🫧","🌊","🐚","🪸","🌊","🫧","🐚","🌊","🪸","🫧","🌊","🐚"],
+    ["🐸","🌿","☠️","🧪","🐸","🌿","☠️","🐸","🧪","🌿","🐸","☠️","🧪","🐸","🌿"],
+    ["⚙️","🔩","🔧","🛠️","⚙️","🔩","🔧","⚙️","🛠️","🔩","⚙️","🔧","🛠️","⚙️","🔩"],
+    ["⛈️","⚡","🌪️","🌩️","⛈️","⚡","🌪️","⛈️","🌩️","⚡","⛈️","🌪️","🌩️","⛈️","⚡"],
+    ["💀","🦴","⚰️","🪦","💀","🦴","⚰️","💀","🪦","🦴","💀","⚰️","🪦","💀","🦴"],
+    ["🌳","🍃","🌸","🍄","🌳","🍃","🌸","🌳","🍄","🍃","🌳","🌸","🍄","🌳","🍃"],
+    ["🌋","🔥","🟠","🟥","🌋","🔥","🟠","🌋","🟥","🔥","🌋","🟠","🟥","🌋","🔥"],
+    ["✨","💜","🌀","💫","✨","💜","🌀","✨","💫","💜","✨","🌀","💫","✨","💜"],
+    ["🐉","🔥","💰","🏔️","🐉","🔥","💰","🐉","🏔️","🔥","🐉","💰","🏔️","🐉","🔥"],
+    ["⛪","💜","😈","🕯️","⛪","💜","😈","⛪","🕯️","💜","⛪","😈","🕯️","⛪","💜"],
+    ["🌊","🐙","🌀","🫧","🌊","🐙","🌀","🌊","🫧","🐙","🌊","🌀","🫧","🌊","🐙"],
+    ["⭐","🌟","✨","☀️","⭐","🌟","✨","⭐","☀️","🌟","⭐","✨","☀️","⭐","🌟"],
+    ["🃏","🎲","🎰","🎪","🃏","🎲","🎰","🃏","🎪","🎲","🃏","🎰","🎪","🃏","🎲"],
+    ["🦠","👁️","🧬","🔬","🦠","👁️","🧬","🦠","🔬","👁️","🦠","🧬","🔬","🦠","👁️"],
+    ["🔨","⚒️","🛠️","⚙️","🔨","⚒️","🛠️","🔨","⚙️","⚒️","🔨","🛠️","⚙️","🔨","⚒️"],
+    ["😱","👻","🌑","🕷️","😱","👻","🌑","😱","🕷️","👻","😱","🌑","🕷️","😱","👻"],
+    ["💫","⭐","🌠","☄️","💫","⭐","🌠","💫","☄️","⭐","💫","🌠","☄️","💫","⭐"],
+    ["♾️","🌀","🔮","⚫","♾️","🌀","🔮","♾️","⚫","🌀","♾️","🔮","⚫","♾️","🌀"],
+    ["🕳️","⬛","💀","☠️","🕳️","⬛","💀","🕳️","☠️","⬛","🕳️","💀","☠️","🕳️","⬛"],
   ];
   const currentArea=Math.max(0,Math.min(g._mapViewArea||0,g.areasCleared,AREAS.length-1));
   const a=AREAS[currentArea];
@@ -370,7 +517,7 @@ function renderMap(ctx){
   ctx.fillStyle=a.color;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.fill();
   ctx.strokeStyle="#8ec8e8";ctx.lineWidth=3;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.stroke();
   // Area emoji (big)
-  ctx.font="48px serif";ctx.fillText(["📚","🌿","❄️","🔥","👁️","💀"][currentArea],cx,cy-15);
+  ctx.font="48px serif";ctx.fillText(["📚","🌿","❄️","🔥","👁️","💀","💎","🌊","🐸","⚙️","⛈️","💀","🌳","🌋","✨","🐉","⛪","🌊","⭐","🃏","🦠","🔨","😱","💫","♾️","🕳️"][currentArea]||"⚔️",cx,cy-15);
   // Area name
   ctx.fillStyle="#fff";ctx.font="bold 22px Nunito,sans-serif";ctx.fillText(a.name,cx,cy+25);
   // Floor count

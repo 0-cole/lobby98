@@ -419,3 +419,49 @@ label{display:flex;flex-direction:column;gap:4px}
 /* Dungeon container — no glass overlay */
 .dungeon-container{padding:12px;margin-bottom:16px;border-radius:var(--r);background:transparent}
 .dungeon-container::before{display:none!important}
+
+/* Bug report modal */
+.bug-modal-overlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.bug-modal{max-width:480px;width:90%;animation:pageIn .3s ease-out}
+.bug-modal textarea{font-family:inherit}
+
+/* Staff bug list */
+.bug-item{padding:12px;background:var(--neo);border-radius:10px;margin-bottom:8px;box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)}
+.bug-item-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.bug-item-title{font-weight:700;color:var(--deep);font-size:14px}
+.bug-item-meta{font-size:11px;color:var(--ink3)}
+.bug-item-body{font-size:13px;color:var(--ink);line-height:1.4}
+.bug-item-actions{display:flex;gap:6px;margin-top:8px}
+
+/* Global Chat Panel */
+.chat-toggle{position:fixed;bottom:44px;right:16px;z-index:80;width:48px;height:48px;border-radius:50%;background:var(--deep);color:#fff;font-size:22px;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);transition:transform .2s}
+.chat-toggle:hover{transform:scale(1.1)}
+.chat-toggle.has-new{animation:chatPulse 1s ease infinite}
+@keyframes chatPulse{0%,100%{box-shadow:0 4px 14px rgba(0,0,0,.3)}50%{box-shadow:0 4px 20px rgba(100,180,255,.5)}}
+.chat-panel{position:fixed;bottom:44px;right:16px;z-index:85;width:340px;height:420px;background:rgba(15,25,40,0.95);backdrop-filter:blur(14px);border-radius:14px 14px 14px 0;border:1px solid rgba(140,200,230,0.12);display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.chat-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(140,200,230,0.1);font-weight:700;font-size:14px;color:#8ec8e8}
+.chat-messages{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.chat-messages::-webkit-scrollbar{width:4px}.chat-messages::-webkit-scrollbar-thumb{background:rgba(140,200,230,0.2);border-radius:2px}
+.chat-msg{line-height:1.4}.chat-msg-user{font-weight:700;margin-right:6px}.chat-msg-text{color:rgba(220,230,240,0.85)}
+.chat-msg-time{font-size:10px;color:rgba(140,160,180,0.5);margin-left:4px}
+.chat-input-form{display:flex;gap:6px;padding:8px 10px;border-top:1px solid rgba(140,200,230,0.1)}
+.chat-input-form .inp{flex:1;font-size:13px;padding:6px 10px;background:rgba(20,30,50,0.8);border:1px solid rgba(140,200,230,0.15);border-radius:8px;color:#ddd}
+
+/* Achievement grid */
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.ach-card{padding:12px;border-radius:10px;background:var(--neo);box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi);display:flex;gap:10px;align-items:center;transition:opacity .2s}
+.ach-card.locked{opacity:0.4}
+.ach-icon{font-size:28px;flex-shrink:0}
+.ach-info{flex:1}
+.ach-name{font-weight:700;font-size:13px;color:var(--deep)}
+.ach-desc{font-size:11px;color:var(--ink2);margin-top:2px}
+.ach-reward{font-size:10px;color:var(--accent);margin-top:2px}
+.ach-card.earned{border-left:3px solid var(--success)}
+
+/* Achievement toast */
+.ach-toast{position:fixed;top:20px;right:20px;z-index:999;background:rgba(15,30,50,0.95);backdrop-filter:blur(10px);border:1px solid #4caf50;border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:12px;animation:toastIn .4s ease,toastOut .4s ease 3.6s forwards;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.ach-toast-icon{font-size:32px}
+.ach-toast-text{color:#fff;font-size:13px;line-height:1.3}
+.ach-toast-title{font-weight:700;color:#4caf50;font-size:14px}
+@keyframes toastIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-20px)}}

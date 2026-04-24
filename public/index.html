@@ -37,10 +37,12 @@
       <button class="nav-link" data-page="profile">Profile</button>
       <button class="nav-link" data-page="settings">Settings</button>
       <button class="nav-link" data-page="leaderboard">Leaderboard</button>
+      <button class="nav-link" data-page="achievements">🏆 Achievements</button>
       <button class="nav-link nav-staff" data-page="staff" id="nav-staff-link" hidden>Staff</button>
     </div>
     <div class="nav-right">
       <span class="nav-coins" id="nav-coins">🪙 0</span>
+      <button class="btn btn-ghost btn-sm" id="bug-report-btn" style="font-size:11px;padding:5px 10px">🐛 Report Bug</button>
       <span class="nav-user" id="nav-user">User</span>
     </div>
   </nav>
@@ -333,6 +335,12 @@
       <div class="glass-card" id="leaderboard-content"><p style="color:var(--ink3)">Loading...</p></div>
     </section>
 
+    <!-- ============== ACHIEVEMENTS ============== -->
+    <section class="page" id="page-achievements" hidden>
+      <div class="glass-card"><h2 class="card-title">🏆 Achievements</h2><p class="card-desc">Complete challenges to earn coins and bragging rights.</p></div>
+      <div class="glass-card" id="achievements-content"><p style="color:var(--ink3)">Loading...</p></div>
+    </section>
+
     <!-- ============== DUNGEON ============== -->
     <section class="page" id="page-dungeon" hidden>
       <div id="dg-menu">
@@ -426,9 +434,45 @@
           <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn">🪙 +1000 to self</button>
         </div>
       </div>
+      <div class="glass-card">
+        <h3 class="settings-label">🐛 Bug Reports <button class="btn btn-ghost btn-sm" id="staff-bugs-refresh" style="font-size:11px">Refresh</button></h3>
+        <div id="staff-bugs-list" style="max-height:300px;overflow-y:auto"><p style="color:var(--ink3)">Click refresh to load</p></div>
+      </div>
     </section>
 
+  <!-- Bug Report Modal -->
+  <div class="bug-modal-overlay" id="bug-modal" hidden>
+    <div class="bug-modal glass-card">
+      <h3 class="card-title">🐛 Report a Bug</h3>
+      <p class="card-desc">Found something broken? Let us know!</p>
+      <form id="bug-form" class="auth-form">
+        <label><span class="lbl">What happened?</span><input class="inp" type="text" id="bug-title" maxlength="100" placeholder="Brief title (e.g. 'Shop won't load')" required /></label>
+        <label><span class="lbl">Details</span><textarea class="inp" id="bug-body" maxlength="500" rows="4" placeholder="Describe the bug — what you were doing, what went wrong, etc." required style="resize:vertical;min-height:80px"></textarea></label>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn btn-primary">Submit Report</button>
+          <button type="button" class="btn btn-ghost" id="bug-cancel">Cancel</button>
+        </div>
+        <p class="form-ok" id="bug-success"></p>
+        <p class="form-err" id="bug-error"></p>
+      </form>
+    </div>
+  </div>
+
   </main>
+  <!-- Global Chat Panel -->
+  <div class="chat-panel" id="chat-panel" hidden>
+    <div class="chat-header">
+      <span>💬 Global Chat</span>
+      <button class="btn btn-ghost btn-sm" id="chat-close" style="font-size:11px;padding:2px 8px">✕</button>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <form class="chat-input-form" id="chat-form">
+      <input class="inp" type="text" id="chat-input" placeholder="Type a message..." maxlength="200" autocomplete="off" />
+      <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 12px">Send</button>
+    </form>
+  </div>
+  <button class="chat-toggle" id="chat-toggle" hidden>💬</button>
+
   <div class="news-ticker" id="news-ticker">
     <span class="ticker-label">📰 LOBBY 98 NEWS</span>
     <div class="ticker-track"><span class="ticker-text" id="ticker-text">Loading headlines...</span></div>

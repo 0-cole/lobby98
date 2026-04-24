@@ -28,7 +28,9 @@ import {
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
   addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
   setBan, setPfpEmoji, setCustomTitle,
-  getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint
+  getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint,
+  submitBugReport, getBugReports, resolveBugReport, deleteBugReport,
+  getUserAchievements, hasAchievement, awardAchievement
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -239,6 +241,10 @@ app.post("/api/arcade/score", (req, res) => {
     finalCoins = Math.min(finalCoins, 100); // hard cap even with multipliers
     addCoins(user.id, finalCoins);
     recordGame(user.id, coins >= 10, finalCoins);
+    checkAllAchievements(user.id);
+    const updatedUser = getUserById(user.id);
+    if (updatedUser.coins >= 500) checkAchievement(user.id, "arcade_500");
+    if (updatedUser.coins >= 2000) checkAchievement(user.id, "arcade_2000");
   }
   res.json({ ok: true, coinsEarned: coins, user: safeUserData(getUserById(user.id)) });
 });
@@ -555,6 +561,45 @@ setInterval(() => {
     io.to(code).emit('shooter:state', state.players);
   }
 }, 66);
+
+// ============================================================
+//   BUG REPORTS
+// ============================================================
+app.post("/api/bugs/submit", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { title, body } = req.body || {};
+  if (!title || !body) return res.status(400).json({ error: "Title and description required" });
+  if (title.length > 100) return res.status(400).json({ error: "Title too long (100 max)" });
+  if (body.length > 500) return res.status(400).json({ error: "Description too long (500 max)" });
+  submitBugReport(user.id, user.username, title.slice(0, 100), body.slice(0, 500));
+  checkAchievement(user.id, "bug_report");
+  res.json({ ok: true, message: "Bug report submitted! Thanks for helping improve the site." });
+});
+
+app.get("/api/bugs", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!isStaff(user?.username)) return res.status(403).json({ error: "Staff only" });
+  const reports = getBugReports(req.query.open === "1");
+  res.json({ reports });
+});
+
+app.post("/api/bugs/resolve", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!isStaff(user?.username)) return res.status(403).json({ error: "Staff only" });
+  const { id, status } = req.body || {};
+  if (status === "delete") deleteBugReport(id);
+  else resolveBugReport(id, status || "resolved");
+  res.json({ ok: true });
+});
 
 // Profile border update
 app.post("/api/profile/border", (req, res) => {
@@ -2063,7 +2108,110 @@ io.use((socket, next) => {
   next();
 });
 
+// ============================================================
+//   GLOBAL CHAT
+// ============================================================
+const globalChat = []; // last 100 messages in memory
+const GLOBAL_CHAT_MAX = 100;
+
+// ============================================================
+//   ACHIEVEMENTS
+// ============================================================
+const ACHIEVEMENTS = [
+  {id:"first_win",name:"First Victory",desc:"Win your first game",icon:"🏆",coins:50},
+  {id:"win5",name:"Veteran",desc:"Win 5 games",icon:"🎖️",coins:100},
+  {id:"win25",name:"Champion",desc:"Win 25 games",icon:"👑",coins:250},
+  {id:"win100",name:"Legend",desc:"Win 100 games",icon:"⭐",coins:500},
+  {id:"arcade_500",name:"Arcade Rat",desc:"Earn 500 arcade coins",icon:"🕹️",coins:75},
+  {id:"arcade_2000",name:"High Scorer",desc:"Earn 2000 arcade coins",icon:"🎮",coins:200},
+  {id:"dungeon_5",name:"Adventurer",desc:"Clear 5 dungeon areas",icon:"⚔️",coins:100},
+  {id:"dungeon_10",name:"Dungeon Crawler",desc:"Clear 10 dungeon areas",icon:"🗡️",coins:200},
+  {id:"dungeon_20",name:"Deep Diver",desc:"Clear 20 dungeon areas",icon:"🌊",coins:400},
+  {id:"dungeon_all",name:"The Finisher",desc:"Clear all dungeon areas",icon:"♾️",coins:1000},
+  {id:"coins_1000",name:"Thousandaire",desc:"Own 1,000 coins",icon:"🪙",coins:0},
+  {id:"coins_10000",name:"Rich",desc:"Own 10,000 coins",icon:"💰",coins:0},
+  {id:"shop_5",name:"Fashionista",desc:"Buy 5 shop items",icon:"🛍️",coins:50},
+  {id:"bug_report",name:"Bug Hunter",desc:"Submit a bug report",icon:"🐛",coins:25},
+  {id:"chat_first",name:"Social Butterfly",desc:"Send your first chat message",icon:"💬",coins:10},
+  {id:"blitz_kill",name:"Sharpshooter",desc:"Get a kill in Blitz",icon:"🎯",coins:30},
+];
+
+function checkAchievement(userId, achId) {
+  if (!userId) return false;
+  if (hasAchievement(userId, achId)) return false;
+  awardAchievement(userId, achId);
+  const ach = ACHIEVEMENTS.find(a => a.id === achId);
+  if (ach && ach.coins > 0) {
+    const user = getUserById(userId);
+    if (user) setCoins(userId, user.coins + ach.coins);
+  }
+  // Notify user via socket
+  for (const [, s] of io.sockets.sockets) {
+    if (s.user && s.user.id === userId) {
+      s.emit("achievement", { id: achId, name: ach?.name, icon: ach?.icon, coins: ach?.coins });
+    }
+  }
+  return true;
+}
+
+function checkAllAchievements(userId) {
+  const user = getUserById(userId);
+  if (!user) return;
+  const wins = user.total_points || 0;
+  if (wins >= 1) checkAchievement(userId, "first_win");
+  if (wins >= 5) checkAchievement(userId, "win5");
+  if (wins >= 25) checkAchievement(userId, "win25");
+  if (wins >= 100) checkAchievement(userId, "win100");
+  if (user.coins >= 1000) checkAchievement(userId, "coins_1000");
+  if (user.coins >= 10000) checkAchievement(userId, "coins_10000");
+  const owned = (user.owned_items || "").split(",").filter(Boolean).length;
+  if (owned >= 5) checkAchievement(userId, "shop_5");
+}
+
+app.get("/api/achievements", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const earned = getUserAchievements(sess.user_id);
+  res.json({ achievements: ACHIEVEMENTS, earned });
+});
+
+app.post("/api/achievements/dungeon", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { areasCleared } = req.body || {};
+  if (areasCleared >= 5) checkAchievement(sess.user_id, "dungeon_5");
+  if (areasCleared >= 10) checkAchievement(sess.user_id, "dungeon_10");
+  if (areasCleared >= 20) checkAchievement(sess.user_id, "dungeon_20");
+  if (areasCleared >= 26) checkAchievement(sess.user_id, "dungeon_all");
+  res.json({ ok: true });
+});
+
 io.on("connection", (socket) => {
+
+  // ----- Global Chat -----
+  socket.on("chat:send", (msg) => {
+    if (!socket.user) return;
+    const text = (msg || "").toString().trim().slice(0, 200);
+    if (!text) return;
+    const entry = {
+      id: Date.now() + Math.random(),
+      user: socket.user.username,
+      color: socket.user.name_color || "#fff",
+      text,
+      time: Date.now(),
+    };
+    globalChat.push(entry);
+    if (globalChat.length > GLOBAL_CHAT_MAX) globalChat.shift();
+    io.emit("chat:msg", entry);
+    // Achievement: first chat
+    checkAchievement(socket.user.id, "chat_first");
+  });
+
+  socket.on("chat:history", (_, ack) => {
+    if (typeof ack === "function") ack(globalChat.slice(-50));
+  });
 
   // ----- Create room -----
   socket.on("room:create", ({ name, visibility }, ack) => {

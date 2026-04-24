@@ -13,6 +13,8 @@ let myWord = null, hasSubmittedClue = false, hasSubmittedSpyGuess = false;
 let myChainRole = null, hasAccused = false, coinsAwarded = false;
 let myEchoPrompt = null, hasSubmittedEchoAnswer = false;
 const socket = io();
+window._socket = socket;
+setTimeout(() => { initChat(); initAchievementListener(); }, 500);
 
 // ============================================================
 //   ROUTING
@@ -41,6 +43,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "settings") loadSettings();
     if (l.dataset.page === "play") { prefillName(); loadRoomBrowser(); }
     if (l.dataset.page === "leaderboard") loadLeaderboard();
+    if (l.dataset.page === "achievements") loadAchievements();
     if (l.dataset.page === "profile") loadProfile();
     if (l.dataset.page === "market") loadMarket();
   });
@@ -1147,6 +1150,181 @@ if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
 });
 
 // ============================================================
+//   BUG REPORTS
+// ============================================================
+const bugModal = document.getElementById('bug-modal');
+const bugReportBtn = document.getElementById('bug-report-btn');
+const bugCancel = document.getElementById('bug-cancel');
+const bugForm = document.getElementById('bug-form');
+
+if (bugReportBtn) bugReportBtn.addEventListener('click', () => { bugModal.hidden = false; $('bug-success').textContent = ''; $('bug-error').textContent = ''; });
+if (bugCancel) bugCancel.addEventListener('click', () => { bugModal.hidden = true; });
+if (bugModal) bugModal.addEventListener('click', (e) => { if (e.target === bugModal) bugModal.hidden = true; });
+
+if (bugForm) bugForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('bug-error').textContent = ''; $('bug-success').textContent = '';
+  const title = $('bug-title').value.trim();
+  const body = $('bug-body').value.trim();
+  if (!title || !body) { $('bug-error').textContent = 'Fill in both fields'; return; }
+  try {
+    const res = await fetch('/api/bugs/submit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, body }) });
+    const data = await res.json();
+    if (!res.ok) { $('bug-error').textContent = data.error; return; }
+    $('bug-success').textContent = data.message;
+    $('bug-title').value = ''; $('bug-body').value = '';
+    setTimeout(() => { bugModal.hidden = true; }, 2000);
+  } catch { $('bug-error').textContent = 'Network error'; }
+});
+
+// Staff bug viewer
+const staffBugsRefresh = document.getElementById('staff-bugs-refresh');
+if (staffBugsRefresh) staffBugsRefresh.addEventListener('click', loadBugReports);
+
+async function loadBugReports() {
+  const container = document.getElementById('staff-bugs-list');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/bugs?open=1');
+    const data = await res.json();
+    if (!data.reports || data.reports.length === 0) {
+      container.innerHTML = '<p style="color:var(--success);text-align:center;padding:12px">No open bug reports! 🎉</p>';
+      return;
+    }
+    container.innerHTML = '';
+    for (const bug of data.reports) {
+      const age = Math.round((Date.now() - bug.created_at) / 60000);
+      const timeStr = age < 60 ? `${age}m ago` : age < 1440 ? `${Math.round(age/60)}h ago` : `${Math.round(age/1440)}d ago`;
+      const div = document.createElement('div');
+      div.className = 'bug-item';
+      div.innerHTML = `
+        <div class="bug-item-header">
+          <span class="bug-item-title">${esc(bug.title)}</span>
+          <span class="bug-item-meta">${esc(bug.username)} · ${timeStr}</span>
+        </div>
+        <div class="bug-item-body">${esc(bug.body)}</div>
+        <div class="bug-item-actions">
+          <button class="btn btn-sm btn-primary" data-bug-id="${bug.id}" data-action="resolved" style="font-size:11px;padding:4px 10px">✓ Resolve</button>
+          <button class="btn btn-sm btn-ghost" data-bug-id="${bug.id}" data-action="delete" style="font-size:11px;padding:4px 10px">✕ Delete</button>
+        </div>
+      `;
+      div.querySelectorAll('[data-bug-id]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await fetch('/api/bugs/resolve', { method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ id: Number(btn.dataset.bugId), status: btn.dataset.action }) });
+          loadBugReports();
+        });
+      });
+      container.appendChild(div);
+    }
+  } catch { container.innerHTML = '<p style="color:var(--danger)">Failed to load</p>'; }
+}
+
+// ============================================================
+//   GLOBAL CHAT
+// ============================================================
+const chatPanel = $('chat-panel');
+const chatToggle = $('chat-toggle');
+const chatMessages = $('chat-messages');
+const chatForm = $('chat-form');
+const chatInput = $('chat-input');
+const chatClose = $('chat-close');
+let chatOpen = false, chatUnread = false;
+
+function initChat() {
+  if (!chatToggle || !window._socket) return;
+  chatToggle.hidden = false;
+  chatToggle.addEventListener('click', () => { chatOpen = !chatOpen; chatPanel.hidden = !chatOpen; chatToggle.hidden = chatOpen; chatUnread = false; chatToggle.classList.remove('has-new'); if (chatOpen) scrollGlobalChat(); });
+  chatClose.addEventListener('click', () => { chatOpen = false; chatPanel.hidden = true; chatToggle.hidden = false; });
+  chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    window._socket.emit('chat:send', text);
+    chatInput.value = '';
+  });
+  // Load history
+  window._socket.emit('chat:history', null, (history) => {
+    if (history) history.forEach(addChatMsg);
+    scrollGlobalChat();
+  });
+  // Listen for new messages
+  window._socket.on('chat:msg', (msg) => {
+    addChatMsg(msg);
+    if (!chatOpen) { chatUnread = true; chatToggle.classList.add('has-new'); }
+    scrollGlobalChat();
+  });
+}
+
+function addChatMsg(msg) {
+  if (!chatMessages) return;
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  const time = new Date(msg.time);
+  const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+  div.innerHTML = `<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>`;
+  chatMessages.appendChild(div);
+  if (chatMessages.children.length > 100) chatMessages.removeChild(chatMessages.firstChild);
+}
+
+function scrollGlobalChat() {
+  if (chatMessages) requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+}
+
+// ============================================================
+//   ACHIEVEMENTS
+// ============================================================
+async function loadAchievements() {
+  const container = $('achievements-content');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/achievements');
+    const data = await res.json();
+    if (!data.achievements) { container.innerHTML = '<p style="color:var(--ink3)">Failed to load</p>'; return; }
+    const earned = new Set(data.earned || []);
+    let html = '<div class="ach-grid">';
+    for (const a of data.achievements) {
+      const done = earned.has(a.id);
+      html += `<div class="ach-card ${done ? 'earned' : 'locked'}">
+        <span class="ach-icon">${a.icon}</span>
+        <div class="ach-info">
+          <div class="ach-name">${esc(a.name)}</div>
+          <div class="ach-desc">${esc(a.desc)}</div>
+          ${a.coins > 0 ? `<div class="ach-reward">${done ? '✓' : ''} +${a.coins} coins</div>` : ''}
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+    const earnedCount = data.earned?.length || 0;
+    container.innerHTML = `<p style="color:var(--ink2);margin-bottom:12px;font-size:14px">${earnedCount}/${data.achievements.length} unlocked</p>` + html;
+  } catch { container.innerHTML = '<p style="color:var(--danger)">Failed to load</p>'; }
+}
+
+// Achievement toast notification
+function showAchievementToast(data) {
+  const toast = document.createElement('div');
+  toast.className = 'ach-toast';
+  toast.innerHTML = `<span class="ach-toast-icon">${data.icon || '🏆'}</span><div class="ach-toast-text"><div class="ach-toast-title">Achievement Unlocked!</div>${esc(data.name)}${data.coins > 0 ? ` · +${data.coins} coins` : ''}</div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.remove(); }, 4000);
+}
+
+// Listen for achievement notifications via socket
+function initAchievementListener() {
+  if (window._socket) {
+    window._socket.on('achievement', showAchievementToast);
+  }
+}
+
+// Sync dungeon achievements after clearing areas
+function syncDungeonAchievements(areasCleared) {
+  fetch('/api/achievements/dungeon', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ areasCleared })
+  }).catch(() => {});
+}
+
+// ============================================================
 //   STOCK MARKET
 // ============================================================
 function loadMarket() {
@@ -1186,7 +1364,7 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
   menu.hidden = true;
   playArea.hidden = false;
   playArea.innerHTML = '';
-  window.DungeonGame?.init(playArea, async (coins, floor, kills) => {
+  window.DungeonGame?.init(playArea, async (coins, areasCleared, kills) => {
     // Submit score
     try {
       const res = await fetch('/api/arcade/score', {
@@ -1197,6 +1375,8 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
       const data = await res.json();
       if (data.user) { user = data.user; updateUI(); }
     } catch {}
+    // Sync dungeon achievements
+    syncDungeonAchievements(areasCleared);
   });
 });
 

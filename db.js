@@ -67,6 +67,21 @@ db.exec(`
     PRIMARY KEY (user_id, stock_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS bug_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    username TEXT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT DEFAULT 'open',
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS achievements (
+    user_id INTEGER NOT NULL,
+    achievement_id TEXT NOT NULL,
+    earned_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, achievement_id)
+  );
 `);
 
 const s = {
@@ -147,6 +162,33 @@ export function setShares(userId, stockId, shares) {
   else s.upsertShares.run(userId, stockId, shares, shares);
 }
 export function setPfpBorder(userId, border) { s.setPfpBorder.run(border, userId); }
+
+// Bug reports
+const bugStmts = {
+  insert: db.prepare("INSERT INTO bug_reports (user_id, username, title, body, created_at) VALUES (?, ?, ?, ?, ?)"),
+  getAll: db.prepare("SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 50"),
+  getOpen: db.prepare("SELECT * FROM bug_reports WHERE status = 'open' ORDER BY created_at DESC LIMIT 50"),
+  resolve: db.prepare("UPDATE bug_reports SET status = ? WHERE id = ?"),
+  deleteOne: db.prepare("DELETE FROM bug_reports WHERE id = ?"),
+};
+export function submitBugReport(userId, username, title, body) {
+  bugStmts.insert.run(userId, username, title, body, Date.now());
+}
+export function getBugReports(openOnly) {
+  return openOnly ? bugStmts.getOpen.all() : bugStmts.getAll.all();
+}
+export function resolveBugReport(id, status) { bugStmts.resolve.run(status, id); }
+export function deleteBugReport(id) { bugStmts.deleteOne.run(id); }
+
+// Achievements
+const achStmts = {
+  get: db.prepare("SELECT achievement_id FROM achievements WHERE user_id = ?"),
+  has: db.prepare("SELECT 1 FROM achievements WHERE user_id = ? AND achievement_id = ?"),
+  add: db.prepare("INSERT OR IGNORE INTO achievements (user_id, achievement_id, earned_at) VALUES (?, ?, ?)"),
+};
+export function getUserAchievements(userId) { return achStmts.get.all(userId).map(r => r.achievement_id); }
+export function hasAchievement(userId, achId) { return !!achStmts.has.get(userId, achId); }
+export function awardAchievement(userId, achId) { achStmts.add.run(userId, achId, Date.now()); }
 
 const leaderboardStmt = db.prepare(
   "SELECT id, username, coins, games_played, games_won, total_points FROM users ORDER BY total_points DESC LIMIT 20"
