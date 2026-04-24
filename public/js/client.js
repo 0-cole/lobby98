@@ -17,12 +17,12 @@ const socket = io();
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market"];
 
 function showPage(id) {
   PAGES.forEach(p => { const el = $(p); if (el) el.hidden = p !== id; });
   // Update nav
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile"};
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
 }
 
@@ -31,7 +31,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -42,6 +42,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "play") { prefillName(); loadRoomBrowser(); }
     if (l.dataset.page === "leaderboard") loadLeaderboard();
     if (l.dataset.page === "profile") loadProfile();
+    if (l.dataset.page === "market") loadMarket();
   });
 });
 
@@ -187,7 +188,7 @@ function renderGamePicker(snap) {
   const hn = $("host-note"), sa = $("start-game-area"), sn = $("start-game-note");
   if (snap.game) { hn.textContent = "Game in progress"; sa.hidden = true; return; }
   hn.textContent = amHost ? (snap.mode ? `You picked: ${snap.mode}` : "Pick a game") : (snap.mode ? `Host picked: ${snap.mode}` : "(waiting for host)");
-  if (amHost && ["frequency","wordspy","chain","echo"].includes(snap.mode)) {
+  if (amHost && ["frequency","wordspy","chain","echo","blitz"].includes(snap.mode)) {
     sa.hidden = false;
     if (snap.players.length < 3) { sn.textContent = `Need 3+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
     else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
@@ -538,6 +539,28 @@ function renderShop(items, u) {
     tg.appendChild(d);
   }
   ts.appendChild(tg); container.appendChild(ts);
+
+  // Borders
+  if (items.borders) {
+    const bs = document.createElement('div'); bs.className = 'shop-category';
+    bs.innerHTML = '<div class="shop-cat-title">Profile Borders</div>';
+    const bg = document.createElement('div'); bg.className = 'shop-grid';
+    for (const b of items.borders) {
+      if (b.id === "none") continue;
+      const o = owned.includes(b.id), eq = u?.pfpBorder === b.id, af = (u?.coins||0) >= b.price;
+      const d = document.createElement('div');
+      d.className = `shop-item ${o?"owned":""} ${eq?"equipped":""} ${!o&&!af?"too-exp":""}`;
+      d.innerHTML = `<div class="shop-preview"><span class="pfp-circle" style="box-shadow:${b.style};font-size:20px;padding:4px;display:inline-block;border-radius:50%">😎</span></div><div class="shop-name">${b.name}</div>${o?(eq?'<div class="shop-status" style="color:var(--accent)">equipped</div>':'<div class="shop-status" style="color:var(--success)">owned</div>'):`<div class="shop-price">${b.price}</div>`}`;
+      d.addEventListener('click', async () => {
+        if (o) { await fetch("/api/profile/border",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({border:b.id})}); }
+        else if (af) { await fetch("/api/shop/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({itemId:b.id})}); }
+        else return;
+        loadShop();
+      });
+      bg.appendChild(d);
+    }
+    bs.appendChild(bg); container.appendChild(bs);
+  }
 }
 
 // ============================================================
@@ -935,9 +958,20 @@ const SHOP_TITLES = [
   { id: "the-goat", name: "The G.O.A.T." },
 ];
 
+const BORDER_STYLES = {
+  "none": "none",
+  "glow-cyan": "0 0 12px #1ab5d5, 0 0 24px rgba(26,181,213,0.3)",
+  "glow-gold": "0 0 12px #ffd700, 0 0 24px rgba(255,215,0,0.3)",
+  "glow-pink": "0 0 12px #f472b6, 0 0 24px rgba(244,114,182,0.3)",
+  "glow-fire": "0 0 8px #ff4500, 0 0 16px #ff6b00, 0 0 28px rgba(255,69,0,0.3)",
+  "glow-rainbow": "0 0 8px #ff0000, 0 0 12px #ff8800, 0 0 16px #ffff00, 0 0 20px #00ff00, 0 0 24px #0088ff",
+  "glow-shadow": "0 0 15px #1e1b4b, 0 0 30px rgba(30,27,75,0.5)",
+};
+function getBorderStyle(id) { return BORDER_STYLES[id] || "none"; }
+
 function loadProfile() {
   if (!user) return;
-  $("profile-pfp").textContent = user.pfpEmoji || "😎";
+  $("profile-pfp").innerHTML = `<span class="pfp-circle" style="box-shadow:${getBorderStyle(user.pfpBorder)}"><span class="pfp-emoji">${user.pfpEmoji || '😎'}</span></span>`;
   $("profile-username").textContent = user.username;
   const titleDisplay = $("profile-title-display");
   if (user.title === "custom" && user.customTitle) titleDisplay.textContent = user.customTitle;
@@ -1077,6 +1111,36 @@ if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
   if (!user) return;
   await fetch("/api/staff/givecoins", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:user.username,amount:1000}) });
   await checkSession();
+});
+
+// ============================================================
+//   STOCK MARKET
+// ============================================================
+function loadMarket() {
+  const container = $("market-content");
+  if (container && window.StockMarket) window.StockMarket.load(container);
+}
+
+// ============================================================
+//   BLITZ (Shooter)
+// ============================================================
+socket.on("game:blitzStart", ({ code }) => {
+  // Switch to game view and init shooter
+  showPage("page-game");
+  $("game-mode-badge").textContent = "💥 Blitz";
+  $("game-round-badge").textContent = "Live";
+  $("game-room-code").textContent = code;
+  document.querySelector(".timer-wrap").style.display = "none";
+  const area = document.querySelector(".game-area");
+  // Hide all phases
+  area.querySelectorAll(".game-phase").forEach(p => p.hidden = true);
+  // Create shooter container
+  let sc = document.getElementById("shooter-container");
+  if (!sc) { sc = document.createElement("div"); sc.id = "shooter-container"; sc.className = "game-phase"; area.appendChild(sc); }
+  sc.hidden = false; sc.innerHTML = "";
+  if (window.ShooterGame) {
+    window.ShooterGame.init(sc, socket, code, socket.id, user?.username || me?.name || "Player");
+  }
 });
 
 // ============================================================

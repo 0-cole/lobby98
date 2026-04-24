@@ -32,6 +32,7 @@
       <button class="nav-link" data-page="play">Party Games</button>
       <button class="nav-link" data-page="arcade">Arcade</button>
       <button class="nav-link" data-page="dungeon">Deep Dive</button>
+      <button class="nav-link" data-page="market">Market</button>
       <button class="nav-link" data-page="shop">Shop</button>
       <button class="nav-link" data-page="profile">Profile</button>
       <button class="nav-link" data-page="settings">Settings</button>
@@ -173,6 +174,7 @@
             <li class="game-card" data-mode="wordspy"><div class="gc-icon">◆</div><div class="gc-body"><div class="gc-name">Word Spy</div><div class="gc-desc">Everyone has a word. The spy doesn't.</div></div></li>
             <li class="game-card" data-mode="chain"><div class="gc-icon">◁</div><div class="gc-body"><div class="gc-name">Chain</div><div class="gc-desc">Build a sentence. One player sneaks in a target word.</div></div></li>
             <li class="game-card" data-mode="echo"><div class="gc-icon">◇</div><div class="gc-body"><div class="gc-name">Echo</div><div class="gc-desc">Same prompt, but the Echo sees a twist. Write answers, find them.</div></div></li>
+            <li class="game-card" data-mode="blitz"><div class="gc-icon">💥</div><div class="gc-body"><div class="gc-name">Blitz</div><div class="gc-desc">Top-down shooter. WASD + mouse. Last one standing wins.</div></div></li>
           </ul>
           <div class="start-area" id="start-game-area" hidden>
             <div style="margin-bottom:10px"><label class="lbl" style="margin-right:8px">Rounds:</label><select id="rounds-select" class="inp" style="width:auto;display:inline-block;padding:6px 12px"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="10">10</option></select></div>
@@ -319,6 +321,12 @@
       </div>
     </section>
 
+    <!-- ============== MARKET ============== -->
+    <section class="page" id="page-market" hidden>
+      <div class="glass-card"><h2 class="card-title">📈 Stock Market</h2><p class="card-desc">Buy and sell fake stocks. Prices update every 5 seconds. You start with $1000.</p></div>
+      <div class="glass-card" id="market-content"><p style="color:var(--ink3);text-align:center">Loading...</p></div>
+    </section>
+
     <!-- ============== LEADERBOARD ============== -->
     <section class="page" id="page-leaderboard" hidden>
       <div class="glass-card"><h2 class="card-title">🏆 Leaderboard</h2><p class="card-desc">Top players across the platform.</p></div>
@@ -425,6 +433,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="js/arcade.js"></script>
   <script src="js/dungeon.js"></script>
+  <script src="js/stocks.js"></script>
+  <script src="js/shooter.js"></script>
   <script type="module" src="js/client.js"></script>
 </body>
 </html>

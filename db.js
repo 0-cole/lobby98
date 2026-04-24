@@ -40,6 +40,18 @@ try { db.exec("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0"); } cat
 try { db.exec("ALTER TABLE users ADD COLUMN ban_reason TEXT"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN pfp_emoji TEXT DEFAULT '😎'"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN custom_title TEXT"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN stock_cash REAL DEFAULT 1000"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN pfp_border TEXT DEFAULT 'none'"); } catch {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS portfolios (
+    user_id INTEGER NOT NULL,
+    stock_id TEXT NOT NULL,
+    shares INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, stock_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
 
 const s = {
   createUser: db.prepare("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)"),
@@ -68,6 +80,11 @@ const s = {
   setPfpEmoji: db.prepare("UPDATE users SET pfp_emoji = ? WHERE id = ?"),
   setCustomTitle: db.prepare("UPDATE users SET custom_title = ? WHERE id = ?"),
   deleteSessions: db.prepare("DELETE FROM sessions WHERE user_id = ?"),
+  setStockCash: db.prepare("UPDATE users SET stock_cash = ? WHERE id = ?"),
+  getPortfolio: db.prepare("SELECT stock_id, shares FROM portfolios WHERE user_id = ?"),
+  upsertShares: db.prepare("INSERT INTO portfolios (user_id, stock_id, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, stock_id) DO UPDATE SET shares = ?"),
+  deleteShares: db.prepare("DELETE FROM portfolios WHERE user_id = ? AND stock_id = ?"),
+  setPfpBorder: db.prepare("UPDATE users SET pfp_border = ? WHERE id = ?"),
 };
 
 export function userCount() { return s.countUsers.get().n; }
@@ -101,6 +118,19 @@ export function changePassword(userId, hash) { s.changePassword.run(hash, userId
 export function setBan(userId, banned, reason) { s.setBan.run(banned ? 1 : 0, reason || null, userId); if (banned) s.deleteSessions.run(userId); }
 export function setPfpEmoji(userId, emoji) { s.setPfpEmoji.run(emoji, userId); }
 export function setCustomTitle(userId, title) { s.setCustomTitle.run(title, userId); }
+export function getStockCash(userId) { return s.getById.get(userId)?.stock_cash ?? 1000; }
+export function setStockCash(userId, cash) { s.setStockCash.run(cash, userId); }
+export function getPortfolio(userId) {
+  const rows = s.getPortfolio.all(userId);
+  const p = {};
+  for (const r of rows) p[r.stock_id] = r.shares;
+  return p;
+}
+export function setShares(userId, stockId, shares) {
+  if (shares <= 0) s.deleteShares.run(userId, stockId);
+  else s.upsertShares.run(userId, stockId, shares, shares);
+}
+export function setPfpBorder(userId, border) { s.setPfpBorder.run(border, userId); }
 
 const leaderboardStmt = db.prepare(
   "SELECT id, username, coins, games_played, games_won, total_points FROM users ORDER BY total_points DESC LIMIT 20"
@@ -122,6 +152,8 @@ export function safeUserData(u) {
     ownedItems: (() => { try { return JSON.parse(u.owned_items); } catch { return ["default","none"]; } })(),
     isBanned: !!u.is_banned, banReason: u.ban_reason,
     pfpEmoji: u.pfp_emoji || '😎',
-    customTitle: u.custom_title || null
+    customTitle: u.custom_title || null,
+    stockCash: u.stock_cash ?? 1000,
+    pfpBorder: u.pfp_border || 'none'
   };
 }

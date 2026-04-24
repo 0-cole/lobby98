@@ -403,3 +403,7 @@ label{display:flex;flex-direction:column;gap:4px}
 
 /* Profile page */
 #pfp-picker span:hover{background:rgba(34,174,209,0.15);transform:scale(1.15)}
+
+/* PFP borders */
+.pfp-circle{display:inline-block;border-radius:50%;padding:6px;transition:box-shadow 0.3s}
+.pfp-emoji{font-size:56px;line-height:1;display:block}

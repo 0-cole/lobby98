@@ -26,7 +26,8 @@ import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
   addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
-  setBan, setPfpEmoji, setCustomTitle
+  setBan, setPfpEmoji, setCustomTitle,
+  getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -142,6 +143,15 @@ const SHOP_ITEMS = {
     { id: "rename-site", name: "Rename the site for 1 hour", price: 500, type: "event" },
     { id: "nuke-ui", name: "UI Nuke! Everything falls", price: 300, type: "event" },
     { id: "confetti", name: "Confetti explosion for everyone", price: 200, type: "event" },
+  ],
+  borders: [
+    { id: "none", name: "None", price: 0, style: "none" },
+    { id: "glow-cyan", name: "Cyan Glow", price: 80, style: "0 0 12px #1ab5d5, 0 0 24px rgba(26,181,213,0.3)" },
+    { id: "glow-gold", name: "Gold Glow", price: 100, style: "0 0 12px #ffd700, 0 0 24px rgba(255,215,0,0.3)" },
+    { id: "glow-pink", name: "Pink Glow", price: 100, style: "0 0 12px #f472b6, 0 0 24px rgba(244,114,182,0.3)" },
+    { id: "glow-fire", name: "Fire Ring", price: 150, style: "0 0 8px #ff4500, 0 0 16px #ff6b00, 0 0 28px rgba(255,69,0,0.3)" },
+    { id: "glow-rainbow", name: "Rainbow Aura", price: 250, style: "0 0 8px #ff0000, 0 0 12px #ff8800, 0 0 16px #ffff00, 0 0 20px #00ff00, 0 0 24px #0088ff" },
+    { id: "glow-shadow", name: "Shadow Ring", price: 200, style: "0 0 15px #1e1b4b, 0 0 30px rgba(30,27,75,0.5), inset 0 0 8px rgba(0,0,0,0.3)" },
   ]
 };
 
@@ -435,6 +445,125 @@ app.post("/api/profile/update", (req, res) => {
       if (owned.includes(title) || title === "none") setTitle(user.id, title);
     }
   }
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
+// ============================================================
+//   STOCK MARKET ENGINE
+// ============================================================
+const STOCKS = [
+  { id:"LOBY", ticker:"LOBY", name:"Lobby Corp", emoji:"🏢", price:50, history:[] },
+  { id:"BUBBL", ticker:"BUBBL", name:"Bubble Tea Inc", emoji:"🧋", price:25, history:[] },
+  { id:"MEME", ticker:"MEME", name:"Meme Capital", emoji:"🐸", price:10, history:[] },
+  { id:"YOLO", ticker:"YOLO", name:"YOLO Ventures", emoji:"🚀", price:80, history:[] },
+  { id:"BONK", ticker:"BONK", name:"Bonk Industries", emoji:"🔨", price:5, history:[] },
+  { id:"CHILL", ticker:"CHILL", name:"Chill Holdings", emoji:"🧊", price:35, history:[] },
+  { id:"VIBE", ticker:"VIBE", name:"Vibe Check LLC", emoji:"✨", price:15, history:[] },
+  { id:"GOAT", ticker:"GOAT", name:"G.O.A.T. Systems", emoji:"🐐", price:120, history:[] },
+];
+// Init histories
+for (const s of STOCKS) { s.history = Array(30).fill(s.price); }
+// Price simulation — random walk with mean reversion
+setInterval(() => {
+  for (const s of STOCKS) {
+    const trend = (Math.random() - 0.48) * s.price * 0.04; // slight upward bias
+    const mean = s.history[0]; // mean-revert toward starting price
+    const revert = (mean - s.price) * 0.01;
+    s.price = Math.max(0.5, s.price + trend + revert);
+    s.price = Math.round(s.price * 100) / 100;
+    s.history.push(s.price);
+    if (s.history.length > 60) s.history.shift();
+  }
+}, 5000);
+
+app.get("/api/stocks", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const portfolio = getPortfolio(user.id);
+  const cash = user.stock_cash ?? 1000;
+  res.json({ stocks: STOCKS.map(s => ({ id:s.id, ticker:s.ticker, name:s.name, emoji:s.emoji, price:s.price, history:[...s.history] })), portfolio, cash });
+});
+
+app.post("/api/stocks/buy", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { stockId, amount } = req.body || {};
+  const stock = STOCKS.find(s => s.id === stockId);
+  if (!stock) return res.status(400).json({ error: "Stock not found" });
+  const qty = Math.max(1, Math.min(100, Math.floor(Number(amount) || 1)));
+  const cost = stock.price * qty;
+  const cash = user.stock_cash ?? 1000;
+  if (cash < cost) return res.status(400).json({ error: `Not enough cash. Need $${cost.toFixed(2)}, have $${cash.toFixed(2)}` });
+  setStockCash(user.id, cash - cost);
+  const portfolio = getPortfolio(user.id);
+  setShares(user.id, stockId, (portfolio[stockId] || 0) + qty);
+  res.json({ ok: true });
+});
+
+app.post("/api/stocks/sell", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { stockId, amount } = req.body || {};
+  const stock = STOCKS.find(s => s.id === stockId);
+  if (!stock) return res.status(400).json({ error: "Stock not found" });
+  const portfolio = getPortfolio(user.id);
+  const held = portfolio[stockId] || 0;
+  const qty = Math.max(1, Math.min(held, Math.floor(Number(amount) || 1)));
+  if (held < qty) return res.status(400).json({ error: "Not enough shares" });
+  const revenue = stock.price * qty;
+  setStockCash(user.id, (user.stock_cash ?? 1000) + revenue);
+  setShares(user.id, stockId, held - qty);
+  res.json({ ok: true });
+});
+
+// ============================================================
+//   SHOOTER RELAY (Socket.IO)
+// ============================================================
+// Shooter rooms are just regular rooms with mode "blitz".
+// Server relays positions and bullets between players. No server-side physics.
+const shooterStates = new Map(); // roomCode -> { players: {id: {x,y,angle,hp,name,color}} }
+
+function setupShooterRelay(socket, roomCode) {
+  socket.on('shooter:move', (data) => {
+    if (!shooterStates.has(roomCode)) shooterStates.set(roomCode, { players: {} });
+    const state = shooterStates.get(roomCode);
+    state.players[socket.id] = data;
+  });
+  socket.on('shooter:bullet', (b) => {
+    socket.to(roomCode).emit('shooter:bullet', { ...b, owner: socket.id });
+  });
+  socket.on('shooter:hit', ({ victim, damage }) => {
+    io.to(roomCode).emit('shooter:hit', { victim, damage, attacker: socket.id });
+  });
+  socket.on('shooter:died', ({ killer }) => {
+    io.to(roomCode).emit('shooter:kill', { killer, victim: socket.id });
+  });
+}
+
+// Broadcast shooter state at 15fps
+setInterval(() => {
+  for (const [code, state] of shooterStates) {
+    if (Object.keys(state.players).length === 0) { shooterStates.delete(code); continue; }
+    io.to(code).emit('shooter:state', state.players);
+  }
+}, 66);
+
+// Profile border update
+app.post("/api/profile/border", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { border } = req.body || {};
+  const owned = getOwnedItems(user.id);
+  if (border !== "none" && !owned.includes(border)) return res.status(400).json({ error: "Not owned" });
+  setPfpBorder(user.id, border);
   res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
 });
 
@@ -2071,6 +2200,21 @@ io.on("connection", (socket) => {
         return ack?.({ error: "Need at least 3 players to start Echo" });
       }
       startEchoGame(room, rounds || DEFAULT_ROUNDS);
+      ack?.({ ok: true });
+    } else if (room.mode === "blitz") {
+      if (room.players.size < 2) {
+        return ack?.({ error: "Need at least 2 players for Blitz" });
+      }
+      // Blitz is real-time, not turn-based. Set up relay and tell clients.
+      room.game = { type: "blitz", phase: "playing" };
+      setupShooterRelay(socket, room.code);
+      for (const [pid] of room.players) {
+        const s = io.sockets.sockets.get(pid);
+        if (s && s !== socket) setupShooterRelay(s, room.code);
+      }
+      io.to(room.code).emit("game:blitzStart", { code: room.code });
+      addSystemMessage(room, "💥 Blitz started! WASD to move, mouse to aim, click to shoot!");
+      broadcastRoom(room);
       ack?.({ ok: true });
     } else {
       return ack?.({ error: "Pick a game mode first" });
