@@ -325,7 +325,7 @@ function startFloor(){
     g.tutPaused=true;g.player.atkTimer=999;
     if(g.floor===0){log("📖 Click the enemy to start fighting!");log("📖 Welcome! Combat is automatic, but YOU choose which enemy to target.");}
     if(g.floor===1){log("📖 Click an enemy to begin!");log("📖 Tip: After battle, press [≡] to see your stats and equip items you find.");}
-    if(g.floor===2){log("📖 Click to start the boss!");log("📖 Tip: Use [⚒] Forge to dismantle unwanted items for rewards and new equip slots!");}
+    if(g.floor===2){log("📖 Click to start the boss!");log("📖 Tip: Hold SHIFT and hover items to compare with equipped gear!");log("📖 Tip: Use [⚒] Forge to dismantle unwanted items for rewards and new equip slots!");}
   }
   g.tab=TAB.BATTLE;
 }
@@ -450,10 +450,16 @@ function render(ctx){
 
   // ─── TOOLTIP ───
   if(_tooltip){ctx.fillStyle="rgba(0,0,0,0.92)";ctx.strokeStyle="#aaa";ctx.lineWidth=1;
-    const tw=180,th=_tooltip.lines.length*15+12;const tx=Math.min(_tooltip.x,W-tw-8),ty=Math.max(_tooltip.y-th,8);
+    const tw=_tooltip.wide?220:180,th=_tooltip.lines.length*15+12;const tx=Math.min(_tooltip.x,W-tw-8),ty=Math.max(_tooltip.y-th,8);
     rr(ctx,tx,ty,tw,th,4);ctx.fill();rr(ctx,tx,ty,tw,th,4);ctx.stroke();
-    ctx.fillStyle="#ddd";ctx.font="11px Nunito,sans-serif";ctx.textAlign="left";
-    _tooltip.lines.forEach((l,i)=>{ctx.fillStyle=i===0?(_tooltip.col||"#fff"):"#aaa";ctx.fillText(l,tx+6,ty+14+i*15);});}
+    ctx.font="11px Nunito,sans-serif";ctx.textAlign="left";
+    _tooltip.lines.forEach((l,i)=>{
+      if(i===0)ctx.fillStyle=_tooltip.col||"#fff";
+      else if(l.includes("▲"))ctx.fillStyle="#4caf50";
+      else if(l.includes("▼"))ctx.fillStyle="#e04858";
+      else if(l.startsWith("───"))ctx.fillStyle="#666";
+      else ctx.fillStyle="#aaa";
+      ctx.fillText(l,tx+6,ty+14+i*15);});}
 }
 
 function renderNav(ctx){
@@ -889,20 +895,6 @@ function renderBottomPanel(ctx){
     }
     g._invSlots.push({x:cx,y:cy,w:CELL,h:CELL,idx:i});
   }
-  // Potion button (if in battle)
-  g._potBtn=null;
-  if(g.tab===TAB.SETTINGS){
-    for(const b of(g._setBtns||[])){if(hit(mx,my,b)){
-      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;}
-      if(b.key==="autoEquipOn"){g.autoEquipOn=!g.autoEquipOn;if(g.autoEquipOn)autoEquipBest();}
-      if(b.key==="autoLevelOn"){g.autoLevelOn=!g.autoLevelOn;if(g.autoLevelOn)autoLevelStats();}
-      if(b.key==="reset"){if(confirm("Reset ALL dungeon progress?")){
-        localStorage.removeItem("dd_save");g=newGame();recalc();g.player.hp=g.player.mhp;g.tab=TAB.MAP;log("Progress reset!");}}
-      return;}}}
-  if(g.tab===TAB.BATTLE){
-    const pots=g.inv.filter(it=>it&&it.name==="Potion"||it?.stats?.heal);
-    // not implemented as separate potion type, but show flee hint
-  }
 }
 
 // ══════ INPUT ══════
@@ -1013,6 +1005,10 @@ function handleRightClick(mx,my){
   for(const s of(g._invSlots||[])){if(hit(mx,my,s)&&g.inv[s.idx]){forgeItem(s.idx);return;}}
 }
 
+let _shiftHeld=false;
+document.addEventListener("keydown",e=>{if(e.key==="Shift")_shiftHeld=true;});
+document.addEventListener("keyup",e=>{if(e.key==="Shift")_shiftHeld=false;});
+
 function handleHover(mx,my){
   _tooltip=null;
   if(!g)return;
@@ -1020,8 +1016,28 @@ function handleHover(mx,my){
   for(const s of(g._invSlots||[])){if(hit(mx,my,s)&&g.inv[s.idx]){
     const it=g.inv[s.idx];const lines=[`${it.rarName} ${it.name}`];
     for(const[k,v]of Object.entries(it.stats||{}))lines.push(`${k.toUpperCase()}: +${Math.round(v)}`);
-    lines.push("Click=equip · R-click=dismantle");
-    _tooltip={x:mx+12,y:my,lines,col:it.rarCol};return;}}
+    // Shift+hover: compare with equipped item in same slot
+    if(_shiftHeld){
+      const equipped=g.equips[it.slot];
+      if(equipped){
+        lines.push("─── vs equipped ───");
+        lines.push(`${equipped.rarName} ${equipped.name}`);
+        const allKeys=new Set([...Object.keys(it.stats||{}),...Object.keys(equipped.stats||{})]);
+        for(const k of allKeys){
+          const nv=Math.round((it.stats||{})[k]||0);
+          const ov=Math.round((equipped.stats||{})[k]||0);
+          const diff=nv-ov;
+          const sign=diff>0?"+":"";
+          const col=diff>0?"▲":"▼";
+          if(diff!==0)lines.push(`  ${k.toUpperCase()}: ${nv} (${col}${sign}${diff})`);
+        }
+      } else {
+        lines.push("─── no item equipped ───");
+      }
+    } else {
+      lines.push("Click=equip · Shift+hover=compare");
+    }
+    _tooltip={x:mx+12,y:my,lines,col:it.rarCol,wide:_shiftHeld};return;}}
   // Equipment tooltips
   for(const s of(g._eqSlots||[])){if(hit(mx,my,s)&&g.equips[s.slot]){
     const it=g.equips[s.slot];const lines=[`${it.rarName} ${it.name} (equipped)`];
