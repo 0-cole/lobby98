@@ -1223,52 +1223,52 @@ async function loadBugReports() {
 // ============================================================
 //   GLOBAL CHAT
 // ============================================================
-const chatPanel = $('chat-panel');
-const chatToggle = $('chat-toggle');
-const chatMessages = $('chat-messages');
-const chatForm = $('chat-form');
-const chatInput = $('chat-input');
-const chatClose = $('chat-close');
-let chatOpen = false, chatUnread = false;
+const gchatPanel = $('gchat-panel');
+const gchatToggle = $('gchat-toggle');
+const gchatMessages = $('gchat-messages');
+const gchatForm = $('gchat-form');
+const gchatInput = $('gchat-input');
+const gchatClose = $('gchat-close');
+let gchatOpen = false, gchatUnread = false;
 
 function initChat() {
-  if (!chatToggle || !window._socket) return;
-  chatToggle.hidden = false;
-  chatToggle.addEventListener('click', () => { chatOpen = !chatOpen; chatPanel.hidden = !chatOpen; chatToggle.hidden = chatOpen; chatUnread = false; chatToggle.classList.remove('has-new'); if (chatOpen) scrollGlobalChat(); });
-  chatClose.addEventListener('click', () => { chatOpen = false; chatPanel.hidden = true; chatToggle.hidden = false; });
-  chatForm.addEventListener('submit', (e) => {
+  if (!gchatToggle || !window._socket) return;
+  gchatToggle.hidden = false;
+  gchatToggle.addEventListener('click', () => { gchatOpen = true; gchatPanel.hidden = false; gchatToggle.hidden = true; gchatUnread = false; gchatToggle.classList.remove('has-new'); scrollGlobalChat(); });
+  gchatClose.addEventListener('click', () => { gchatOpen = false; gchatPanel.hidden = true; gchatToggle.hidden = false; });
+  gchatForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const text = chatInput.value.trim();
+    const text = gchatInput.value.trim();
     if (!text) return;
-    window._socket.emit('chat:send', text);
-    chatInput.value = '';
+    window._socket.emit('gchat:send', text);
+    gchatInput.value = '';
   });
   // Load history
-  window._socket.emit('chat:history', null, (history) => {
-    if (history) history.forEach(addChatMsg);
+  window._socket.emit('gchat:history', null, (history) => {
+    if (history) history.forEach(addGChatMsg);
     scrollGlobalChat();
   });
   // Listen for new messages
-  window._socket.on('chat:msg', (msg) => {
-    addChatMsg(msg);
-    if (!chatOpen) { chatUnread = true; chatToggle.classList.add('has-new'); }
+  window._socket.on('gchat:msg', (msg) => {
+    addGChatMsg(msg);
+    if (!gchatOpen) { gchatUnread = true; gchatToggle.classList.add('has-new'); }
     scrollGlobalChat();
   });
 }
 
-function addChatMsg(msg) {
-  if (!chatMessages) return;
+function addGChatMsg(msg) {
+  if (!gchatMessages) return;
   const div = document.createElement('div');
   div.className = 'chat-msg';
   const time = new Date(msg.time);
   const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
   div.innerHTML = `<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>`;
-  chatMessages.appendChild(div);
-  if (chatMessages.children.length > 100) chatMessages.removeChild(chatMessages.firstChild);
+  gchatMessages.appendChild(div);
+  if (gchatMessages.children.length > 100) gchatMessages.removeChild(gchatMessages.firstChild);
 }
 
 function scrollGlobalChat() {
-  if (chatMessages) requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+  if (gchatMessages) requestAnimationFrame(() => { gchatMessages.scrollTop = gchatMessages.scrollHeight; });
 }
 
 // ============================================================

@@ -82,6 +82,14 @@ db.exec(`
     earned_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, achievement_id)
   );
+
+  CREATE TABLE IF NOT EXISTS global_chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    color TEXT DEFAULT '#8ec8e8',
+    text TEXT NOT NULL,
+    time INTEGER NOT NULL
+  );
 `);
 
 const s = {
@@ -198,6 +206,20 @@ export function leaderboardQuery() {
     id: u.id, username: u.username, coins: u.coins,
     gamesPlayed: u.games_played, gamesWon: u.games_won, totalPoints: u.total_points
   }));
+}
+
+// Global chat persistence
+const chatInsert = db.prepare("INSERT INTO global_chat (username, color, text, time) VALUES (?, ?, ?, ?)");
+const chatHistory = db.prepare("SELECT username, color, text, time FROM global_chat ORDER BY id DESC LIMIT 100");
+const chatTrim = db.prepare("DELETE FROM global_chat WHERE id NOT IN (SELECT id FROM global_chat ORDER BY id DESC LIMIT 200)");
+export function saveChatMsg(username, color, text, time) {
+  chatInsert.run(username, color, text, time);
+}
+export function getChatHistory() {
+  return chatHistory.all().reverse(); // oldest first
+}
+export function trimChat() {
+  chatTrim.run();
 }
 
 export function safeUserData(u) {

@@ -30,7 +30,8 @@ import {
   setBan, setPfpEmoji, setCustomTitle,
   getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint,
   submitBugReport, getBugReports, resolveBugReport, deleteBugReport,
-  getUserAchievements, hasAchievement, awardAchievement
+  getUserAchievements, hasAchievement, awardAchievement,
+  saveChatMsg, getChatHistory, trimChat
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2111,8 +2112,8 @@ io.use((socket, next) => {
 // ============================================================
 //   GLOBAL CHAT
 // ============================================================
-const globalChat = []; // last 100 messages in memory
-const GLOBAL_CHAT_MAX = 100;
+// Global chat: persisted in SQLite, trimmed periodically
+setInterval(() => { try { trimChat(); } catch {} }, 60 * 60 * 1000); // trim every hour
 
 // ============================================================
 //   ACHIEVEMENTS
@@ -2190,27 +2191,27 @@ app.post("/api/achievements/dungeon", (req, res) => {
 
 io.on("connection", (socket) => {
 
-  // ----- Global Chat -----
-  socket.on("chat:send", (msg) => {
+  // ----- Global Chat (persistent) -----
+  socket.on("gchat:send", (msg) => {
     if (!socket.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
     const entry = {
-      id: Date.now() + Math.random(),
       user: socket.user.username,
-      color: socket.user.name_color || "#fff",
+      color: socket.user.name_color || "#8ec8e8",
       text,
       time: Date.now(),
     };
-    globalChat.push(entry);
-    if (globalChat.length > GLOBAL_CHAT_MAX) globalChat.shift();
-    io.emit("chat:msg", entry);
+    try { saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
+    io.emit("gchat:msg", entry);
     // Achievement: first chat
     checkAchievement(socket.user.id, "chat_first");
   });
 
-  socket.on("chat:history", (_, ack) => {
-    if (typeof ack === "function") ack(globalChat.slice(-50));
+  socket.on("gchat:history", (_, ack) => {
+    if (typeof ack === "function") {
+      try { ack(getChatHistory()); } catch { ack([]); }
+    }
   });
 
   // ----- Create room -----
