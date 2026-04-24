@@ -216,6 +216,12 @@ const PASSIVES=[
   {name:"Leech",desc:"3% lifesteal",icon:"🩸",e:{lfl:3},branch:"def",tier:2,req:11},
   {name:"Fortify",desc:"+50% armor vs 1 enemy",icon:"🏰",e:{irn:50},branch:"def",tier:3,req:12},
   {name:"Vs Odds",desc:"+30% dmg vs 3+ enemies",icon:"⚡",e:{ods:30},branch:"def",tier:4,req:13},
+  // ── LUCK branch (gold) ── idx 15-19
+  {name:"Scavenger",desc:"+20% drop chance",icon:"🍀",e:{dropBonus:20},branch:"lck",tier:0,req:-1},
+  {name:"Fortune",desc:"+1 rarity tier chance",icon:"🎲",e:{rarBonus:1},branch:"lck",tier:1,req:15},
+  {name:"Jackpot",desc:"10% chance double XP",icon:"💰",e:{dblXp:10},branch:"lck",tier:2,req:16},
+  {name:"Treasure",desc:"+50% forge progress",icon:"⛏️",e:{forgeBonus:50},branch:"lck",tier:3,req:17},
+  {name:"Golden Touch",desc:"10% chance bonus item",icon:"👑",e:{bonusItem:10},branch:"lck",tier:4,req:18},
 ];
 const FORGE_MS=[
   {at:3,r:"stat",n:1,d:"1 Stat Point"},{at:8,r:"stat",n:1,d:"1 Stat Point"},
@@ -245,13 +251,14 @@ function newGame(){
     enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,autoAtk:true,manualReady:false,autoEquipOn:false,autoLevelOn:false,
   };
 }
-function xpNeed(l){return Math.round(20*l+5*l*l);}
+function xpNeed(l){return Math.round(10*l+3*l*l);}
 
 // ══════ STATS ══════
 function recalc(){
   const p=g.player,b=g.baseStats;
   let mhp=b.mhp+g.spentStats.mhp*5,dmg=b.dmg+g.spentStats.dmg*2,arm=b.arm+g.spentStats.arm*2,spd=b.spd-g.spentStats.spd*3;
   let hpr=0,cri=0,lfl=0,spl=0,swp=0,res=0,rev=0,irn=0,ods=0,mes=0;
+  let dropBonus=0,rarBonus=0,dblXp=0,forgeBonus=0,bonusItem=0;
   let dm=1,am=1,hm=1,sm=1;
   for(let i=0;i<6;i++){const it=g.equips[i];if(!it)continue;for(const[s,v]of Object.entries(it.stats||{})){
     if(s==="dmg")dmg+=v;else if(s==="arm")arm+=v;else if(s==="mhp")mhp+=v;else if(s==="spd")spd-=v;
@@ -259,9 +266,12 @@ function recalc(){
   for(const i of g.activePassives){const e=PASSIVES[i]?.e;if(!e)continue;
     if(e.dmgMul)dm*=e.dmgMul;if(e.armMul)am*=e.armMul;if(e.mhpMul)hm*=e.mhpMul;if(e.spdMul)sm*=e.spdMul;
     if(e.hprPct)hpr+=mhp*e.hprPct;if(e.cri)cri=e.cri;if(e.lfl)lfl+=e.lfl;if(e.spl)spl=e.spl;
-    if(e.swp)swp=e.swp;if(e.res)res=e.res;if(e.rev)rev=e.rev;if(e.irn)irn=e.irn;if(e.ods)ods=e.ods;if(e.mes)mes=e.mes;}
+    if(e.swp)swp=e.swp;if(e.res)res=e.res;if(e.rev)rev=e.rev;if(e.irn)irn=e.irn;if(e.ods)ods=e.ods;if(e.mes)mes=e.mes;
+    if(e.dropBonus)dropBonus+=e.dropBonus;if(e.rarBonus)rarBonus+=e.rarBonus;if(e.dblXp)dblXp+=e.dblXp;
+    if(e.forgeBonus)forgeBonus+=e.forgeBonus;if(e.bonusItem)bonusItem+=e.bonusItem;}
   p.mhp=Math.round(mhp*hm);p.dmg=Math.round(dmg*dm);p.arm=Math.round(arm*am);p.spd=Math.max(15,Math.round(spd*sm));
   p.hpr=hpr;p.cri=cri;p.lfl=lfl;p.spl=spl;p.swp=swp;p.res=res;p.rev=rev;p.irn=irn;p.ods=ods;p.mes=mes;
+  p.dropBonus=dropBonus;p.rarBonus=rarBonus;p.dblXp=dblXp;p.forgeBonus=forgeBonus;p.bonusItem=bonusItem;
   p.hp=Math.min(p.hp,p.mhp);p.es=Math.round(p.mhp*p.mes/100);
 }
 
@@ -269,7 +279,10 @@ function recalc(){
 function genItem(aLvl,fType,fRar){
   const ti=fType??Math.floor(Math.random()*ITEM_TYPES.length);
   const t=ITEM_TYPES[ti];let ri=fRar??0;
-  if(fRar===undefined){const r=Math.random();if(r<.02)ri=4;else if(r<.06)ri=3;else if(r<.18)ri=2;else if(r<.45)ri=1;}
+  if(fRar===undefined){const r=Math.random();if(r<.03)ri=4;else if(r<.10)ri=3;else if(r<.30)ri=2;else if(r<.60)ri=1;
+    // Luck: rarBonus bumps rarity up
+    if(g&&g.player&&g.player.rarBonus>0){for(let b=0;b<g.player.rarBonus;b++){if(Math.random()<0.35&&ri<4)ri++;}}
+  }
   const rar=RARITIES[ri],stats={},aNames=[];
   // Base stat scales with area level + random variance (±20%)
   const variance=()=>0.8+Math.random()*0.4;
@@ -342,18 +355,24 @@ function updateBattle(dt){
   }
   // Process deaths (always runs, not just on attack)
   for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
-      g.player.xp=(g.player.xp||0)+(m.xp||5);
-      while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts++;if(g.lvl%3===0)g.passivePts++;
-        log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;
+      let xpGain=(m.xp||5)*2;
+      if(p.dblXp>0&&Math.random()*100<p.dblXp){xpGain*=2;log("💰 Double XP!");}
+      g.player.xp=(g.player.xp||0)+xpGain;
+      while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts+=2;if(g.lvl%2===0)g.passivePts++;
+        log(`⬆ Level ${g.lvl}! +2 stat, ${g.lvl%2===0?'+1 skill':''}`);recalc();g.player.hp=g.player.mhp;
         if(g.autoLevelOn)autoLevelStats();}
-      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){
-        // Chance for unique item from bosses in area 6+
+      const dropChance=(m.boss?.98:AREAS[g.areaIdx]?.tutorial?.80:.55)+(p.dropBonus||0)/100;
+      if(Math.random()<dropChance&&g.inv.length<20){
+        // Chance for unique item from bosses in area 4+
         let it;
-        if(m.boss&&g.areaIdx>=6&&Math.random()<0.15){
+        if(m.boss&&g.areaIdx>=4&&Math.random()<0.25){
           const eligible=UNIQUE_ITEMS.filter(u=>u.lvl<=g.areaIdx+1);
           if(eligible.length>0){it={...eligible[Math.floor(Math.random()*eligible.length)]};it.typeIdx=it.slot;}
           else it=genItem(g.areaIdx+1);
         }else it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);
+        // Luck: bonus item chance
+        if(p.bonusItem>0&&Math.random()*100<p.bonusItem&&g.inv.length<20){
+          const bonus=genItem(g.areaIdx+1);g.inv.push(bonus);log(`🍀 ${bonus.icon} Bonus ${bonus.rarName} ${bonus.name}!`);}
         if(g.autoEquipOn)autoEquipBest();}
       const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
@@ -386,7 +405,9 @@ function floorCleared(){
 // ══════ FORGE ══════
 function forgeItem(idx){
   if(idx<0||idx>=g.inv.length)return;const it=g.inv[idx];g.inv.splice(idx,1);
-  const pts=(it.rarity||0)+1;g.forgeProg+=pts;log(`🔨 +${pts} forge`);
+  let pts=(it.rarity||0)+1;
+  if(g.player.forgeBonus>0)pts=Math.ceil(pts*(1+g.player.forgeBonus/100));
+  g.forgeProg+=pts;log(`🔨 +${pts} forge`);
   for(const ms of FORGE_MS){if(g.forgeProg>=ms.at&&g.forgeProg-pts<ms.at){
     if(ms.r==="stat"){g.statPts+=ms.n;log(`🔨 +${ms.n} stat pts!`);}
     if(ms.r==="passive"){g.passivePts+=ms.n;log(`🔨 +${ms.n} skill pts!`);}
@@ -488,11 +509,9 @@ function renderMap(ctx){
     ["♾️","🌀","🔮","⚫","♾️","🌀","🔮","♾️","⚫","🌀","♾️","🔮","⚫","♾️","🌀"],
     ["🕳️","⬛","💀","☠️","🕳️","⬛","💀","🕳️","☠️","⬛","🕳️","💀","☠️","🕳️","⬛"],
   ];
+  const AREA_EMOJI=["📚","🌿","❄️","🔥","👁️","💀","💎","🌊","🐸","⚙️","⛈️","💀","🌳","🌋","✨","🐉","⛪","🌊","⭐","🃏","🦠","🔨","😱","💫","♾️","🕳️"];
   const currentArea=Math.max(0,Math.min(g._mapViewArea||0,g.areasCleared,AREAS.length-1));
   const a=AREAS[currentArea];
-  // Transition animation
-  const transProgress=g._mapTrans||0;
-  if(transProgress>0&&transProgress<1){g._mapTrans=Math.min(1,transProgress+0.02);}
   // Themed emoji background (scattered, faded)
   const bgEmojis=AREA_BG[currentArea]||AREA_BG[0];
   ctx.globalAlpha=0.14;ctx.font="26px serif";ctx.textAlign="center";
@@ -513,31 +532,67 @@ function renderMap(ctx){
   ctx.fillStyle="#8ec8e8";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText(`⚔️ World Map — Area ${currentArea+1} of ${AREAS.length}`,W/2,24);
   // Main area card (large, centered)
-  const cx=W/2,cy=130,cw=340,ch=140;
+  const cx=W/2,cy=120,cw=340,ch=130;
   ctx.fillStyle=a.color;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.fill();
   ctx.strokeStyle="#8ec8e8";ctx.lineWidth=3;rr(ctx,cx-cw/2,cy-ch/2,cw,ch,14);ctx.stroke();
   // Area emoji (big)
-  ctx.font="48px serif";ctx.fillText(["📚","🌿","❄️","🔥","👁️","💀","💎","🌊","🐸","⚙️","⛈️","💀","🌳","🌋","✨","🐉","⛪","🌊","⭐","🃏","🦠","🔨","😱","💫","♾️","🕳️"][currentArea]||"⚔️",cx,cy-15);
+  ctx.font="48px serif";ctx.fillText(AREA_EMOJI[currentArea]||"⚔️",cx,cy-10);
   // Area name
-  ctx.fillStyle="#fff";ctx.font="bold 22px Nunito,sans-serif";ctx.fillText(a.name,cx,cy+25);
+  ctx.fillStyle="#fff";ctx.font="bold 22px Nunito,sans-serif";ctx.fillText(a.name,cx,cy+28);
   // Floor count
   ctx.fillStyle="#ccc";ctx.font="14px Nunito,sans-serif";
   const cleared=currentArea<g.areasCleared;
   ctx.fillText(cleared?"✓ Cleared — Click to replay":`${a.floors.length} floors — Click to enter`,cx,cy+48);
   g._areas=[{x:cx-cw/2,y:cy-ch/2,w:cw,h:ch,idx:currentArea,unlocked:true}];
-  // Progress dots (shows all areas as dots at bottom)
-  const dotY=MID-60;
-  for(let i=0;i<AREAS.length;i++){
-    const dx=W/2+(i-(AREAS.length-1)/2)*40;
-    ctx.beginPath();ctx.arc(dx,dotY,8,0,Math.PI*2);
-    ctx.fillStyle=i<g.areasCleared?"#4caf50":i===currentArea?"#8ec8e8":"#333";ctx.fill();
-    if(i===currentArea){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();}
-    ctx.fillStyle="#fff";ctx.font="8px Nunito,sans-serif";ctx.fillText(i+1,dx,dotY+3);
+  // ── Sliding carousel: show max 7 dots, centered on currentArea ──
+  const dotY=MID-50,DOT_R=10,DOT_GAP=36,MAX_VISIBLE=7;
+  const halfVis=Math.floor(MAX_VISIBLE/2);
+  // Determine visible range
+  let dotStart=Math.max(0,currentArea-halfVis);
+  let dotEnd=dotStart+MAX_VISIBLE-1;
+  if(dotEnd>=AREAS.length){dotEnd=AREAS.length-1;dotStart=Math.max(0,dotEnd-MAX_VISIBLE+1);}
+  const visCount=dotEnd-dotStart+1;
+  const totalDotsW=visCount*DOT_GAP;
+  const dotBaseX=W/2-(totalDotsW-DOT_GAP)/2;
+  g._dotBtns=[];
+  for(let i=dotStart;i<=dotEnd;i++){
+    const dx=dotBaseX+(i-dotStart)*DOT_GAP;
+    const isCurrent=i===currentArea;
+    const isCleared=i<g.areasCleared;
+    const isLocked=i>g.areasCleared;
+    // Draw dot
+    ctx.beginPath();ctx.arc(dx,dotY,isCurrent?DOT_R+2:DOT_R,0,Math.PI*2);
+    ctx.fillStyle=isCleared?"#4caf50":isCurrent?"#8ec8e8":isLocked?"#222":"#555";ctx.fill();
+    if(isCurrent){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();}
+    // Dot number
+    ctx.fillStyle=isLocked?"#444":"#fff";ctx.font=`${isCurrent?"bold 10":"8"}px Nunito,sans-serif`;ctx.textAlign="center";
+    ctx.fillText(i+1,dx,dotY+3);
+    // Clickable area for unlocked dots
+    if(!isLocked)g._dotBtns.push({x:dx-DOT_R,y:dotY-DOT_R,w:DOT_R*2,h:DOT_R*2,idx:i});
+  }
+  // Scroll arrows for carousel (fade-in indicators that more areas exist)
+  if(dotStart>0){
+    ctx.fillStyle="rgba(255,255,255,0.4)";ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("‹",dotBaseX-24,dotY+5);
+    ctx.fillStyle="#666";ctx.font="9px Nunito,sans-serif";
+    ctx.fillText(`+${dotStart}`,dotBaseX-24,dotY+18);
+  }
+  if(dotEnd<AREAS.length-1){
+    const lastX=dotBaseX+(visCount-1)*DOT_GAP;
+    ctx.fillStyle="rgba(255,255,255,0.4)";ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillText("›",lastX+24,dotY+5);
+    ctx.fillStyle="#666";ctx.font="9px Nunito,sans-serif";
+    ctx.fillText(`+${AREAS.length-1-dotEnd}`,lastX+24,dotY+18);
   }
   // Stats
   ctx.fillStyle="#ccc";ctx.font="12px Nunito,sans-serif";ctx.textAlign="center";
-  ctx.fillText(`Lv.${g.lvl} | Kills:${g.totalKills} | Coins:${g.totalCoins}`,W/2,MID-36);
-  // Nav arrows
+  ctx.fillText(`Lv.${g.lvl} | Kills:${g.totalKills} | Coins:${g.totalCoins}`,W/2,MID-28);
+  // XP bar
+  const xpPct=g.player.xp/xpNeed(g.lvl);
+  bar(ctx,W/2-100,MID-22,200,8,xpPct,"#8ec8e8");
+  ctx.fillStyle="#aaa";ctx.font="8px Nunito,sans-serif";
+  ctx.fillText(`XP ${g.player.xp}/${xpNeed(g.lvl)}`,W/2,MID-11);
+  // Nav arrows (big, for main card)
   g._mapNav=[];
   if(currentArea>0){
     ctx.fillStyle="rgba(255,255,255,0.15)";rr(ctx,20,cy-20,40,40,8);ctx.fill();
@@ -613,55 +668,72 @@ function renderForge(ctx){
 function renderSkills(ctx){
   ctx.fillStyle="#e040fb";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText(`✦ Skill Tree (${g.passivePts} points)`,W/2,24);
-  // Branch labels
+  // Branch tab definitions
   const branches=[
-    {label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",x:8},
-    {label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",x:270},
-    {label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",x:532},
+    {key:"hp",label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",startIdx:0},
+    {key:"atk",label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",startIdx:5},
+    {key:"def",label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",startIdx:10},
+    {key:"lck",label:"🍀 Luck",color:"#ffd700",hoverCol:"#3a3a1a",startIdx:15},
   ];
-  g._skillBtns=[];
-  branches.forEach((br,bi)=>{
-    const bx=br.x,startIdx=bi*5;
-    // Branch header
-    ctx.fillStyle=br.color;ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
-    ctx.fillText(br.label,bx+129,48);
-    // Draw connecting lines between tiers
-    for(let t=0;t<4;t++){
-      const y1=58+t*48+42,y2=58+(t+1)*48;
-      ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.beginPath();
-      ctx.moveTo(bx+129,y1);ctx.lineTo(bx+129,y2);ctx.stroke();
-    }
-    // Draw skill nodes
-    for(let t=0;t<5;t++){
-      const idx=startIdx+t;const ps=PASSIVES[idx];if(!ps)continue;
-      const sx=bx+4,sy=58+t*48,sw=250,sh=42;
-      const active=g.activePassives.has(idx);
-      const reqMet=ps.req===-1||g.activePassives.has(ps.req);
-      const canLearn=reqMet&&g.passivePts>0&&!active;
-      const locked=!reqMet&&!active;
-      // Node background
-      ctx.fillStyle=active?br.hoverCol:locked?"#0a0a10":"#111";
-      ctx.strokeStyle=active?br.color:locked?"#1a1a2a":"#2a2a3a";
-      ctx.lineWidth=active?2:1;
-      rr(ctx,sx,sy,sw,sh,6);ctx.fill();rr(ctx,sx,sy,sw,sh,6);ctx.stroke();
-      // Lock overlay
-      if(locked){ctx.globalAlpha=0.5;}
-      // Icon
-      ctx.font="20px serif";ctx.textAlign="center";ctx.fillText(ps.icon,sx+22,sy+27);
-      // Name
-      ctx.fillStyle=active?"#fff":locked?"#555":"#ddd";ctx.font="bold 11px Nunito,sans-serif";ctx.textAlign="left";
-      ctx.fillText(ps.name,sx+40,sy+17);
-      // Desc
-      ctx.fillStyle=active?"#aaa":locked?"#444":"#999";ctx.font="10px Nunito,sans-serif";
-      ctx.fillText(ps.desc,sx+40,sy+32);
-      // Active indicator
-      if(active){ctx.fillStyle=br.color;ctx.beginPath();ctx.arc(sx+sw-14,sy+sh/2,5,0,Math.PI*2);ctx.fill();}
-      // "NEW" indicator if can learn
-      if(canLearn&&!active){ctx.fillStyle="#ffd700";ctx.font="bold 8px Nunito,sans-serif";ctx.textAlign="right";ctx.fillText("LEARN",sx+sw-6,sy+14);}
-      ctx.globalAlpha=1;
-      g._skillBtns.push({x:sx,y:sy,w:sw,h:sh,idx});
-    }
+  if(!g._skillBranch)g._skillBranch="hp";
+  // Draw tab buttons
+  g._skillTabs=[];
+  const tabW=Math.floor((W-20)/branches.length),tabH=28,tabY=34;
+  branches.forEach((br,i)=>{
+    const tx=10+i*tabW;
+    const selected=g._skillBranch===br.key;
+    ctx.fillStyle=selected?br.hoverCol:"#0a0a14";
+    ctx.strokeStyle=selected?br.color:"#2a2a3a";
+    ctx.lineWidth=selected?2:1;
+    rr(ctx,tx,tabY,tabW-4,tabH,6);ctx.fill();rr(ctx,tx,tabY,tabW-4,tabH,6);ctx.stroke();
+    ctx.fillStyle=selected?br.color:"#888";ctx.font=`${selected?"bold ":""}12px Nunito,sans-serif`;ctx.textAlign="center";
+    ctx.fillText(br.label,tx+(tabW-4)/2,tabY+19);
+    // Count active skills in branch
+    let active=0;for(let t=0;t<5;t++)if(g.activePassives.has(br.startIdx+t))active++;
+    if(active>0){ctx.fillStyle=br.color;ctx.font="bold 9px Nunito,sans-serif";ctx.fillText(`${active}/5`,tx+tabW-16,tabY+12);}
+    g._skillTabs.push({x:tx,y:tabY,w:tabW-4,h:tabH,branch:br.key});
   });
+  // Draw selected branch skills
+  const br=branches.find(b=>b.key===g._skillBranch)||branches[0];
+  g._skillBtns=[];
+  const nodeW=W-40,nodeH=42,nodeX=20,startY=72,gap=6;
+  // Draw connecting line
+  ctx.strokeStyle="#333";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(W/2,startY+nodeH/2);ctx.lineTo(W/2,startY+4*(nodeH+gap)+nodeH/2);ctx.stroke();
+  for(let t=0;t<5;t++){
+    const idx=br.startIdx+t;const ps=PASSIVES[idx];if(!ps)continue;
+    const sy=startY+t*(nodeH+gap);
+    const active=g.activePassives.has(idx);
+    const reqMet=ps.req===-1||g.activePassives.has(ps.req);
+    const canLearn=reqMet&&g.passivePts>0&&!active;
+    const locked=!reqMet&&!active;
+    // Node background
+    ctx.fillStyle=active?br.hoverCol:locked?"#0a0a10":"#111";
+    ctx.strokeStyle=active?br.color:locked?"#1a1a2a":"#2a2a3a";
+    ctx.lineWidth=active?2:1;
+    rr(ctx,nodeX,sy,nodeW,nodeH,8);ctx.fill();rr(ctx,nodeX,sy,nodeW,nodeH,8);ctx.stroke();
+    if(locked){ctx.globalAlpha=0.5;}
+    // Tier indicator
+    ctx.fillStyle=active?br.color:locked?"#333":"#666";ctx.font="bold 9px Nunito,sans-serif";ctx.textAlign="left";
+    ctx.fillText(`T${t+1}`,nodeX+8,sy+14);
+    // Icon
+    ctx.font="22px serif";ctx.textAlign="center";ctx.fillText(ps.icon,nodeX+46,sy+30);
+    // Name
+    ctx.fillStyle=active?"#fff":locked?"#555":"#ddd";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="left";
+    ctx.fillText(ps.name,nodeX+68,sy+18);
+    // Desc
+    ctx.fillStyle=active?"#aaa":locked?"#444":"#999";ctx.font="12px Nunito,sans-serif";
+    ctx.fillText(ps.desc,nodeX+68,sy+34);
+    // Active indicator
+    if(active){ctx.fillStyle=br.color;ctx.beginPath();ctx.arc(nodeX+nodeW-16,sy+nodeH/2,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle="#000";ctx.font="bold 9px Nunito,sans-serif";ctx.textAlign="center";ctx.fillText("✓",nodeX+nodeW-16,sy+nodeH/2+3);}
+    // LEARN indicator
+    if(canLearn&&!active){ctx.fillStyle="#ffd700";ctx.font="bold 10px Nunito,sans-serif";ctx.textAlign="right";ctx.fillText("⬆ LEARN",nodeX+nodeW-8,sy+16);}
+    // Locked icon
+    if(locked){ctx.fillStyle="#666";ctx.font="14px serif";ctx.textAlign="right";ctx.fillText("🔒",nodeX+nodeW-10,sy+28);}
+    ctx.globalAlpha=1;
+    g._skillBtns.push({x:nodeX,y:sy,w:nodeW,h:nodeH,idx});
+  }
 }
 
 // ─── SETTINGS ───
@@ -884,9 +956,14 @@ function handleClick(mx,my,onFinish){
   if(g.tab===TAB.MAP){
     // Nav arrows
     for(const n of(g._mapNav||[])){if(hit(mx,my,n)){g._mapViewArea=(g._mapViewArea||0)+n.dir;return;}}
+    // Dot carousel clicks
+    for(const d of(g._dotBtns||[])){if(hit(mx,my,d)){g._mapViewArea=d.idx;return;}}
     for(const a of(g._areas||[])){if(hit(mx,my,a)&&a.unlocked)startArea(a.idx);}}
   if(g.tab===TAB.STATS){for(const b of(g._statBtns||[])){if(hit(mx,my,b)&&g.statPts>0){g.spentStats[b.key]++;g.statPts--;recalc();}}}
-  if(g.tab===TAB.SKILLS){for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
+  if(g.tab===TAB.SKILLS){
+    // Tab switching
+    for(const tb of(g._skillTabs||[])){if(hit(mx,my,tb)){g._skillBranch=tb.branch;return;}}
+    for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
     const ps=PASSIVES[b.idx];
     if(g.activePassives.has(b.idx)){
       // Can't unlearn if a later skill depends on this one
