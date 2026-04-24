@@ -626,6 +626,26 @@ async function loadFakeNews() {
     if (el) el.textContent = data.headline;
   } catch {}
 }
+// News ticker — load multiple headlines
+async function loadTicker() {
+  try {
+    const headlines = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await fetch('/api/fakenews');
+      const data = await res.json();
+      if (data.headline && !headlines.includes(data.headline)) headlines.push(data.headline);
+    }
+    const tickerEl = document.getElementById('ticker-text');
+    if (tickerEl && headlines.length > 0) {
+      const joined = headlines.join('  ·  ');
+      tickerEl.textContent = joined;
+      // Adjust speed based on length
+      const dur = Math.max(20, joined.length * 0.25);
+      tickerEl.style.setProperty('--ticker-dur', dur + 's');
+    }
+  } catch {}
+}
+loadTicker(); setInterval(loadTicker, 120000); // refresh every 2 min
 const fnBtn = document.getElementById('fake-news-refresh');
 if (fnBtn) fnBtn.addEventListener('click', loadFakeNews);
 

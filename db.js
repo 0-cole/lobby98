@@ -5,9 +5,17 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// DATABASE LOCATION:
+// On Railway, set env var DB_DIR to your persistent volume mount (e.g. /data)
+// This ensures the database survives redeploys.
+// If DB_DIR is not set, falls back to ./data (will be wiped on redeploy!)
 const DB_DIR = process.env.DB_DIR || path.join(__dirname, "data");
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-const db = new Database(path.join(DB_DIR, "lobby98.db"));
+const DB_PATH = path.join(DB_DIR, "lobby98.db");
+console.log(`📦 Database location: ${DB_PATH}`);
+console.log(`   ${process.env.DB_DIR ? '✅ Using persistent volume — data survives redeploys' : '⚠️  Using local ./data — set DB_DIR env var for persistence!'}`);
+const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
@@ -36,6 +44,9 @@ db.exec(`
   );
 `);
 // Migrate existing databases: add columns if missing
+// SAFE: These try/catch ALTER TABLEs silently skip if columns already exist.
+// Existing user data is NEVER deleted. Only the data/lobby98.db file deletion would wipe profiles.
+// DO NOT drop or recreate the users table — always use ALTER TABLE for new columns.
 try { db.exec("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN ban_reason TEXT"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN pfp_emoji TEXT DEFAULT '😎'"); } catch {}

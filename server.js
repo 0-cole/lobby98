@@ -14,6 +14,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import cookie from "cookie";
@@ -2403,9 +2404,34 @@ function handleLeave(socket, opts = {}) {
 }
 
 // ============================================================
-//   SERVER START
+//   SERVER START + AUTO-BACKUP
 // ============================================================
 const PORT = process.env.PORT || 3000;
+
+// Periodic backup to PostgreSQL (if DATABASE_URL is set)
+if (process.env.DATABASE_URL) {
+  const backupSave = async () => {
+    try {
+      const dbPath = path.join(process.env.DB_DIR || path.join(__dirname, "data"), "lobby98.db");
+      if (!fs.existsSync(dbPath)) return;
+      const data = fs.readFileSync(dbPath);
+      const pg = await import("pg");
+      const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await pool.query(
+        `INSERT INTO db_backup (id, data, updated_at) VALUES (1, $1, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`, [data]
+      );
+      await pool.end();
+    } catch (err) {
+      console.error("⚠️ Backup save failed:", err.message);
+    }
+  };
+  // Save every 60 seconds + on startup after 15s
+  setTimeout(backupSave, 15000);
+  setInterval(backupSave, 60000);
+  console.log("💾 Auto-backup to PostgreSQL enabled (every 60s)");
+}
+
 httpServer.listen(PORT, () => {
-  console.log(`💾 Lobby 98 running at http://localhost:${PORT}`);
+  console.log(`🎮 Lobby 98 running at http://localhost:${PORT}`);
 });
