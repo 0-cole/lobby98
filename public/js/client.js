@@ -16,12 +16,12 @@ const socket = io();
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff"];
 
 function showPage(id) {
   PAGES.forEach(p => { const el = $(p); if (el) el.hidden = p !== id; });
   // Update nav
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings"};
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
 }
 
@@ -30,7 +30,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -39,6 +39,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "shop") loadShop();
     if (l.dataset.page === "settings") loadSettings();
     if (l.dataset.page === "play") prefillName();
+    if (l.dataset.page === "leaderboard") loadLeaderboard();
   });
 });
 
@@ -77,7 +78,7 @@ async function checkSession() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); }
+    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); }
     else { user = null; updateUI(); }
   } catch { user = null; updateUI(); }
 }
@@ -90,7 +91,7 @@ async function authSubmit(endpoint, form, errorEl) {
     const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) { errorEl.textContent = data.error || "Error"; return; }
-    user = data.user; updateUI(); showPage("page-dashboard");
+    user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews();
     // Reconnect socket so it picks up the new session cookie
     socket.disconnect(); socket.connect();
   } catch { errorEl.textContent = "Network error"; }
@@ -453,10 +454,10 @@ document.querySelectorAll(".arcade-card").forEach(c => {
     document.querySelector(".arcade-grid").hidden = true;
     const container = $("arcade-game-container"); container.innerHTML = "";
     currentArcade = game;
-    game.init(container, async (score) => {
+    game.init(container, async (score, elapsed) => {
       // Submit score to server
       try {
-        const res = await fetch("/api/arcade/score", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({game:gameId,score}) });
+        const res = await fetch("/api/arcade/score", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({game:gameId, score, elapsed}) });
         const data = await res.json();
         if (data.user) { user = data.user; updateUI(); }
       } catch {}
@@ -552,4 +553,220 @@ if (ci) ci.addEventListener("input", e => { e.target.value = e.target.value.toUp
 // ============================================================
 //   INIT
 // ============================================================
+
+// Poppable bubbles
+(function spawnPopBubbles() {
+  const container = document.getElementById('pop-bubbles');
+  if (!container) return;
+  function spawn() {
+    const b = document.createElement('div');
+    b.className = 'pop-bubble';
+    const size = 20 + Math.random() * 50;
+    b.style.width = size + 'px'; b.style.height = size + 'px';
+    b.style.left = (Math.random() * 100) + '%';
+    b.style.bottom = '-' + size + 'px';
+    b.style.animationDuration = (14 + Math.random() * 12) + 's';
+    b.style.animationDelay = '0s';
+    b.addEventListener('click', () => {
+      b.style.animation = 'popBurst 0.3s ease-out forwards';
+      b.style.pointerEvents = 'none';
+      setTimeout(() => b.remove(), 350);
+    });
+    container.appendChild(b);
+    setTimeout(() => { if (b.parentNode) b.remove(); }, 28000);
+  }
+  setInterval(spawn, 2500);
+  for (let i = 0; i < 4; i++) setTimeout(spawn, i * 600);
+})();
+
+// Fake news
+async function loadFakeNews() {
+  try {
+    const res = await fetch('/api/fakenews');
+    const data = await res.json();
+    const el = document.getElementById('fake-news-text');
+    if (el) el.textContent = data.headline;
+  } catch {}
+}
+const fnBtn = document.getElementById('fake-news-refresh');
+if (fnBtn) fnBtn.addEventListener('click', loadFakeNews);
+
+// Staff check
+async function checkStaff() {
+  try {
+    const res = await fetch('/api/staff/check');
+    const data = await res.json();
+    const link = document.getElementById('nav-staff-link');
+    if (link) link.hidden = !data.isStaff;
+  } catch {}
+}
+
+// Leaderboard
+async function loadLeaderboard() {
+  try {
+    const res = await fetch('/api/leaderboard');
+    const data = await res.json();
+    const c = document.getElementById('leaderboard-content');
+    if (!c) return;
+    c.innerHTML = '<div class="lb-table"></div>';
+    const t = c.querySelector('.lb-table');
+    data.leaderboard.forEach((p, i) => {
+      const isMe = user && p.username.toLowerCase() === user.username.toLowerCase();
+      const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
+      const row = document.createElement('div');
+      row.className = `lb-row ${i < 3 ? 'lb-top' : ''} ${isMe ? 'lb-me' : ''}`;
+      row.innerHTML = `<span class="lb-rank">${rank}</span><span class="lb-name">${esc(p.username)}${isMe ? ' (you)' : ''}</span><span class="lb-val">${p.totalPoints} pts</span><span class="lb-label">🪙 ${p.coins}</span>`;
+      t.appendChild(row);
+    });
+    if (data.leaderboard.length === 0) c.innerHTML = '<p style="color:var(--ink3);text-align:center">No players yet. Be the first!</p>';
+  } catch {}
+}
+
+// Staff panel
+const staffCoinsBtn = document.getElementById('staff-coins-btn');
+if (staffCoinsBtn) staffCoinsBtn.addEventListener('click', async () => {
+  const u = document.getElementById('staff-coins-user').value.trim();
+  const a = document.getElementById('staff-coins-amount').value;
+  const msg = document.getElementById('staff-coins-msg');
+  msg.textContent = '';
+  try {
+    const res = await fetch('/api/staff/givecoins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({username:u, amount:Number(a)}) });
+    const data = await res.json();
+    msg.textContent = data.message || data.error;
+    msg.style.color = res.ok ? 'var(--success)' : 'var(--danger)';
+  } catch { msg.textContent = 'Network error'; }
+});
+
+const staffEventBtn = document.getElementById('staff-event-btn');
+if (staffEventBtn) staffEventBtn.addEventListener('click', async () => {
+  const ev = document.getElementById('staff-event-select').value;
+  const msg = document.getElementById('staff-event-msg');
+  try {
+    const res = await fetch('/api/staff/event', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({event:ev}) });
+    const data = await res.json();
+    msg.textContent = data.event ? `Event set: ${data.event}` : 'Event cleared';
+    msg.style.color = 'var(--success)';
+  } catch { msg.textContent = 'Error'; }
+});
+
+const staffBroadcastBtn = document.getElementById('staff-broadcast-btn');
+if (staffBroadcastBtn) staffBroadcastBtn.addEventListener('click', async () => {
+  const text = document.getElementById('staff-broadcast-text').value.trim();
+  if (!text) return;
+  await fetch('/api/staff/broadcast', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({message:text}) });
+  document.getElementById('staff-broadcast-text').value = '';
+});
+
+const staffLookupBtn = document.getElementById('staff-lookup-btn');
+if (staffLookupBtn) staffLookupBtn.addEventListener('click', async () => {
+  const u = document.getElementById('staff-lookup-user').value.trim();
+  const r = document.getElementById('staff-lookup-result');
+  try {
+    const res = await fetch(`/api/staff/lookup?username=${encodeURIComponent(u)}`);
+    const data = await res.json();
+    if (data.user) {
+      const p = data.user;
+      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong><br>Coins: ${p.coins} · Games: ${p.gamesPlayed} · Wins: ${p.gamesWon} · Points: ${p.totalPoints}<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
+    } else r.innerHTML = `<p style="color:var(--danger)">Not found</p>`;
+  } catch { r.innerHTML = 'Error'; }
+});
+
+// Site events (socket)
+socket.on('site:event', ({ event }) => {
+  document.body.classList.remove('chaos-mode');
+  const existing = document.querySelector('.event-banner');
+  if (existing) existing.remove();
+  if (!event) return;
+  const names = { 'double-coins': '🪙 DOUBLE COINS ACTIVE!', 'happy-hour': '🎉 HAPPY HOUR — 1.5x Coins!', 'chaos-mode': '🌀 CHAOS MODE' };
+  const banner = document.createElement('div');
+  banner.className = 'event-banner';
+  banner.textContent = names[event] || event;
+  document.body.prepend(banner);
+  if (event === 'chaos-mode') document.body.classList.add('chaos-mode');
+});
+
+socket.on('site:broadcast', ({ message, from }) => {
+  alert(`📢 ${from}: ${message}`);
+});
+
+socket.on('site:userEvent', ({ event, user: who }) => {
+  if (event === 'nuke-ui') {
+    document.querySelectorAll('.glass-card, .btn, .nav-link, .dash-card').forEach(el => {
+      el.style.transition = 'all 1.5s cubic-bezier(0.55, 0, 1, 0.45)';
+      el.style.transform = `translateY(${window.innerHeight + 200}px) rotate(${Math.random()*60-30}deg)`;
+      el.style.opacity = '0';
+    });
+    setTimeout(() => {
+      document.querySelectorAll('.glass-card, .btn, .nav-link, .dash-card').forEach(el => {
+        el.style.transition = 'all 0.5s ease-out';
+        el.style.transform = '';
+        el.style.opacity = '';
+      });
+    }, 4000);
+  }
+  if (event === 'confetti') {
+    for (let i = 0; i < 80; i++) {
+      const c = document.createElement('div');
+      const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6bea','#ff8c00'];
+      c.style.cssText = `position:fixed;top:-10px;left:${Math.random()*100}%;width:${6+Math.random()*6}px;height:${6+Math.random()*6}px;background:${colors[Math.floor(Math.random()*colors.length)]};border-radius:${Math.random()>.5?'50%':'2px'};z-index:9999;pointer-events:none;animation:confettiFall ${2+Math.random()*3}s linear forwards`;
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 5500);
+    }
+  }
+  if (event === 'rename-site') {
+    const name = prompt(`${who} is renaming the site! (This would prompt on their end — for now it's a demo)`);
+    // In a real implementation, this would broadcast the new name
+  }
+});
+
+// Check for active event on load
+async function checkSiteEvent() {
+  try {
+    const res = await fetch('/api/staff/event');
+    const data = await res.json();
+    if (data.event) socket.emit(''); // trigger will come from server
+  } catch {}
+}
+
+// Confetti animation
+const confettiStyle = document.createElement('style');
+confettiStyle.textContent = '@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}';
+document.head.appendChild(confettiStyle);
+
+// Add events section to shop
+const origLoadShop = loadShop;
+loadShop = async function() {
+  await origLoadShop();
+  // Append events section
+  const container = document.getElementById('shop-content');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/shop');
+    const data = await res.json();
+    if (!data.items?.events) return;
+    const es = document.createElement('div');
+    es.className = 'shop-category';
+    es.innerHTML = '<div class="shop-cat-title">🎪 Site Events (one-time use)</div>';
+    const eg = document.createElement('div');
+    eg.className = 'shop-grid';
+    for (const e of data.items.events) {
+      const af = (data.user?.coins || 0) >= e.price;
+      const d = document.createElement('div');
+      d.className = `shop-item ${!af ? 'too-exp' : ''}`;
+      d.innerHTML = `<div class="shop-preview">🎪</div><div class="shop-name">${e.name}</div><div class="shop-price">${e.price}</div>`;
+      d.addEventListener('click', async () => {
+        if (!af) return;
+        if (!confirm(`Spend ${e.price} coins on "${e.name}"? This triggers immediately for everyone!`)) return;
+        await fetch('/api/shop/event', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({eventId:e.id}) });
+        loadShop();
+      });
+      eg.appendChild(d);
+    }
+    es.appendChild(eg);
+    container.appendChild(es);
+  } catch {}
+};
+
 checkSession();
+checkStaff();
+loadFakeNews();

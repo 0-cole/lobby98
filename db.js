@@ -86,6 +86,16 @@ export function recordGame(userId, won, points) {
 }
 export function changePassword(userId, hash) { s.changePassword.run(hash, userId); }
 
+const leaderboardStmt = db.prepare(
+  "SELECT id, username, coins, games_played, games_won, total_points FROM users ORDER BY total_points DESC LIMIT 20"
+);
+export function leaderboardQuery() {
+  return leaderboardStmt.all().map(u => ({
+    id: u.id, username: u.username, coins: u.coins,
+    gamesPlayed: u.games_played, gamesWon: u.games_won, totalPoints: u.total_points
+  }));
+}
+
 export function safeUserData(u) {
   if (!u) return null;
   return {

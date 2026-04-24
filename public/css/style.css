@@ -335,3 +335,64 @@ label{display:flex;flex-direction:column;gap:4px}
 
 /* FOOTER */
 .site-footer{text-align:center;padding:18px 16px 28px;color:var(--ink3);font-size:12px;font-weight:500;position:relative;z-index:10}
+
+/* XMB Wave Ribbon (PS3 style) */
+.xmb-wave{position:fixed;bottom:0;left:0;right:0;height:180px;z-index:-7;pointer-events:none;overflow:hidden}
+.xmb-svg{width:100%;height:100%}
+.xmb-path{fill-opacity:0.12}
+.xmb-1{fill:rgba(90,210,240,0.6);animation:xmbFlow1 12s ease-in-out infinite}
+.xmb-2{fill:rgba(168,230,200,0.5);animation:xmbFlow2 15s ease-in-out infinite}
+.xmb-3{fill:rgba(255,255,180,0.4);animation:xmbFlow3 18s ease-in-out infinite}
+@keyframes xmbFlow1{0%,100%{d:path("M0,100 C360,20 720,180 1080,80 C1260,30 1380,120 1440,100 L1440,200 L0,200 Z")}50%{d:path("M0,80 C300,160 600,40 900,120 C1200,180 1380,60 1440,90 L1440,200 L0,200 Z")}}
+@keyframes xmbFlow2{0%,100%{d:path("M0,120 C300,60 600,160 900,90 C1100,40 1300,140 1440,110 L1440,200 L0,200 Z")}50%{d:path("M0,100 C360,140 720,60 1080,130 C1260,160 1380,80 1440,100 L1440,200 L0,200 Z")}}
+@keyframes xmbFlow3{0%,100%{d:path("M0,140 C240,80 480,180 720,100 C960,30 1200,150 1440,120 L1440,200 L0,200 Z")}50%{d:path("M0,130 C300,170 600,70 900,150 C1100,100 1300,160 1440,130 L1440,200 L0,200 Z")}}
+
+/* Extra bubbles */
+.b10{left:8%;width:42px;height:42px;animation-duration:23s;animation-delay:-18s}
+.b11{left:32%;width:50px;height:50px;animation-duration:27s;animation-delay:-5s}
+.b12{left:58%;width:28px;height:28px;animation-duration:19s;animation-delay:-12s}
+.b13{left:72%;width:62px;height:62px;animation-duration:25s;animation-delay:-8s}
+.b14{left:48%;width:20px;height:20px;animation-duration:15s;animation-delay:-1s}
+
+/* Poppable bubbles (foreground, clickable) */
+.pop-bubbles{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+.pop-bubble{position:absolute;border-radius:50%;pointer-events:auto;cursor:pointer;
+  background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.85)0%,rgba(255,255,255,.25)25%,rgba(130,220,240,.08)60%,transparent 100%);
+  box-shadow:inset -5px -5px 12px rgba(80,170,200,.1),inset 3px 3px 8px rgba(255,255,255,.5),0 0 14px rgba(255,255,255,.2);
+  animation:popFloat linear infinite;transition:transform .15s}
+.pop-bubble:hover{transform:scale(1.15)}
+@keyframes popFloat{0%{transform:translateY(0) translateX(0);opacity:0}6%{opacity:.5}50%{transform:translateY(-50vh) translateX(15px)}90%{opacity:.35}100%{transform:translateY(-110vh) translateX(-10px);opacity:0}}
+@keyframes popBurst{0%{transform:scale(1);opacity:.5}50%{transform:scale(1.8);opacity:.7}100%{transform:scale(0);opacity:0}}
+
+/* Arcade end buttons animation */
+@keyframes endBtnsIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+/* Firing range hit animation */
+@keyframes targetIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes hitFloat{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-30px)}}
+
+/* Fake news */
+.fake-news-card{text-align:center}
+.fake-news-text{font-size:16px;font-weight:700;color:var(--deep);line-height:1.4;min-height:48px;padding:8px 0}
+
+/* Staff nav link */
+.nav-staff{color:var(--danger)!important;font-weight:800!important}
+.nav-staff.active{background:linear-gradient(180deg,#ffdce0,#ffb3ba)!important;color:#8c2b38!important}
+
+/* Leaderboard */
+.lb-table{display:flex;flex-direction:column;gap:6px}
+.lb-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--neo);border-radius:10px;box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)}
+.lb-row.lb-top{background:linear-gradient(180deg,rgba(255,255,255,.95),#fff4d0);box-shadow:0 0 0 2px var(--warn)}
+.lb-row.lb-me{border-left:4px solid var(--accent)}
+.lb-rank{font-weight:800;font-size:18px;min-width:36px;text-align:center}
+.lb-name{flex:1;font-weight:700;color:var(--deep)}
+.lb-val{font-weight:800;color:var(--mid);min-width:60px;text-align:right}
+.lb-label{font-size:11px;color:var(--ink3);min-width:50px;text-align:right}
+
+/* Site event banner */
+.event-banner{position:fixed;top:0;left:0;right:0;z-index:200;text-align:center;padding:8px 16px;font-weight:800;font-size:14px;color:#fff;background:linear-gradient(90deg,var(--accent),var(--mid),var(--accent));animation:eventShimmer 3s ease-in-out infinite}
+@keyframes eventShimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.event-banner+.top-nav{margin-top:36px}
+
+/* Chaos mode */
+.chaos-mode *{animation:chaosWobble 0.3s ease-in-out infinite alternate!important}
+@keyframes chaosWobble{0%{transform:rotate(-0.5deg)}100%{transform:rotate(0.5deg)}}

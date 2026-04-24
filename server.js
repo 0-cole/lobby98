@@ -23,7 +23,7 @@ import { pickChainContent } from "./chains.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
-  addOwnedItem, recordGame, safeUserData, changePassword, setCoins
+  addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -111,8 +111,11 @@ const SHOP_ITEMS = {
     { id: "crimson", name: "Crimson", color: "#dc2626", price: 100 },
     { id: "ice", name: "Ice Blue", color: "#38bdf8", price: 100 },
     { id: "forest", name: "Forest", color: "#15803d", price: 120 },
+    { id: "bubblegum", name: "Bubblegum", color: "#f472b6", price: 120 },
+    { id: "midnight", name: "Midnight", color: "#1e1b4b", price: 150 },
     { id: "aurora", name: "Aurora", color: "linear-gradient(90deg,#1ab5d5,#2d9e5a,#c89020)", price: 200, gradient: true },
     { id: "neon", name: "Neon Pink", color: "#f43f8e", price: 200 },
+    { id: "rainbow", name: "Rainbow", color: "linear-gradient(90deg,#ff0000,#ff8800,#ffff00,#00ff00,#0088ff,#8800ff)", price: 350, gradient: true },
   ],
   titles: [
     { id: "none", name: "None", price: 0 },
@@ -123,10 +126,18 @@ const SHOP_ITEMS = {
     { id: "detective", name: "Detective", price: 100 },
     { id: "speedrunner", name: "Speedrunner", price: 100 },
     { id: "brainiac", name: "Brainiac", price: 120 },
+    { id: "snake-charmer", name: "Snake Charmer", price: 120 },
     { id: "mastermind", name: "Mastermind", price: 150 },
     { id: "shadow", name: "The Shadow", price: 200 },
     { id: "arcade-king", name: "Arcade King", price: 250 },
+    { id: "sharpshooter", name: "Sharpshooter", price: 250 },
     { id: "lobby-legend", name: "Lobby Legend", price: 400 },
+    { id: "the-goat", name: "The G.O.A.T.", price: 600 },
+  ],
+  events: [
+    { id: "rename-site", name: "Rename the site for 1 hour", price: 500, type: "event" },
+    { id: "nuke-ui", name: "UI Nuke! Everything falls", price: 300, type: "event" },
+    { id: "confetti", name: "Confetti explosion for everyone", price: 200, type: "event" },
   ]
 };
 
@@ -169,20 +180,49 @@ app.post("/api/shop/equip", (req, res) => {
   res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
 });
 
+app.post("/api/shop/event", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { eventId } = req.body || {};
+  const eventItem = SHOP_ITEMS.events.find(e => e.id === eventId);
+  if (!eventItem) return res.status(400).json({ error: "Event not found" });
+  if (user.coins < eventItem.price) return res.status(400).json({ error: "Not enough coins" });
+  setCoins(user.id, user.coins - eventItem.price);
+  // Trigger the event
+  io.emit("site:userEvent", { event: eventId, user: user.username });
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
 // ============================================================
 //   ARCADE SCORING
 // ============================================================
+let currentSiteEvent = null; // shared with staff endpoints
+
 app.post("/api/arcade/score", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");
   const sess = cookies.session ? getSession(cookies.session) : null;
   if (!sess) return res.status(401).json({ error: "Not logged in" });
   const user = getUserById(sess.user_id);
-  const { game, score } = req.body || {};
-  // Validate and cap coins to prevent cheating — max 50 coins per arcade round
+  const { game, score, elapsed } = req.body || {};
+  // Anti-cheat: validate score range and minimum elapsed time
   const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), 50);
+  const elapsedMs = Number(elapsed) || 0;
+  // Games should take at least a few seconds — reject suspiciously fast completions
+  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000 };
+  const minTime = MIN_TIMES[game] || 3000;
+  if (coins > 10 && elapsedMs < minTime) {
+    return res.status(400).json({ error: "Score rejected — too fast", coinsEarned: 0 });
+  }
   if (coins > 0) {
-    addCoins(user.id, coins);
-    recordGame(user.id, coins >= 10, coins);
+    // Check for active event multiplier
+    let finalCoins = coins;
+    if (currentSiteEvent === "double-coins") finalCoins = coins * 2;
+    else if (currentSiteEvent === "happy-hour") finalCoins = Math.floor(coins * 1.5);
+    finalCoins = Math.min(finalCoins, 100); // hard cap even with multipliers
+    addCoins(user.id, finalCoins);
+    recordGame(user.id, coins >= 10, finalCoins);
   }
   res.json({ ok: true, coinsEarned: coins, user: safeUserData(getUserById(user.id)) });
 });
@@ -199,6 +239,122 @@ app.post("/api/settings/password", async (req, res) => {
   const hash = await bcrypt.hash(newPassword, 10);
   changePassword(user.id, hash);
   res.json({ ok: true });
+});
+
+// ============================================================
+//   LEADERBOARD
+// ============================================================
+app.get("/api/leaderboard", (req, res) => {
+  // Top 20 by total points
+  const rows = leaderboardQuery();
+  res.json({ leaderboard: rows });
+});
+
+// ============================================================
+//   FAKE NEWS
+// ============================================================
+const FAKE_NEWS = [
+  "BREAKING: Local Man Discovers That 'Reply All' Button Has Consequences",
+  "Scientists Confirm: The Five-Second Rule Actually Depends On The Floor's Feelings",
+  "Area WiFi Password Changed, Entire Family Forced Outside",
+  "Man Who Brought Guitar To Party Unsure Why He's Now Alone",
+  "Study Finds 100% of People Who Drink Water Eventually Die",
+  "Local Dog Successfully Convinces Owner It's Never Been Fed Before",
+  "Breaking: Entire Meeting Could Have Been An Email, Confirms Everyone",
+  "Man Finishes To-Do List, Universe Immediately Generates New Tasks",
+  "Weather Report: Tomorrow Will Be Just Like Today But Slightly Worse",
+  "EXCLUSIVE: Cat Knocks Glass Off Table, Claims It Was 'In Self-Defense'",
+  "URGENT: Student Discovers That 'I'll Start Tomorrow' Is Not A Valid Strategy",
+  "Local Introvert Achieves Personal Best: 47 Hours Without Speaking",
+  "REPORT: Autocorrect Ruins Another Perfectly Good Text Message",
+  "Nation's Fridges 90% More Interesting At 2 AM, Study Finds",
+  "ALERT: Sock Lost In Dryer Confirmed To Be Living Its Best Life",
+  "Area Child Asks 'Why' For The 847th Time Today",
+  "DEVELOPING: Monday Arrives Once Again Despite Widespread Objections",
+  "Tech CEO Announces Revolutionary Product That Is Just A Slightly Bigger Rectangle",
+  "Local Grandma Somehow Has Stronger WiFi Signal Than Tech Company Office",
+  "JUST IN: Group Chat Has Been Active For 6 Hours And Nothing Has Been Decided",
+  "Research Confirms Watching Cooking Shows Does Not Actually Teach You To Cook",
+  "Man Organizes Desktop, Feels Like He Has Achieved Enlightenment",
+  "FLASH: Pizza Delivery Driver Knows More About Your Neighborhood Than You Do",
+  "Experts Warn: Your Plant Can Definitely Hear You Apologizing For Not Watering It",
+];
+
+app.get("/api/fakenews", (req, res) => {
+  const headline = FAKE_NEWS[Math.floor(Math.random() * FAKE_NEWS.length)];
+  res.json({ headline });
+});
+
+// ============================================================
+//   STAFF ENDPOINTS
+// ============================================================
+const STAFF_USERS = ["cole"]; // hardcoded staff
+
+function isStaff(username) {
+  return STAFF_USERS.includes(username?.toLowerCase());
+}
+
+app.get("/api/staff/check", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.json({ isStaff: false });
+  const user = getUserById(sess.user_id);
+  res.json({ isStaff: isStaff(user?.username) });
+});
+
+app.post("/api/staff/givecoins", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username, amount } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  const amt = Math.floor(Number(amount));
+  if (!amt || amt < 1 || amt > 10000) return res.status(400).json({ error: "Amount must be 1-10000" });
+  addCoins(target.id, amt);
+  res.json({ ok: true, message: `Gave ${amt} coins to ${target.username}` });
+});
+
+app.post("/api/staff/event", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { event } = req.body || {};
+  currentSiteEvent = event || null;
+  io.emit("site:event", { event: currentSiteEvent });
+  res.json({ ok: true, event: currentSiteEvent });
+});
+
+app.get("/api/staff/event", (req, res) => {
+  res.json({ event: currentSiteEvent });
+});
+
+app.post("/api/staff/broadcast", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { message } = req.body || {};
+  if (!message || message.length > 200) return res.status(400).json({ error: "Message required (max 200 chars)" });
+  io.emit("site:broadcast", { message, from: staff.username });
+  res.json({ ok: true });
+});
+
+app.get("/api/staff/lookup", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username } = req.query || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "Not found" });
+  res.json({ user: safeUserData(target) });
 });
 
 // ============================================================
