@@ -18,6 +18,11 @@ console.log(`   ${process.env.DB_DIR ? '✅ Using persistent volume — data sur
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
+// Force WAL checkpoint — flushes all data to the main .db file
+export function checkpoint() {
+  try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch {}
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

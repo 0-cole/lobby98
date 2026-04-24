@@ -28,7 +28,7 @@ import {
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
   addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
   setBan, setPfpEmoji, setCustomTitle,
-  getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder
+  getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2412,10 +2412,13 @@ const PORT = process.env.PORT || 3000;
 // Periodic backup to PostgreSQL (if DATABASE_URL is set)
 let _backupSave = null;
 if (process.env.DATABASE_URL) {
+  let _lastBackupSize = 0;
   _backupSave = async () => {
     try {
       const dbPath = path.join(process.env.DB_DIR || path.join(__dirname, "data"), "lobby98.db");
       if (!fs.existsSync(dbPath)) return;
+      // Flush WAL to main db file before reading
+      checkpoint();
       const data = fs.readFileSync(dbPath);
       const pg = await import("pg");
       const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
@@ -2424,7 +2427,12 @@ if (process.env.DATABASE_URL) {
          ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`, [data]
       );
       await pool.end();
-      console.log(`💾 Backup saved (${(data.length/1024).toFixed(1)} KB)`);
+      const kb = (data.length/1024).toFixed(1);
+      // Only log when size changes or first save
+      if (data.length !== _lastBackupSize) {
+        console.log(`💾 Backup saved (${kb} KB)`);
+        _lastBackupSize = data.length;
+      }
     } catch (err) {
       console.error("⚠️ Backup save failed:", err.message);
     }
