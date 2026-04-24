@@ -14,7 +14,7 @@ let myChainRole = null, hasAccused = false, coinsAwarded = false;
 let myEchoPrompt = null, hasSubmittedEchoAnswer = false;
 const socket = io();
 window._socket = socket;
-setTimeout(() => { initChat(); initAchievementListener(); }, 500);
+let gchatInitialized = false;
 
 // ============================================================
 //   ROUTING
@@ -90,7 +90,7 @@ async function checkSession() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); }
+    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); }
     else { user = null; updateUI(); }
   } catch { user = null; updateUI(); }
 }
@@ -115,6 +115,8 @@ async function authSubmit(endpoint, form, errorEl) {
     user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews();
     // Reconnect socket so it picks up the new session cookie
     socket.disconnect(); socket.connect();
+    // Init global chat after reconnect gives the middleware time to set socket.data.user
+    setTimeout(initGChatOnce, 600);
   } catch { errorEl.textContent = "Network error"; }
 }
 
@@ -1230,7 +1232,6 @@ const gchatSidebar = $('gchat-sidebar');
 const gchatMessages = $('gchat-messages');
 const gchatForm = $('gchat-form');
 const gchatInput = $('gchat-input');
-const gchatCollapse = $('gchat-collapse');
 let gchatVisible = false;
 
 // Pages where chat sidebar is HIDDEN (party game rooms with their own chat)
@@ -1250,13 +1251,15 @@ function hideGChat() {
   document.body.classList.remove('gchat-open');
 }
 
+function initGChatOnce() {
+  if (gchatInitialized) return;
+  gchatInitialized = true;
+  initChat();
+  initAchievementListener();
+}
+
 function initChat() {
   if (!gchatSidebar || !window._socket) return;
-  // Collapse toggle
-  gchatCollapse.addEventListener('click', () => {
-    gchatSidebar.classList.toggle('collapsed');
-    if (!gchatSidebar.classList.contains('collapsed')) scrollGlobalChat();
-  });
   gchatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = gchatInput.value.trim();

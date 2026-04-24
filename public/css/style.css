@@ -433,28 +433,25 @@ label{display:flex;flex-direction:column;gap:4px}
 .bug-item-body{font-size:13px;color:var(--ink);line-height:1.4}
 .bug-item-actions{display:flex;gap:6px;margin-top:8px}
 
-/* Global Chat Sidebar — persistent right sidebar */
-.gchat-sidebar{position:fixed;top:0;right:0;bottom:0;width:260px;z-index:90;display:flex;flex-direction:column;background:rgba(12,20,35,0.97);backdrop-filter:blur(16px);border-left:1px solid rgba(140,200,230,0.08);transition:transform .25s ease}
+/* Global Chat Sidebar — Frutiger Aero glass panel */
+.gchat-sidebar{position:fixed;top:60px;right:12px;bottom:48px;width:260px;z-index:90;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.72)0%,rgba(255,255,255,.55)40%,rgba(240,250,245,.60)100%);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);border:1px solid var(--glass-edge);border-radius:var(--r);box-shadow:0 10px 40px var(--glass-sh),inset 0 1px 0 rgba(255,255,255,.85);overflow:hidden;transition:opacity .25s ease}
 .gchat-sidebar[hidden]{display:none}
-.gchat-sidebar.collapsed{transform:translateX(220px)}
-.gchat-sidebar.collapsed .gchat-body,.gchat-sidebar.collapsed .gchat-foot{display:none}
-.gchat-sidebar.collapsed .gchat-head span{writing-mode:vertical-rl;text-orientation:mixed;font-size:11px}
-.gchat-sidebar.collapsed .gchat-collapse-btn{transform:rotate(180deg)}
-body.gchat-open .stage{margin-right:260px}
-body.gchat-open .news-ticker{right:260px}
-body.gchat-open .site-footer{margin-right:260px}
-.gchat-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(140,200,230,0.08);font-weight:700;font-size:13px;color:var(--accent);flex-shrink:0}
-.gchat-collapse-btn{background:none;border:none;color:var(--ink3);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;transition:all .15s}
-.gchat-collapse-btn:hover{color:var(--ink);background:rgba(140,200,230,0.06)}
-.gchat-body{flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:3px;font-size:12px}
-.gchat-body::-webkit-scrollbar{width:4px}.gchat-body::-webkit-scrollbar-thumb{background:rgba(140,200,230,0.15);border-radius:2px}
-.gchat-foot{display:flex;gap:6px;padding:8px 10px;border-top:1px solid rgba(140,200,230,0.08);flex-shrink:0}
-.gchat-foot .inp{flex:1;font-size:12px;padding:6px 10px;background:rgba(15,25,40,0.8);border:1px solid rgba(140,200,230,0.12);border-radius:8px;color:#ddd}
-@media(max-width:700px){.gchat-sidebar{width:200px}body.gchat-open .stage{margin-right:200px}body.gchat-open .news-ticker{right:200px}}
-.gchat-body .chat-msg{line-height:1.4;padding:2px 0;word-break:break-word}
+.gchat-sidebar::before{content:"";position:absolute;top:0;left:0;right:0;height:40%;background:linear-gradient(180deg,rgba(255,255,255,.4)0%,transparent 100%);pointer-events:none;border-radius:var(--r) var(--r) 0 0}
+body.gchat-open .stage{margin-right:280px}
+.gchat-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(10,61,92,0.08);font-weight:800;font-size:13px;color:var(--deep);flex-shrink:0;position:relative;z-index:1}
+.gchat-body{flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;gap:2px;font-size:12px;position:relative;z-index:1}
+.gchat-body::-webkit-scrollbar{width:4px}.gchat-body::-webkit-scrollbar-thumb{background:rgba(10,61,92,0.12);border-radius:2px}
+.gchat-foot{display:flex;gap:6px;padding:8px 10px;border-top:1px solid rgba(10,61,92,0.08);flex-shrink:0;position:relative;z-index:1}
+.gchat-foot .inp{flex:1;font-size:12px;padding:7px 10px;background:rgba(255,255,255,0.6);border:1px solid rgba(10,61,92,0.12);border-radius:var(--rx);color:var(--ink)}
+.gchat-foot .inp:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px rgba(34,174,209,0.15)}
+.gchat-foot .btn{background:var(--accent);color:#fff;border:none;border-radius:var(--rx);font-weight:700}
+.gchat-foot .btn:hover{background:var(--mid)}
+@media(max-width:700px){.gchat-sidebar{width:200px;right:8px}body.gchat-open .stage{margin-right:216px}}
+.gchat-body .chat-msg{line-height:1.45;padding:3px 0;word-break:break-word}
 .gchat-body .chat-msg-user{font-weight:700;margin-right:5px;font-size:12px}
-.gchat-body .chat-msg-text{color:rgba(210,220,235,0.85);font-size:12px}
-.gchat-body .chat-msg-time{font-size:9px;color:rgba(140,160,180,0.4);margin-left:3px}
+.gchat-body .chat-msg-text{color:var(--ink);font-size:12px}
+.gchat-body .chat-msg-time{font-size:9px;color:var(--ink3);margin-left:3px}
+.gchat-body .chat-msg-system{color:var(--ink3);font-style:italic;font-size:11px}
 
 /* Achievement grid */
 .ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}

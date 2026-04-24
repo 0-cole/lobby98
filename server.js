@@ -2193,7 +2193,7 @@ io.on("connection", (socket) => {
 
   // ----- Global Chat (persistent) -----
   socket.on("gchat:send", (msg) => {
-    if (!socket.user) return;
+    if (!socket.data.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
     // Profanity filter
@@ -2222,15 +2222,15 @@ io.on("connection", (socket) => {
       }
     }
     const entry = {
-      user: socket.user.username,
-      color: socket.user.name_color || "#8ec8e8",
+      user: socket.data.user.username,
+      color: socket.data.user.nameColor || "#22aed1",
       text,
       time: Date.now(),
     };
     try { saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
     io.emit("gchat:msg", entry);
     // Achievement: first chat
-    checkAchievement(socket.user.id, "chat_first");
+    checkAchievement(socket.data.user.id, "chat_first");
   });
 
   socket.on("gchat:history", (_, ack) => {
