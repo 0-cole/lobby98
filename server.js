@@ -20,10 +20,13 @@ import cookie from "cookie";
 import { pickPrompts } from "./prompts.js";
 import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
+import { pickEchoPrompts } from "./echoprompts.js";
+import { containsProfanity, cleanText } from "./filter.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
-  addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery
+  addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
+  setBan, setPfpEmoji, setCustomTitle
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -72,6 +75,7 @@ app.post("/api/login", async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: "Missing fields" });
   const user = getUserByName(username);
   if (!user) return res.status(401).json({ error: "Invalid username or password" });
+  if (user.is_banned) return res.status(403).json({ error: "Account banned: " + (user.ban_reason || "no reason given") });
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: "Invalid username or password" });
   const token = makeToken();
@@ -210,7 +214,7 @@ app.post("/api/arcade/score", (req, res) => {
   const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), 50);
   const elapsedMs = Number(elapsed) || 0;
   // Games should take at least a few seconds — reject suspiciously fast completions
-  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000 };
+  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000, dungeon: 0 };
   const minTime = MIN_TIMES[game] || 3000;
   if (coins > 10 && elapsedMs < minTime) {
     return res.status(400).json({ error: "Score rejected — too fast", coinsEarned: 0 });
@@ -357,9 +361,103 @@ app.get("/api/staff/lookup", (req, res) => {
   res.json({ user: safeUserData(target) });
 });
 
+app.post("/api/staff/ban", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username, reason, unban } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isStaff(target.username)) return res.status(400).json({ error: "Can't ban staff" });
+  if (unban) {
+    setBan(target.id, false, null);
+    return res.json({ ok: true, message: `Unbanned ${target.username}` });
+  }
+  setBan(target.id, true, reason || "No reason given");
+  // Kick from any active socket
+  for (const [sid, code] of socketToRoom) {
+    const sock = io.sockets.sockets.get(sid);
+    if (sock?.data?.user?.id === target.id) {
+      sock.emit("banned", { reason: reason || "No reason given" });
+      sock.disconnect(true);
+    }
+  }
+  res.json({ ok: true, message: `Banned ${target.username}` });
+});
+
+app.post("/api/staff/giveitem", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  const { username, itemId } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  addOwnedItem(target.id, itemId);
+  res.json({ ok: true, message: `Gave ${itemId} to ${target.username}` });
+});
+
+app.post("/api/staff/confetti", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isStaff(staff?.username)) return res.status(403).json({ error: "Not staff" });
+  io.emit("site:userEvent", { event: "confetti", user: staff.username });
+  res.json({ ok: true });
+});
+
+// Profile endpoints
+app.post("/api/profile/update", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  const { pfpEmoji, nameColor, title, customTitle } = req.body || {};
+  if (pfpEmoji) setPfpEmoji(user.id, pfpEmoji.slice(0, 4));
+  if (nameColor) {
+    const owned = getOwnedItems(user.id);
+    if (owned.includes(nameColor)) setColor(user.id, nameColor);
+  }
+  if (title !== undefined) {
+    if (title === "custom" && customTitle) {
+      const cleaned = cleanText(customTitle, 20);
+      if (cleaned === null) return res.status(400).json({ error: "Title contains inappropriate language" });
+      if (user.coins < 1000) return res.status(400).json({ error: "Custom titles cost 1000 coins" });
+      setCoins(user.id, user.coins - 1000);
+      setCustomTitle(user.id, cleaned);
+      setTitle(user.id, "custom");
+    } else {
+      const owned = getOwnedItems(user.id);
+      if (owned.includes(title) || title === "none") setTitle(user.id, title);
+    }
+  }
+  res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+});
+
 // ============================================================
 //   GAME COMPLETION — award coins to logged-in players
 // ============================================================
+
+function getPublicRooms() {
+  const list = [];
+  for (const [code, room] of rooms) {
+    if (room.visibility === "private") continue;
+    list.push({
+      code, mode: room.mode, playerCount: room.players.size,
+      hostName: room.players.get(room.hostId)?.name || "???",
+      inGame: !!room.game
+    });
+  }
+  return list;
+}
+
+app.get("/api/rooms", (req, res) => {
+  res.json({ rooms: getPublicRooms() });
+});
 function awardGameCoins(room) {
   const g = room.game;
   if (!g) return;
@@ -441,6 +539,7 @@ function roomSnapshot(room) {
     code: room.code,
     hostId: room.hostId,
     mode: room.mode,
+    visibility: room.visibility || "public",
     players: [...room.players.values()].map(p => ({
       id: p.id,
       name: p.name,
@@ -524,6 +623,22 @@ function gameSnapshot(room) {
       snap.targetWord = g.chainData.targetWord;
       snap.wordSneakedIn = g.wordSneakedIn ?? false;
       snap.accusationCorrect = g.accusationCorrect ?? null;
+    }
+  }
+
+  // === Echo-specific fields ===
+  if (g.type === "echo") {
+    snap.answersSubmitted = [...g.answers.keys()];
+    snap.votesSubmitted = [...g.votes.keys()];
+    if (g.phase === "echo-discuss" || g.phase === "echo-voting" || g.phase === "echo-results" || g.phase === "gameover") {
+      snap.shuffledAnswers = g.shuffledAnswers || [];
+    }
+    if (g.phase === "echo-results" || g.phase === "gameover") {
+      snap.echoId = g.echoId;
+      snap.echoName = room.players.get(g.echoId)?.name || "???";
+      snap.normalPrompt = g.promptPair.normal;
+      snap.echoPrompt = g.promptPair.echo;
+      snap.revealedVotes = Object.fromEntries(g.votes);
     }
   }
 
@@ -1632,6 +1747,173 @@ function chainHandleGameDisconnect(room, socketId) {
 }
 
 // ============================================================
+//   ECHO GAME LOGIC
+// ============================================================
+const TIMER_ECHO_SUBMIT = 45_000;
+const TIMER_ECHO_DISCUSS = 45_000;
+
+function startEchoGame(room, numRounds) {
+  const playerIds = [...room.players.keys()];
+  const totalRounds = Math.min(numRounds || 5, 10);
+  const prompts = pickEchoPrompts(totalRounds);
+  const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
+  const echoOrder = [];
+  for (let i = 0; i < totalRounds; i++) echoOrder.push(shuffled[i % shuffled.length]);
+
+  room.game = {
+    type: "echo", phase: "echo-submit",
+    round: 1, totalRounds,
+    echoId: echoOrder[0], echoOrder,
+    promptPair: prompts[0], prompts,
+    answers: new Map(), // playerId -> text
+    votes: new Map(),
+    scores: new Map(playerIds.map(id => [id, 0])),
+    activePlayers: new Set(playerIds),
+    roundScoreDeltas: {}, timerEnd: null
+  };
+
+  // Send prompts to players
+  for (const pid of room.game.activePlayers) {
+    const isEcho = pid === room.game.echoId;
+    io.to(pid).emit("game:echoPrompt", {
+      prompt: isEcho ? room.game.promptPair.echo : room.game.promptPair.normal,
+      isEcho, round: room.game.round
+    });
+  }
+
+  addSystemMessage(room, `🔊 Echo — Round 1 of ${totalRounds}. Answer the prompt! (45s)`);
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_ECHO_SUBMIT, () => echoForceSubmit(room));
+}
+
+function echoHandleAnswer(room, socketId, text) {
+  const g = room.game;
+  if (!g || g.type !== "echo" || g.phase !== "echo-submit") return;
+  if (!g.activePlayers.has(socketId) || g.answers.has(socketId)) return;
+  const clean = typeof text === "string" ? text.trim().slice(0, 60) : "";
+  if (!clean) return;
+  g.answers.set(socketId, clean);
+  broadcastRoom(room);
+  if (g.answers.size >= g.activePlayers.size) { clearRoomTimer(room); echoReveal(room); }
+}
+
+function echoForceSubmit(room) {
+  const g = room.game;
+  if (!g || g.phase !== "echo-submit") return;
+  for (const pid of g.activePlayers) {
+    if (!g.answers.has(pid)) g.answers.set(pid, "(no answer)");
+  }
+  echoReveal(room);
+}
+
+function echoReveal(room) {
+  const g = room.game;
+  g.phase = "echo-discuss";
+  // Shuffle answers for anonymous display
+  g.shuffledAnswers = [...g.answers.entries()]
+    .map(([id, text]) => ({ id, text }))
+    .sort(() => Math.random() - 0.5);
+  addSystemMessage(room, "🔍 Answers revealed! Discuss — which one is the Echo? (45s)");
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_ECHO_DISCUSS, () => echoStartVoting(room));
+}
+
+function echoStartVoting(room) {
+  const g = room.game;
+  g.phase = "echo-voting";
+  g.timerEnd = Date.now() + TIMER_VOTE;
+  addSystemMessage(room, "🗳️ Vote! Which answer is the Echo's? (20s)");
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_VOTE, () => echoResolveVotes(room));
+}
+
+function echoHandleVote(room, socketId, answerId) {
+  const g = room.game;
+  if (!g || g.type !== "echo" || g.phase !== "echo-voting") return;
+  if (!g.activePlayers.has(socketId) || g.votes.has(socketId)) return;
+  if (socketId === answerId) return;
+  g.votes.set(socketId, answerId);
+  broadcastRoom(room);
+  if (g.votes.size >= g.activePlayers.size) { clearRoomTimer(room); echoResolveVotes(room); }
+}
+
+function echoResolveVotes(room) {
+  const g = room.game;
+  g.phase = "echo-results";
+  clearRoomTimer(room);
+  const deltas = {};
+  for (const pid of g.activePlayers) deltas[pid] = 0;
+
+  let caughtCount = 0;
+  for (const [voterId, targetId] of g.votes) {
+    if (targetId === g.echoId) { deltas[voterId] = (deltas[voterId] || 0) + 2; caughtCount++; }
+  }
+  if (caughtCount === 0) {
+    deltas[g.echoId] = (deltas[g.echoId] || 0) + 3;
+    addSystemMessage(room, `😎 The Echo blended in perfectly!`);
+  } else {
+    addSystemMessage(room, `🎯 The Echo was caught!`);
+  }
+
+  for (const [pid, d] of Object.entries(deltas)) g.scores.set(pid, (g.scores.get(pid) || 0) + d);
+  g.roundScoreDeltas = deltas;
+  broadcastRoom(room);
+}
+
+function echoAdvanceRound(room) {
+  const g = room.game;
+  if (!g || g.phase !== "echo-results") return;
+  if (g.round >= g.totalRounds) {
+    g.phase = "gameover";
+    clearRoomTimer(room);
+    awardGameCoins(room);
+    addSystemMessage(room, "🏆 Game over!");
+    broadcastRoom(room);
+    setTimeout(() => { if (room.game?.phase === "gameover") backToLobby(room); }, 30000);
+    return;
+  }
+  g.phase = "intermission";
+  g.timerEnd = Date.now() + TIMER_INTERMISSION;
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_INTERMISSION, () => {
+    g.round++;
+    g.phase = "echo-submit";
+    g.echoId = g.echoOrder[g.round - 1];
+    g.promptPair = g.prompts[g.round - 1];
+    g.answers = new Map(); g.votes = new Map();
+    g.shuffledAnswers = null; g.roundScoreDeltas = {};
+    g.activePlayers = new Set([...room.players.keys()].filter(id => g.scores.has(id)));
+    if (!g.activePlayers.has(g.echoId)) {
+      const arr = [...g.activePlayers];
+      g.echoId = arr[Math.floor(Math.random() * arr.length)];
+    }
+    for (const pid of g.activePlayers) {
+      io.to(pid).emit("game:echoPrompt", {
+        prompt: pid === g.echoId ? g.promptPair.echo : g.promptPair.normal,
+        isEcho: pid === g.echoId, round: g.round
+      });
+    }
+    addSystemMessage(room, `🔊 Round ${g.round} of ${g.totalRounds}. Answer the prompt!`);
+    broadcastRoom(room);
+    setRoomTimer(room, TIMER_ECHO_SUBMIT, () => echoForceSubmit(room));
+  });
+}
+
+function echoHandleDisconnect(room, socketId) {
+  const g = room.game;
+  if (!g || g.type !== "echo") return;
+  g.activePlayers.delete(socketId);
+  g.answers.delete(socketId); g.votes.delete(socketId);
+  if (g.activePlayers.size < 2) {
+    clearRoomTimer(room); room.game = null; room.mode = null;
+    addSystemMessage(room, "Not enough players — game ended."); return;
+  }
+  if (g.phase === "echo-submit" && g.answers.size >= g.activePlayers.size) { clearRoomTimer(room); echoReveal(room); }
+  else if (g.phase === "echo-voting" && g.votes.size >= g.activePlayers.size) { clearRoomTimer(room); echoResolveVotes(room); }
+  else broadcastRoom(room);
+}
+
+// ============================================================
 //   SOCKET.IO EVENTS
 // ============================================================
 
@@ -1653,7 +1935,7 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
 
   // ----- Create room -----
-  socket.on("room:create", ({ name }, ack) => {
+  socket.on("room:create", ({ name, visibility }, ack) => {
     const clean = sanitizeName(name);
     if (!clean) return ack?.({ error: "Name required (1-16 characters, no weird stuff)" });
 
@@ -1662,11 +1944,12 @@ io.on("connection", (socket) => {
       code,
       hostId: socket.id,
       players: new Map(),
-      spectators: new Map(),   // Ghost Mode: players who joined mid-game
+      spectators: new Map(),
       mode: null,
       chat: [],
       game: null,
       _timer: null,
+      visibility: visibility === "private" ? "private" : "public",
       createdAt: Date.now()
     };
     room.players.set(socket.id, { id: socket.id, name: clean });
@@ -1676,6 +1959,8 @@ io.on("connection", (socket) => {
 
     ack?.({ ok: true, code, you: { id: socket.id, name: clean }, snapshot: roomSnapshot(room), chat: room.chat });
     addSystemMessage(room, `${clean} created the room`);
+    // Broadcast room list update to everyone
+    io.emit("rooms:update", getPublicRooms());
   });
 
   // ----- Join existing room -----
@@ -1781,6 +2066,12 @@ io.on("connection", (socket) => {
       }
       startChainGame(room, rounds || DEFAULT_ROUNDS);
       ack?.({ ok: true });
+    } else if (room.mode === "echo") {
+      if (room.players.size < 3) {
+        return ack?.({ error: "Need at least 3 players to start Echo" });
+      }
+      startEchoGame(room, rounds || DEFAULT_ROUNDS);
+      ack?.({ ok: true });
     } else {
       return ack?.({ error: "Pick a game mode first" });
     }
@@ -1804,6 +2095,8 @@ io.on("connection", (socket) => {
     if (!room) return ack?.({ error: "Room gone" });
     if (room.game?.type === "wordspy") {
       wsHandleVote(room, socket.id, targetId);
+    } else if (room.game?.type === "echo") {
+      echoHandleVote(room, socket.id, targetId);
     } else {
       handleVoteSubmit(room, socket.id, targetId);
     }
@@ -1850,6 +2143,16 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   });
 
+  // ----- Echo: player submits answer -----
+  socket.on("game:echoAnswer", ({ text }, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    echoHandleAnswer(room, socket.id, text);
+    ack?.({ ok: true });
+  });
+
   // ----- Host advances to next round -----
   socket.on("game:nextRound", () => {
     const code = socketToRoom.get(socket.id);
@@ -1860,6 +2163,8 @@ io.on("connection", (socket) => {
       wsAdvanceToNextRound(room);
     } else if (room.game?.type === "chain") {
       chainAdvanceToNextRound(room);
+    } else if (room.game?.type === "echo") {
+      echoAdvanceRound(room);
     } else {
       advanceToNextRound(room);
     }
@@ -1928,6 +2233,8 @@ function handleLeave(socket, opts = {}) {
       wsHandleGameDisconnect(room, socket.id);
     } else if (room.game.type === "chain") {
       chainHandleGameDisconnect(room, socket.id);
+    } else if (room.game.type === "echo") {
+      echoHandleDisconnect(room, socket.id);
     } else {
       handleGameDisconnect(room, socket.id);
     }

@@ -11,17 +11,18 @@ let myPrompt = null, selectedRating = null, hasSubmittedRating = false;
 let hasSubmittedVote = false, isSpectator = false, timerInterval = null;
 let myWord = null, hasSubmittedClue = false, hasSubmittedSpyGuess = false;
 let myChainRole = null, hasAccused = false, coinsAwarded = false;
+let myEchoPrompt = null, hasSubmittedEchoAnswer = false;
 const socket = io();
 
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile"];
 
 function showPage(id) {
   PAGES.forEach(p => { const el = $(p); if (el) el.hidden = p !== id; });
   // Update nav
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff"};
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
 }
 
@@ -30,7 +31,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -38,8 +39,9 @@ document.querySelectorAll(".nav-link").forEach(l => {
     showPage("page-" + l.dataset.page);
     if (l.dataset.page === "shop") loadShop();
     if (l.dataset.page === "settings") loadSettings();
-    if (l.dataset.page === "play") prefillName();
+    if (l.dataset.page === "play") { prefillName(); loadRoomBrowser(); }
     if (l.dataset.page === "leaderboard") loadLeaderboard();
+    if (l.dataset.page === "profile") loadProfile();
   });
 });
 
@@ -61,6 +63,9 @@ function updateUI() {
   $("ds-games").textContent = user.gamesPlayed || 0;
   $("ds-wins").textContent = user.gamesWon || 0;
   $("ds-points").textContent = user.totalPoints || 0;
+  // Staff link visibility — checked every time UI updates
+  const staffLink = $("nav-staff-link");
+  if (staffLink) staffLink.hidden = !["cole"].includes(user.username.toLowerCase());
 }
 
 function prefillName() {
@@ -116,13 +121,16 @@ function resetRoomState() {
   hasSubmittedRating = false; hasSubmittedVote = false; isSpectator = false;
   myWord = null; hasSubmittedClue = false; hasSubmittedSpyGuess = false;
   myChainRole = null; hasAccused = false; coinsAwarded = false;
+  myEchoPrompt = null; hasSubmittedEchoAnswer = false;
   clearTI();
   $("chat-messages").innerHTML = ""; $("player-list").innerHTML = "";
 }
 
 $("form-create").addEventListener("submit", e => {
   e.preventDefault(); $("create-error").textContent = "";
-  socket.emit("room:create", { name: new FormData(e.target).get("name") }, resp => {
+  const fd = new FormData(e.target);
+  const vis = document.getElementById("create-visibility");
+  socket.emit("room:create", { name: fd.get("name"), visibility: vis ? vis.value : "public" }, resp => {
     if (resp?.error) { $("create-error").textContent = resp.error; return; }
     me = resp.you; isSpectator = false; enterRoom(resp.snapshot, resp.chat);
   });
@@ -179,7 +187,7 @@ function renderGamePicker(snap) {
   const hn = $("host-note"), sa = $("start-game-area"), sn = $("start-game-note");
   if (snap.game) { hn.textContent = "Game in progress"; sa.hidden = true; return; }
   hn.textContent = amHost ? (snap.mode ? `You picked: ${snap.mode}` : "Pick a game") : (snap.mode ? `Host picked: ${snap.mode}` : "(waiting for host)");
-  if (amHost && ["frequency","wordspy","chain"].includes(snap.mode)) {
+  if (amHost && ["frequency","wordspy","chain","echo"].includes(snap.mode)) {
     sa.hidden = false;
     if (snap.players.length < 3) { sn.textContent = `Need 3+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
     else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
@@ -196,7 +204,7 @@ $("start-game-btn").addEventListener("click", () => { socket.emit("game:start", 
 function switchToGame(snap) {
   $("game-room-code").textContent = snap.code;
   const badge = $("game-mode-badge");
-  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : "🎵 Frequency";
+  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : snap.game?.type === "echo" ? "🔊 Echo" : "🎵 Frequency";
   updateRound(snap.game); syncChat(); renderPhase(snap); showPage("page-game");
 }
 
@@ -204,7 +212,7 @@ function updateRound(g) { if (g) $("game-round-badge").textContent = `Round ${g.
 
 function renderPhase(snap) {
   const g = snap.game; if (!g) return;
-  ["phase-prompting","phase-voting","phase-results","phase-gameover","phase-discuss","phase-intermission","phase-ws-clues","phase-ws-discuss","phase-ws-voting","phase-ws-spyguess","phase-ws-results","phase-chain-building","phase-chain-results"].forEach(id => { const el = $(id); if (el) el.hidden = true; });
+  ["phase-prompting","phase-voting","phase-results","phase-gameover","phase-discuss","phase-intermission","phase-ws-clues","phase-ws-discuss","phase-ws-voting","phase-ws-spyguess","phase-ws-results","phase-chain-building","phase-chain-results","phase-echo-submit","phase-echo-discuss","phase-echo-voting","phase-echo-results"].forEach(id => { const el = $(id); if (el) el.hidden = true; });
   updateRound(g); startTimer(g.timerEnd, g.phase);
   const ph = g.phase;
   if (ph === "prompting") renderPrompting(snap);
@@ -218,6 +226,10 @@ function renderPhase(snap) {
   else if (ph === "ws-results") renderWSResults(snap);
   else if (ph === "chain-building") renderChainBuilding(snap);
   else if (ph === "chain-results") renderChainResults(snap);
+  else if (ph === "echo-submit") renderEchoSubmit(snap);
+  else if (ph === "echo-discuss") renderEchoDiscuss(snap);
+  else if (ph === "echo-voting") renderEchoVoting(snap);
+  else if (ph === "echo-results") renderEchoResults(snap);
   else if (ph === "intermission") renderIntermission(snap);
   else if (ph === "gameover") renderGameOver(snap);
 }
@@ -430,10 +442,13 @@ socket.on("room:update", snap => {
     if (ph === "ws-clues" && (snap.game.round !== prevRound || prevPhase !== "ws-clues")) { hasSubmittedClue=false;hasSubmittedVote=false;hasSubmittedSpyGuess=false; }
     if (ph === "ws-voting" && prevPhase !== "ws-voting") hasSubmittedVote = false;
     if (ph === "chain-building" && (snap.game.round !== prevRound || prevPhase !== "chain-building")) hasAccused = false;
+    if (ph === "echo-submit" && (snap.game.round !== prevRound || prevPhase !== "echo-submit")) { hasSubmittedEchoAnswer = false; hasSubmittedVote = false; }
+    if (ph === "echo-voting" && prevPhase !== "echo-voting") hasSubmittedVote = false;
     switchToGame(snap);
   } else { resetRoomState(); showPage("page-room"); /* stay in room lobby */ }
 });
 socket.on("game:yourPrompt", ({ prompt }) => { myPrompt = prompt; $("prompt-text").textContent = prompt; });
+socket.on("game:echoPrompt", ({ prompt, isEcho }) => { myEchoPrompt = prompt; hasSubmittedEchoAnswer = false; });
 socket.on("game:yourWord", ({ word, category, isSpy }) => { myWord = { word, category, isSpy }; hasSubmittedClue=false;hasSubmittedSpyGuess=false; });
 socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter }) => { myChainRole = { isSaboteur, targetWord, starter }; hasAccused=false; });
 socket.on("chat:message", msg => { addChat(msg); scrollChat(); });
@@ -766,6 +781,327 @@ loadShop = async function() {
     container.appendChild(es);
   } catch {}
 };
+
+// ============================================================
+//   ECHO RENDERING
+// ============================================================
+function renderEchoSubmit(snap) {
+  $("phase-echo-submit").hidden = false; const g = snap.game;
+  $("echo-prompt-text").textContent = myEchoPrompt || "Loading...";
+  if (hasSubmittedEchoAnswer || isSpectator) {
+    $("echo-answer-area").hidden = true; $("echo-submit-waiting").hidden = false;
+    $("echo-answers-progress").textContent = `${g.answersSubmitted?.length||0}/${g.playerCount}`;
+  } else {
+    $("echo-answer-area").hidden = false; $("echo-submit-waiting").hidden = true;
+    $("echo-answer-input").focus();
+  }
+}
+function renderEchoDiscuss(snap) {
+  $("phase-echo-discuss").hidden = false; const g = snap.game;
+  const container = $("echo-answers-reveal"); container.innerHTML = "";
+  for (const a of (g.shuffledAnswers || [])) {
+    const card = document.createElement("div"); card.className = "rating-card";
+    card.innerHTML = `<div class="rating-card-info"><span class="rating-card-name" style="font-style:italic">"${esc(a.text)}"</span></div>`;
+    container.appendChild(card);
+  }
+}
+function renderEchoVoting(snap) {
+  $("phase-echo-voting").hidden = false; const g = snap.game;
+  const grid = $("echo-vote-grid"); grid.innerHTML = "";
+  const done = isSpectator || hasSubmittedVote;
+  for (const a of (g.shuffledAnswers || [])) {
+    const isMe = me && a.id === me.id;
+    const card = document.createElement("div");
+    card.className = `vote-card ${done?"disabled":""} ${isMe?"is-me":""}`;
+    card.innerHTML = `<span class="vote-card-name" style="font-style:italic">"${esc(a.text)}"</span>${!isMe&&!done?'<span class="vote-card-label">This one</span>':""}`;
+    if (!isMe && !done) card.addEventListener("click", () => {
+      if (hasSubmittedVote) return; hasSubmittedVote = true;
+      socket.emit("game:submitVote", { targetId: a.id });
+      grid.querySelectorAll(".vote-card").forEach(c => c.classList.add("disabled"));
+      card.classList.remove("disabled"); card.classList.add("voted");
+      $("echo-vote-waiting").hidden = false;
+    });
+    grid.appendChild(card);
+  }
+  if (done) { $("echo-vote-waiting").hidden = false; $("echo-votes-progress").textContent = `${g.votesSubmitted?.length||0}/${g.playerCount}`; }
+}
+function renderEchoResults(snap) {
+  $("phase-echo-results").hidden = false; const g = snap.game, amHost = me && snap.hostId === me.id;
+  const echoName = g.echoName || "???";
+  const caught = Object.values(g.revealedVotes || {}).some(v => v === g.echoId);
+  $("echo-result-reveal").innerHTML = `<div class="ws-result-card ${caught?"spy-caught":"spy-escaped"}"><div class="ws-result-label">The Echo was</div><div class="ws-result-name">${esc(echoName)}</div><div class="ws-result-detail">${caught?"Caught!":"Blended in!"}</div></div>`;
+  $("echo-prompts-compare").innerHTML = `<div class="prompt-compare-grid"><div class="prompt-compare-card"><span class="prompt-compare-label">Normal prompt</span><p class="prompt-compare-text">${esc(g.normalPrompt)}</p></div><div class="prompt-compare-card offkey-prompt"><span class="prompt-compare-label">Echo prompt</span><p class="prompt-compare-text">${esc(g.echoPrompt)}</p></div></div>`;
+  renderScoreTable($("echo-round-scores"), snap, g, "echoId", "🔊");
+  const na = $("echo-next-area"); if (amHost) { na.hidden = false; $("echo-next-btn").textContent = g.round >= g.totalRounds ? "🏆 See Final Scores" : "Next Round →"; } else na.hidden = true;
+}
+$("echo-answer-btn").addEventListener("click", () => {
+  const inp = $("echo-answer-input"); const text = inp.value.trim();
+  if (!text || hasSubmittedEchoAnswer) return;
+  hasSubmittedEchoAnswer = true;
+  socket.emit("game:echoAnswer", { text });
+  inp.value = ""; $("echo-answer-area").hidden = true; $("echo-submit-waiting").hidden = false;
+});
+$("echo-answer-input").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("echo-answer-btn").click(); } });
+$("echo-next-btn").addEventListener("click", () => socket.emit("game:nextRound"));
+
+// ============================================================
+//   ROOM BROWSER
+// ============================================================
+let roomFilter = "all";
+async function loadRoomBrowser() {
+  try {
+    const res = await fetch("/api/rooms");
+    const data = await res.json();
+    renderRoomBrowser(data.rooms || []);
+  } catch {}
+}
+function renderRoomBrowser(roomList) {
+  const container = $("room-browser"); if (!container) return;
+  const filtered = roomFilter === "all" ? roomList : roomList.filter(r => r.mode === roomFilter);
+  if (filtered.length === 0) {
+    container.innerHTML = `<p style="color:var(--ink3);text-align:center;padding:12px">No ${roomFilter === "all" ? "" : roomFilter + " "}rooms open. Create one!</p>`;
+    return;
+  }
+  container.innerHTML = "";
+  for (const r of filtered) {
+    const card = document.createElement("div");
+    card.style.cssText = "display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--neo);border-radius:10px;margin-bottom:6px;box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi);cursor:pointer;transition:all 0.15s";
+    card.innerHTML = `
+      <span style="font-weight:800;font-size:18px;color:var(--deep);letter-spacing:3px;min-width:70px">${r.code}</span>
+      <span style="flex:1;font-weight:600;color:var(--ink)">${esc(r.hostName)}'s room</span>
+      <span style="font-size:12px;color:var(--ink3)">${r.mode || "no game"}</span>
+      <span style="font-size:12px;color:var(--mid)">${r.playerCount}/12</span>
+      ${r.inGame ? '<span style="font-size:11px;color:var(--warn);font-weight:700">IN GAME</span>' : '<span style="font-size:11px;color:var(--success);font-weight:700">OPEN</span>'}
+    `;
+    card.addEventListener("click", () => {
+      const nameInp = $("join-name-input");
+      const name = nameInp?.value?.trim() || user?.username || "Player";
+      socket.emit("room:join", { name, code: r.code }, resp => {
+        if (resp?.error) { alert(resp.error); return; }
+        me = resp.you; isSpectator = !!resp.spectator; enterRoom(resp.snapshot, resp.chat);
+      });
+    });
+    card.addEventListener("mouseenter", () => card.style.transform = "translateY(-1px)");
+    card.addEventListener("mouseleave", () => card.style.transform = "");
+    container.appendChild(card);
+  }
+}
+const refreshRoomsBtn = document.getElementById("refresh-rooms-btn");
+if (refreshRoomsBtn) refreshRoomsBtn.addEventListener("click", loadRoomBrowser);
+document.querySelectorAll(".filter-btn").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    roomFilter = b.dataset.filter;
+    loadRoomBrowser();
+  });
+});
+socket.on("rooms:update", renderRoomBrowser);
+
+// ============================================================
+//   PROFILE PAGE
+// ============================================================
+const PFP_EMOJIS = ["😎","😊","🤓","😈","🥳","🤠","👻","🐱","🐶","🦊","🐸","🐼","🦄","🐉","🎮","🎯","🔥","⭐","💎","🌊","🌸","🍕","🎸","🚀"];
+const SHOP_COLORS = [
+  { id: "default", name: "Default", color: "#0b4d6e" },
+  { id: "cyan", name: "Cyan", color: "#1ab5d5" },
+  { id: "emerald", name: "Emerald", color: "#2d9e5a" },
+  { id: "sunset", name: "Sunset", color: "#e87830" },
+  { id: "magenta", name: "Magenta", color: "#c740a0" },
+  { id: "gold", name: "Gold", color: "#c89020" },
+  { id: "violet", name: "Violet", color: "#7c3aed" },
+  { id: "crimson", name: "Crimson", color: "#dc2626" },
+  { id: "ice", name: "Ice Blue", color: "#38bdf8" },
+  { id: "forest", name: "Forest", color: "#15803d" },
+  { id: "bubblegum", name: "Bubblegum", color: "#f472b6" },
+  { id: "midnight", name: "Midnight", color: "#1e1b4b" },
+  { id: "neon", name: "Neon Pink", color: "#f43f8e" },
+];
+const SHOP_TITLES = [
+  { id: "none", name: "None" },
+  { id: "spy-hunter", name: "Spy Hunter" },
+  { id: "offkey-legend", name: "Off-Key Legend" },
+  { id: "chain-breaker", name: "Chain Breaker" },
+  { id: "smooth-talker", name: "Smooth Talker" },
+  { id: "detective", name: "Detective" },
+  { id: "speedrunner", name: "Speedrunner" },
+  { id: "brainiac", name: "Brainiac" },
+  { id: "snake-charmer", name: "Snake Charmer" },
+  { id: "mastermind", name: "Mastermind" },
+  { id: "shadow", name: "The Shadow" },
+  { id: "arcade-king", name: "Arcade King" },
+  { id: "sharpshooter", name: "Sharpshooter" },
+  { id: "lobby-legend", name: "Lobby Legend" },
+  { id: "the-goat", name: "The G.O.A.T." },
+];
+
+function loadProfile() {
+  if (!user) return;
+  $("profile-pfp").textContent = user.pfpEmoji || "😎";
+  $("profile-username").textContent = user.username;
+  const titleDisplay = $("profile-title-display");
+  if (user.title === "custom" && user.customTitle) titleDisplay.textContent = user.customTitle;
+  else { const t = SHOP_TITLES.find(x => x.id === user.title); titleDisplay.textContent = t && t.id !== "none" ? t.name : ""; }
+
+  // PFP picker
+  const pfpPicker = $("pfp-picker"); pfpPicker.innerHTML = "";
+  for (const emoji of PFP_EMOJIS) {
+    const btn = document.createElement("span");
+    btn.textContent = emoji;
+    btn.style.cssText = `cursor:pointer;padding:6px;border-radius:10px;transition:all 0.15s;${user.pfpEmoji === emoji ? "background:var(--accent);box-shadow:0 0 0 2px var(--accent);" : ""}`;
+    btn.addEventListener("click", async () => {
+      await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ pfpEmoji: emoji }) });
+      await checkSession(); loadProfile();
+    });
+    pfpPicker.appendChild(btn);
+  }
+
+  // Color picker
+  const colorPicker = $("profile-color-picker"); colorPicker.innerHTML = "";
+  const owned = user.ownedItems || [];
+  for (const c of SHOP_COLORS) {
+    if (!owned.includes(c.id)) continue;
+    const swatch = document.createElement("div");
+    swatch.style.cssText = `width:36px;height:36px;border-radius:10px;background:${c.color};cursor:pointer;transition:all 0.15s;border:3px solid ${user.nameColor === c.id ? "var(--deep)" : "transparent"};box-shadow:2px 2px 5px var(--neo-lo),-1px -1px 4px var(--neo-hi)`;
+    swatch.title = c.name;
+    swatch.addEventListener("click", async () => {
+      await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ nameColor: c.id }) });
+      await checkSession(); loadProfile();
+    });
+    colorPicker.appendChild(swatch);
+  }
+
+  // Title picker
+  const titlePicker = $("profile-title-picker"); titlePicker.innerHTML = "";
+  for (const t of SHOP_TITLES) {
+    if (t.id !== "none" && !owned.includes(t.id)) continue;
+    const btn = document.createElement("button");
+    btn.className = `btn btn-sm ${user.title === t.id ? "btn-primary" : "btn-ghost"}`;
+    btn.textContent = t.id === "none" ? "None" : t.name;
+    btn.style.fontSize = "12px";
+    btn.addEventListener("click", async () => {
+      await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ title: t.id }) });
+      await checkSession(); loadProfile();
+    });
+    titlePicker.appendChild(btn);
+  }
+  if (user.title === "custom" && user.customTitle) {
+    const customBtn = document.createElement("button");
+    customBtn.className = "btn btn-sm btn-primary"; customBtn.textContent = user.customTitle;
+    customBtn.style.fontSize = "12px";
+    titlePicker.appendChild(customBtn);
+  }
+
+  // Inventory
+  const inv = $("profile-inventory"); inv.innerHTML = "";
+  for (const itemId of owned) {
+    if (itemId === "default" || itemId === "none") continue;
+    const c = SHOP_COLORS.find(x => x.id === itemId);
+    const t = SHOP_TITLES.find(x => x.id === itemId);
+    const chip = document.createElement("span");
+    chip.style.cssText = "padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;background:var(--neo);box-shadow:1px 1px 3px var(--neo-lo),-1px -1px 3px var(--neo-hi)";
+    if (c) { chip.textContent = c.name; chip.style.color = c.color; }
+    else if (t) { chip.textContent = t.name; chip.style.color = "var(--mid)"; }
+    else { chip.textContent = itemId; }
+    inv.appendChild(chip);
+  }
+}
+
+$("custom-title-btn").addEventListener("click", async () => {
+  const inp = $("custom-title-input"); const text = inp.value.trim();
+  $("custom-title-error").textContent = "";
+  if (!text) return;
+  if (text.split(/\s+/).length > 2) { $("custom-title-error").textContent = "Max 2 words"; return; }
+  try {
+    const res = await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ title: "custom", customTitle: text }) });
+    const data = await res.json();
+    if (!res.ok) { $("custom-title-error").textContent = data.error; return; }
+    if (data.user) { user = data.user; updateUI(); }
+    inp.value = ""; loadProfile();
+  } catch { $("custom-title-error").textContent = "Error"; }
+});
+
+// ============================================================
+//   EXPANDED STAFF HANDLERS
+// ============================================================
+const staffBanBtn = document.getElementById("staff-ban-btn");
+if (staffBanBtn) staffBanBtn.addEventListener("click", async () => {
+  const u = $("staff-ban-user").value.trim(), r = $("staff-ban-reason").value.trim();
+  const msg = $("staff-ban-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/ban", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,reason:r}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffUnbanBtn = document.getElementById("staff-unban-btn");
+if (staffUnbanBtn) staffUnbanBtn.addEventListener("click", async () => {
+  const u = $("staff-ban-user").value.trim();
+  const msg = $("staff-ban-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/ban", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,unban:true}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffItemBtn = document.getElementById("staff-item-btn");
+if (staffItemBtn) staffItemBtn.addEventListener("click", async () => {
+  const u = $("staff-item-user").value.trim(), id = $("staff-item-id").value.trim();
+  const msg = $("staff-item-msg"); msg.textContent = "";
+  try {
+    const res = await fetch("/api/staff/giveitem", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,itemId:id}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffConfettiBtn = document.getElementById("staff-confetti-btn");
+if (staffConfettiBtn) staffConfettiBtn.addEventListener("click", async () => {
+  await fetch("/api/staff/confetti", { method:"POST" });
+});
+const staffNukeBtn = document.getElementById("staff-nuke-btn");
+if (staffNukeBtn) staffNukeBtn.addEventListener("click", () => {
+  socket.emit(""); // Trigger local nuke for testing
+  document.querySelectorAll('.glass-card, .btn').forEach(el => {
+    el.style.transition = 'all 1.5s cubic-bezier(0.55, 0, 1, 0.45)';
+    el.style.transform = `translateY(${window.innerHeight + 200}px) rotate(${Math.random()*60-30}deg)`;
+    el.style.opacity = '0';
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.glass-card, .btn').forEach(el => {
+      el.style.transition = 'all 0.5s ease-out'; el.style.transform = ''; el.style.opacity = '';
+    });
+  }, 4000);
+  fetch("/api/staff/confetti", { method:"POST" }); // also send confetti
+});
+const staffSelfCoinsBtn = document.getElementById("staff-selfcoins-btn");
+if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
+  if (!user) return;
+  await fetch("/api/staff/givecoins", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:user.username,amount:1000}) });
+  await checkSession();
+});
+
+// ============================================================
+//   DUNGEON
+// ============================================================
+const dgStartBtn = document.getElementById('dg-start-btn');
+if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
+  const menu = document.getElementById('dg-menu');
+  const playArea = document.getElementById('dg-play-area');
+  menu.hidden = true;
+  playArea.hidden = false;
+  playArea.innerHTML = '';
+  window.DungeonGame?.init(playArea, async (coins, floor, kills) => {
+    // Submit score
+    try {
+      const res = await fetch('/api/arcade/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game: 'dungeon', score: coins, elapsed: 999999 })
+      });
+      const data = await res.json();
+      if (data.user) { user = data.user; updateUI(); }
+    } catch {}
+  });
+});
 
 checkSession();
 checkStaff();

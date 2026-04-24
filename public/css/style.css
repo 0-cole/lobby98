@@ -396,3 +396,10 @@ label{display:flex;flex-direction:column;gap:4px}
 /* Chaos mode */
 .chaos-mode *{animation:chaosWobble 0.3s ease-in-out infinite alternate!important}
 @keyframes chaosWobble{0%{transform:rotate(-0.5deg)}100%{transform:rotate(0.5deg)}}
+
+/* Filter buttons */
+.filter-btn{background:var(--neo);color:var(--ink2);box-shadow:2px 2px 5px var(--neo-lo),-1px -1px 4px var(--neo-hi)}
+.filter-btn.active{background:var(--accent);color:#fff;box-shadow:0 3px 8px rgba(34,174,209,0.3)}
+
+/* Profile page */
+#pfp-picker span:hover{background:rgba(34,174,209,0.15);transform:scale(1.15)}

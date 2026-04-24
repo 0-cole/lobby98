@@ -22,7 +22,11 @@ db.exec(`
     games_won INTEGER DEFAULT 0,
     total_points INTEGER DEFAULT 0,
     owned_items TEXT DEFAULT '["default","none"]',
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    is_banned INTEGER DEFAULT 0,
+    ban_reason TEXT,
+    pfp_emoji TEXT DEFAULT '😎',
+    custom_title TEXT
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -31,6 +35,11 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
+// Migrate existing databases: add columns if missing
+try { db.exec("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN ban_reason TEXT"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN pfp_emoji TEXT DEFAULT '😎'"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN custom_title TEXT"); } catch {}
 
 const s = {
   createUser: db.prepare("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)"),
@@ -55,6 +64,10 @@ const s = {
   addGameWon: db.prepare("UPDATE users SET games_won = games_won + 1 WHERE id = ?"),
   addPoints: db.prepare("UPDATE users SET total_points = total_points + ? WHERE id = ?"),
   changePassword: db.prepare("UPDATE users SET password_hash = ? WHERE id = ?"),
+  setBan: db.prepare("UPDATE users SET is_banned = ?, ban_reason = ? WHERE id = ?"),
+  setPfpEmoji: db.prepare("UPDATE users SET pfp_emoji = ? WHERE id = ?"),
+  setCustomTitle: db.prepare("UPDATE users SET custom_title = ? WHERE id = ?"),
+  deleteSessions: db.prepare("DELETE FROM sessions WHERE user_id = ?"),
 };
 
 export function userCount() { return s.countUsers.get().n; }
@@ -85,6 +98,9 @@ export function recordGame(userId, won, points) {
   if (points > 0) { s.addPoints.run(points, userId); s.addCoins.run(points, userId); }
 }
 export function changePassword(userId, hash) { s.changePassword.run(hash, userId); }
+export function setBan(userId, banned, reason) { s.setBan.run(banned ? 1 : 0, reason || null, userId); if (banned) s.deleteSessions.run(userId); }
+export function setPfpEmoji(userId, emoji) { s.setPfpEmoji.run(emoji, userId); }
+export function setCustomTitle(userId, title) { s.setCustomTitle.run(title, userId); }
 
 const leaderboardStmt = db.prepare(
   "SELECT id, username, coins, games_played, games_won, total_points FROM users ORDER BY total_points DESC LIMIT 20"
@@ -103,6 +119,9 @@ export function safeUserData(u) {
     nameColor: u.name_color, title: u.title,
     gamesPlayed: u.games_played, gamesWon: u.games_won,
     totalPoints: u.total_points,
-    ownedItems: (() => { try { return JSON.parse(u.owned_items); } catch { return ["default","none"]; } })()
+    ownedItems: (() => { try { return JSON.parse(u.owned_items); } catch { return ["default","none"]; } })(),
+    isBanned: !!u.is_banned, banReason: u.ban_reason,
+    pfpEmoji: u.pfp_emoji || '😎',
+    customTitle: u.custom_title || null
   };
 }

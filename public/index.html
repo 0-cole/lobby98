@@ -29,9 +29,11 @@
     </div>
     <div class="nav-links">
       <button class="nav-link active" data-page="dashboard">Home</button>
-      <button class="nav-link" data-page="play">Play</button>
+      <button class="nav-link" data-page="play">Party Games</button>
       <button class="nav-link" data-page="arcade">Arcade</button>
+      <button class="nav-link" data-page="dungeon">Deep Dive</button>
       <button class="nav-link" data-page="shop">Shop</button>
+      <button class="nav-link" data-page="profile">Profile</button>
       <button class="nav-link" data-page="settings">Settings</button>
       <button class="nav-link" data-page="leaderboard">Leaderboard</button>
       <button class="nav-link nav-staff" data-page="staff" id="nav-staff-link" hidden>Staff</button>
@@ -88,12 +90,17 @@
         <div class="glass-card dash-card" data-goto="play">
           <div class="dc-icon">🎭</div>
           <h3 class="dc-title">Party Games</h3>
-          <p class="dc-desc">Frequency, Word Spy, Chain — play with friends in rooms.</p>
+          <p class="dc-desc">Frequency, Word Spy, Chain, Echo — play with friends in rooms.</p>
         </div>
         <div class="glass-card dash-card" data-goto="arcade">
           <div class="dc-icon">🕹️</div>
           <h3 class="dc-title">Arcade</h3>
-          <p class="dc-desc">Solo games. Earn coins. Memory, Minesweeper, Click Speed, Math Rush.</p>
+          <p class="dc-desc">Solo games. Earn coins. Memory, Minesweeper, Firing Range, Math Rush, Snake.</p>
+        </div>
+        <div class="glass-card dash-card" data-goto="dungeon">
+          <div class="dc-icon">⚔️</div>
+          <h3 class="dc-title">Deep Dive</h3>
+          <p class="dc-desc">Roguelike dungeon crawler. Explore, fight emoji monsters, go deeper.</p>
         </div>
         <div class="glass-card dash-card" data-goto="shop">
           <div class="dc-icon">🛍️</div>
@@ -115,21 +122,19 @@
 
     <!-- ============== PLAY (party games) ============== -->
     <section class="page" id="page-play" hidden>
-      <div class="glass-card">
-        <h2 class="card-title">Party Games</h2>
-        <p class="card-desc">Create a room or join one with a code. 3+ players needed.</p>
-      </div>
+      <div class="glass-card"><h2 class="card-title">🎭 Party Games</h2><p class="card-desc">Create a room or join one. 3+ players needed.</p></div>
       <div class="auth-grid">
         <div class="glass-card">
           <h3 class="card-title">Create Room</h3>
           <form id="form-create" class="auth-form">
             <label><span class="lbl">Your name in-game</span><input class="inp" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="create-name-input" /></label>
+            <label><span class="lbl">Visibility</span><select class="inp" name="visibility" id="create-visibility"><option value="public">🌐 Public</option><option value="private">🔒 Private</option></select></label>
             <button type="submit" class="btn btn-primary">Create</button>
             <p class="form-err" id="create-error"></p>
           </form>
         </div>
         <div class="glass-card">
-          <h3 class="card-title">Join Room</h3>
+          <h3 class="card-title">Join by Code</h3>
           <form id="form-join" class="auth-form">
             <label><span class="lbl">Your name in-game</span><input class="inp" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="join-name-input" /></label>
             <label><span class="lbl">Room code</span><input class="inp code-input" type="text" name="code" required maxlength="5" autocomplete="off" placeholder="ABCD" /></label>
@@ -137,6 +142,17 @@
             <p class="form-err" id="join-error"></p>
           </form>
         </div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">Public Rooms <button class="btn btn-ghost btn-sm" id="refresh-rooms-btn" style="font-size:12px">Refresh</button></h3>
+        <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm filter-btn active" data-filter="all">All</button>
+          <button class="btn btn-sm filter-btn" data-filter="frequency">Frequency</button>
+          <button class="btn btn-sm filter-btn" data-filter="wordspy">Word Spy</button>
+          <button class="btn btn-sm filter-btn" data-filter="chain">Chain</button>
+          <button class="btn btn-sm filter-btn" data-filter="echo">Echo</button>
+        </div>
+        <div id="room-browser"><p style="color:var(--ink3);text-align:center;padding:12px">No public rooms. Create one!</p></div>
       </div>
     </section>
 
@@ -156,7 +172,7 @@
             <li class="game-card" data-mode="frequency"><div class="gc-icon">◈</div><div class="gc-body"><div class="gc-name">Frequency</div><div class="gc-desc">Rate a prompt 1–10. One player sees a different prompt.</div></div></li>
             <li class="game-card" data-mode="wordspy"><div class="gc-icon">◆</div><div class="gc-body"><div class="gc-name">Word Spy</div><div class="gc-desc">Everyone has a word. The spy doesn't.</div></div></li>
             <li class="game-card" data-mode="chain"><div class="gc-icon">◁</div><div class="gc-body"><div class="gc-name">Chain</div><div class="gc-desc">Build a sentence. One player sneaks in a target word.</div></div></li>
-            <li class="game-card soon" data-mode="echo"><div class="gc-icon">◇</div><div class="gc-body"><div class="gc-name">Echo</div><div class="gc-desc">Coming soon</div></div><span class="gc-badge">soon</span></li>
+            <li class="game-card" data-mode="echo"><div class="gc-icon">◇</div><div class="gc-body"><div class="gc-name">Echo</div><div class="gc-desc">Same prompt, but the Echo sees a twist. Write answers, find them.</div></div></li>
           </ul>
           <div class="start-area" id="start-game-area" hidden>
             <div style="margin-bottom:10px"><label class="lbl" style="margin-right:8px">Rounds:</label><select id="rounds-select" class="inp" style="width:auto;display:inline-block;padding:6px 12px"><option value="3">3</option><option value="5" selected>5</option><option value="7">7</option><option value="10">10</option></select></div>
@@ -195,6 +211,11 @@
           <!-- Chain phases -->
           <div class="game-phase" id="phase-chain-building" hidden><h3 class="ph-title">⛓️ Build the Sentence</h3><div class="chain-role glass-card"><p class="chain-role-label" id="chain-role-label">Your role</p><p class="chain-role-text" id="chain-role-text">loading...</p></div><div class="chain-sentence" id="chain-sentence-display"><span class="chain-starter" id="chain-starter"></span></div><div class="chain-turn" id="chain-turn-indicator">Waiting...</div><div class="chain-word-inp" id="chain-word-input-area" hidden><input class="inp" type="text" id="chain-word-input" maxlength="25" placeholder="add one word..." /><button class="btn btn-primary" id="chain-word-submit">Add</button></div><div class="chain-accuse" id="chain-accuse-area" hidden><p class="chain-accuse-label">Think you know the Saboteur?</p><div class="chain-accuse-grid" id="chain-accuse-grid"></div></div><p class="chain-count" id="chain-word-count">0/20 words</p></div>
           <div class="game-phase" id="phase-chain-results" hidden><h3 class="ph-title">Round Results</h3><div id="chain-result-reveal"></div><div class="chain-sentence-final" id="chain-sentence-final"></div><div class="round-scores" id="chain-round-scores"></div><div class="next-area" id="chain-next-round-area" hidden><button class="btn btn-primary btn-lg" id="chain-next-round-btn">Next Round →</button></div></div>
+          <!-- Echo phases -->
+          <div class="game-phase" id="phase-echo-submit" hidden><h3 class="ph-title">🔊 Your Prompt</h3><div class="prompt-card glass-card"><p class="prompt-text" id="echo-prompt-text">Loading...</p></div><p class="ph-inst">Write a short answer (max 60 chars)</p><div style="display:flex;gap:8px;margin:10px 0" id="echo-answer-area"><input class="inp" type="text" id="echo-answer-input" maxlength="60" placeholder="your answer..." /><button class="btn btn-primary" id="echo-answer-btn">Submit</button></div><div class="wait-ind" id="echo-submit-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting for answers… <span id="echo-answers-progress">0/0</span></p></div></div>
+          <div class="game-phase" id="phase-echo-discuss" hidden><h3 class="ph-title">🔍 Which Answer is the Echo's?</h3><p class="ph-inst">These answers are shuffled. One person had a <em>different</em> prompt.</p><div class="ratings-reveal" id="echo-answers-reveal"></div></div>
+          <div class="game-phase" id="phase-echo-voting" hidden><h3 class="ph-title">🗳️ Vote — Which Answer?</h3><p class="ph-inst">Pick the answer you think came from the Echo.</p><div class="vote-grid" id="echo-vote-grid"></div><div class="wait-ind" id="echo-vote-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting for votes… <span id="echo-votes-progress">0/0</span></p></div></div>
+          <div class="game-phase" id="phase-echo-results" hidden><h3 class="ph-title">Round Results</h3><div id="echo-result-reveal" style="text-align:center;margin:12px 0"></div><div id="echo-prompts-compare"></div><div class="round-scores" id="echo-round-scores"></div><div class="next-area" id="echo-next-area" hidden><button class="btn btn-primary btn-lg" id="echo-next-btn">Next Round →</button></div></div>
           <!-- Shared -->
           <div class="game-phase" id="phase-discuss" hidden></div>
           <div class="game-phase" id="phase-intermission" hidden></div>
@@ -241,6 +262,39 @@
       <div id="shop-content"></div>
     </section>
 
+    <!-- ============== PROFILE ============== -->
+    <section class="page" id="page-profile" hidden>
+      <div class="glass-card" style="text-align:center;padding:28px">
+        <div id="profile-pfp" style="font-size:64px;margin-bottom:8px">😎</div>
+        <h2 class="card-title" style="justify-content:center" id="profile-username">Username</h2>
+        <p id="profile-title-display" style="color:var(--mid);font-weight:700;font-size:14px"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">Profile Picture</h3>
+        <p class="card-desc">Pick an emoji as your profile picture.</p>
+        <div id="pfp-picker" style="display:flex;flex-wrap:wrap;gap:8px;font-size:28px;cursor:pointer"></div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">Name Color</h3>
+        <p class="card-desc">Choose from your owned colors.</p>
+        <div id="profile-color-picker" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">Title</h3>
+        <p class="card-desc">Choose from your owned titles, or create a custom one (1000 coins).</p>
+        <div id="profile-title-picker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="inp" type="text" id="custom-title-input" maxlength="20" placeholder="Custom title (1-2 words)" style="flex:1;min-width:160px" />
+          <button class="btn btn-primary btn-sm" id="custom-title-btn">Set (🪙1000)</button>
+        </div>
+        <p class="form-err" id="custom-title-error"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">Inventory</h3>
+        <div id="profile-inventory" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+      </div>
+    </section>
+
     <!-- ============== SETTINGS ============== -->
     <section class="page" id="page-settings" hidden>
       <div class="glass-card">
@@ -269,6 +323,32 @@
     <section class="page" id="page-leaderboard" hidden>
       <div class="glass-card"><h2 class="card-title">🏆 Leaderboard</h2><p class="card-desc">Top players across the platform.</p></div>
       <div class="glass-card" id="leaderboard-content"><p style="color:var(--ink3)">Loading...</p></div>
+    </section>
+
+    <!-- ============== DUNGEON ============== -->
+    <section class="page" id="page-dungeon" hidden>
+      <div id="dg-menu">
+        <div class="glass-card" style="text-align:center;padding:32px">
+          <h2 class="card-title" style="justify-content:center;font-size:26px">⚔️ Deep Dive</h2>
+          <p class="card-desc" style="max-width:460px;margin:0 auto 16px;text-align:center">Descend into procedurally generated dungeons. Fight emoji monsters, find loot, and see how deep you can go. Earn coins for every floor you clear.</p>
+          <div id="dg-best" style="margin-bottom:16px;color:var(--ink2);font-size:14px"></div>
+          <button class="btn btn-primary btn-lg" id="dg-start-btn">Enter the Depths</button>
+        </div>
+        <div class="glass-card">
+          <h3 class="card-title">How to play</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;font-size:14px;color:var(--ink2)">
+            <div><strong>Move:</strong> Arrow keys or WASD</div>
+            <div><strong>Attack:</strong> Walk into an enemy</div>
+            <div><strong>Items:</strong> Walk over to pick up</div>
+            <div><strong>Stairs 🔽:</strong> Go to next floor</div>
+            <div><strong>❤️ Potions:</strong> Heal HP</div>
+            <div><strong>⚔️🛡️:</strong> Boost ATK / DEF</div>
+            <div><strong>💎 Gems:</strong> Bonus coins</div>
+            <div><strong>⭐ Stars:</strong> Full heal</div>
+          </div>
+        </div>
+      </div>
+      <div id="dg-play-area" class="glass-card" hidden></div>
     </section>
 
     <!-- ============== STAFF ============== -->
@@ -311,12 +391,40 @@
         </div>
         <div id="staff-lookup-result" style="margin-top:10px"></div>
       </div>
+      <div class="glass-card">
+        <h3 class="settings-label">Ban / Unban User</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="inp" type="text" id="staff-ban-user" placeholder="username" style="flex:1;min-width:120px" />
+          <input class="inp" type="text" id="staff-ban-reason" placeholder="reason (optional)" style="flex:1;min-width:120px" />
+          <button class="btn btn-danger btn-sm" id="staff-ban-btn">Ban</button>
+          <button class="btn btn-ghost btn-sm" id="staff-unban-btn">Unban</button>
+        </div>
+        <p class="form-err" id="staff-ban-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="settings-label">Give Shop Item</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="inp" type="text" id="staff-item-user" placeholder="username" style="flex:1;min-width:120px" />
+          <input class="inp" type="text" id="staff-item-id" placeholder="item ID (e.g. aurora, mastermind)" style="flex:1;min-width:140px" />
+          <button class="btn btn-primary btn-sm" id="staff-item-btn">Give</button>
+        </div>
+        <p class="form-err" id="staff-item-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="settings-label">Quick Actions</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="staff-confetti-btn">🎊 Confetti</button>
+          <button class="btn btn-primary btn-sm" id="staff-nuke-btn">💥 UI Nuke</button>
+          <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn">🪙 +1000 to self</button>
+        </div>
+      </div>
     </section>
 
   </main>
   <footer class="site-footer"><span>Lobby 98 · made by Cole · 2026</span></footer>
   <script src="/socket.io/socket.io.js"></script>
   <script src="js/arcade.js"></script>
+  <script src="js/dungeon.js"></script>
   <script type="module" src="js/client.js"></script>
 </body>
 </html>
