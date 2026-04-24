@@ -122,7 +122,7 @@ function newGame(){
     inv:[],// max 20
     forgeProg:0,
     lvl:1,xp:0,areaIdx:0,floor:0,areasCleared:0,_mapViewArea:0,
-    enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,autoAtk:true,manualReady:false,
+    enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,autoAtk:true,manualReady:false,autoEquipOn:false,autoLevelOn:false,
   };
 }
 function xpNeed(l){return Math.round(20*l+5*l*l);}
@@ -224,8 +224,10 @@ function updateBattle(dt){
   for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
       g.player.xp=(g.player.xp||0)+(m.xp||5);
       while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts++;if(g.lvl%3===0)g.passivePts++;
-        log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;}
-      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);}
+        log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;
+        if(g.autoLevelOn)autoLevelStats();}
+      if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);
+        if(g.autoEquipOn)autoEquipBest();}
       const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
     if(e.atkTimer<=0){e.atkTimer=e.spd;const d=calcDmg(e.dmg,eArm);
@@ -346,13 +348,14 @@ function renderMap(ctx){
   if(transProgress>0&&transProgress<1){g._mapTrans=Math.min(1,transProgress+0.02);}
   // Themed emoji background (scattered, faded)
   const bgEmojis=AREA_BG[currentArea]||AREA_BG[0];
-  ctx.globalAlpha=0.15;ctx.font="26px serif";ctx.textAlign="center";
-  const scrollT=(Date.now()/40)%120;
-  for(let row=-1;row<6;row++)for(let col=0;col<11;col++){
-    const ei=Math.abs((row*11+col))%bgEmojis.length;
-    const yy=20+row*50-scrollT+(col%2)*25;
-    const yyy=((yy%300)+300)%300-20;
-    ctx.fillText(bgEmojis[ei],30+col*72,yyy);}
+  ctx.globalAlpha=0.14;ctx.font="26px serif";ctx.textAlign="center";
+  const tileH=50,cols=11,rows=7;
+  const scrollY=(Date.now()/30)%tileH;
+  for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+    const ei=(row*cols+col)%bgEmojis.length;
+    const x=30+col*70+(row%2)*35;
+    const y=-10+row*tileH-scrollY;
+    ctx.fillText(bgEmojis[ei],x,y);}
   ctx.globalAlpha=1;
   // Area number / total
   ctx.fillStyle="#8ec8e8";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
@@ -514,23 +517,35 @@ function renderSettings(ctx){
   ctx.fillStyle="#aaa";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText("⚙ Settings",W/2,28);
   g._setBtns=[];
-  const opts=[
-    {label:g.autoAtk?"Auto-Attack: ON":"Auto-Attack: OFF (click to attack)",key:"autoAtk",y:50,desc:g.autoAtk?"You attack automatically on timer":"You must click enemies to trigger each attack"},
-    {label:"Auto-Equip Best Items",key:"autoEquip",y:110,desc:"Equips the highest-stat item for each unlocked slot"},
-    {label:"Auto-Level Stats",key:"autoLevel",y:170,desc:"Spends all stat points (Life > Damage > Armor > Speed)"},
-    {label:"⚠ Reset Progress",key:"reset",y:230,desc:"Wipes all dungeon progress. Cannot be undone!",danger:true},
+  const toggles=[
+    {label:"Auto-Attack",key:"autoAtk",val:g.autoAtk,y:48,desc:"Attacks automatically when timer fills",offDesc:"Click enemies to trigger each attack"},
+    {label:"Auto-Equip",key:"autoEquipOn",val:g.autoEquipOn,y:100,desc:"Automatically equips best items when found",offDesc:"Manually equip items from inventory"},
+    {label:"Auto-Level",key:"autoLevelOn",val:g.autoLevelOn,y:152,desc:"Auto-spends stat points (Life>Dmg>Armor>Spd)",offDesc:"Manually allocate stat points"},
   ];
-  opts.forEach(o=>{
-    const bx=W/2-160,bw=320,bh=48;
-    ctx.fillStyle=o.danger?"#2a1010":"#1a1a2a";
-    ctx.strokeStyle=o.danger?"#e04858":"#3a3a4a";ctx.lineWidth=1;
-    rr(ctx,bx,o.y,bw,bh,6);ctx.fill();rr(ctx,bx,o.y,bw,bh,6);ctx.stroke();
-    ctx.fillStyle=o.danger?"#f88":"#ddd";ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
-    ctx.fillText(o.label,W/2,o.y+20);
-    ctx.fillStyle=o.danger?"#a66":"#888";ctx.font="10px Nunito,sans-serif";
-    ctx.fillText(o.desc,W/2,o.y+38);
-    g._setBtns.push({x:bx,y:o.y,w:bw,h:bh,key:o.key});
+  toggles.forEach(t=>{
+    const bx=40,bw=W-80,bh=42;
+    ctx.fillStyle="#1a1a2a";ctx.strokeStyle="#3a3a4a";ctx.lineWidth=1;
+    rr(ctx,bx,t.y,bw,bh,6);ctx.fill();rr(ctx,bx,t.y,bw,bh,6);ctx.stroke();
+    // Toggle switch
+    const sx=bx+bw-60,sy=t.y+8,sw=48,sh=24;
+    ctx.fillStyle=t.val?"#4caf50":"#333";rr(ctx,sx,sy,sw,sh,12);ctx.fill();
+    ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(t.val?sx+sw-12:sx+12,sy+12,9,0,Math.PI*2);ctx.fill();
+    // Label
+    ctx.fillStyle="#fff";ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="left";
+    ctx.fillText(t.label,bx+14,t.y+18);
+    ctx.fillStyle=t.val?"#8c8":"#888";ctx.font="10px Nunito,sans-serif";
+    ctx.fillText(t.val?t.desc:t.offDesc,bx+14,t.y+34);
+    g._setBtns.push({x:bx,y:t.y,w:bw,h:bh,key:t.key,isToggle:true});
   });
+  // Reset button (not a toggle)
+  const ry=220;
+  ctx.fillStyle="#2a1010";ctx.strokeStyle="#e04858";ctx.lineWidth=1;
+  rr(ctx,W/2-100,ry,200,40,6);ctx.fill();rr(ctx,W/2-100,ry,200,40,6);ctx.stroke();
+  ctx.fillStyle="#f88";ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText("⚠ Reset Progress",W/2,ry+18);
+  ctx.fillStyle="#a66";ctx.font="10px Nunito,sans-serif";
+  ctx.fillText("Wipes all dungeon progress",W/2,ry+34);
+  g._setBtns.push({x:W/2-100,y:ry,w:200,h:40,key:"reset"});
 }
 
 // ─── BATTLE ───
@@ -654,9 +669,9 @@ function renderBottomPanel(ctx){
   g._potBtn=null;
   if(g.tab===TAB.SETTINGS){
     for(const b of(g._setBtns||[])){if(hit(mx,my,b)){
-      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;log(g.autoAtk?"Auto-attack ON":"Auto-attack OFF — click enemies to attack");}
-      if(b.key==="autoEquip"){autoEquipBest();}
-      if(b.key==="autoLevel"){autoLevelStats();}
+      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;}
+      if(b.key==="autoEquipOn"){g.autoEquipOn=!g.autoEquipOn;if(g.autoEquipOn)autoEquipBest();}
+      if(b.key==="autoLevelOn"){g.autoLevelOn=!g.autoLevelOn;if(g.autoLevelOn)autoLevelStats();}
       if(b.key==="reset"){if(confirm("Reset ALL dungeon progress?")){
         localStorage.removeItem("dd_save");g=newGame();recalc();g.player.hp=g.player.mhp;g.tab=TAB.MAP;log("Progress reset!");}}
       return;}}}
@@ -733,9 +748,9 @@ function handleClick(mx,my,onFinish){
     }return;}}}
   if(g.tab===TAB.SETTINGS){
     for(const b of(g._setBtns||[])){if(hit(mx,my,b)){
-      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;log(g.autoAtk?"Auto-attack ON":"Auto-attack OFF — click enemies to attack");}
-      if(b.key==="autoEquip"){autoEquipBest();}
-      if(b.key==="autoLevel"){autoLevelStats();}
+      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;}
+      if(b.key==="autoEquipOn"){g.autoEquipOn=!g.autoEquipOn;if(g.autoEquipOn)autoEquipBest();}
+      if(b.key==="autoLevelOn"){g.autoLevelOn=!g.autoLevelOn;if(g.autoLevelOn)autoLevelStats();}
       if(b.key==="reset"){if(confirm("Reset ALL dungeon progress?")){
         localStorage.removeItem("dd_save");g=newGame();recalc();g.player.hp=g.player.mhp;g.tab=TAB.MAP;log("Progress reset!");}}
       return;}}}
@@ -796,7 +811,8 @@ function saveGame(){
     const save={player:{...g.player},baseStats:g.baseStats,statPts:g.statPts,passivePts:g.passivePts,
       spentStats:g.spentStats,activePassives:[...g.activePassives],slots:g.slots,
       equips:g.equips,inv:g.inv,forgeProg:g.forgeProg,lvl:g.lvl,xp:g.xp,
-      areasCleared:g.areasCleared,totalKills:g.totalKills,totalCoins:g.totalCoins};
+      areasCleared:g.areasCleared,totalKills:g.totalKills,totalCoins:g.totalCoins,
+      autoAtk:g.autoAtk,autoEquipOn:g.autoEquipOn,autoLevelOn:g.autoLevelOn};
     localStorage.setItem("dd_save",JSON.stringify(save));
   }catch(e){console.warn("Save failed",e);}
 }
@@ -810,6 +826,7 @@ function loadGame(){
     g.slots=s.slots||g.slots;g.equips=s.equips||g.equips;g.inv=s.inv||g.inv;
     g.forgeProg=s.forgeProg||0;g.lvl=s.lvl||1;g.xp=s.xp||0;
     g.areasCleared=s.areasCleared||0;g.totalKills=s.totalKills||0;g.totalCoins=s.totalCoins||0;
+    g.autoAtk=s.autoAtk!==undefined?s.autoAtk:true;g.autoEquipOn=!!s.autoEquipOn;g.autoLevelOn=!!s.autoLevelOn;
     g._mapViewArea=g.areasCleared>0?Math.min(g.areasCleared,AREAS.length-1):0;
     recalc();return true;
   }catch(e){console.warn("Load failed",e);return false;}
