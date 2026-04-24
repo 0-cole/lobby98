@@ -186,6 +186,7 @@ const bugStmts = {
   getOpen: db.prepare("SELECT * FROM bug_reports WHERE status = 'open' ORDER BY created_at DESC LIMIT 50"),
   resolve: db.prepare("UPDATE bug_reports SET status = ? WHERE id = ?"),
   deleteOne: db.prepare("DELETE FROM bug_reports WHERE id = ?"),
+  countByUser: db.prepare("SELECT COUNT(*) as cnt FROM bug_reports WHERE user_id = ? AND status = 'open'"),
 };
 export function submitBugReport(userId, username, title, body) {
   bugStmts.insert.run(userId, username, title, body, Date.now());
@@ -195,6 +196,7 @@ export function getBugReports(openOnly) {
 }
 export function resolveBugReport(id, status) { bugStmts.resolve.run(status, id); }
 export function deleteBugReport(id) { bugStmts.deleteOne.run(id); }
+export function countUserOpenBugs(userId) { return bugStmts.countByUser.get(userId)?.cnt || 0; }
 
 // Achievements
 const achStmts = {

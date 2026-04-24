@@ -29,7 +29,7 @@ import {
   addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
   setBan, setPfpEmoji, setCustomTitle,
   getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint,
-  submitBugReport, getBugReports, resolveBugReport, deleteBugReport,
+  submitBugReport, getBugReports, resolveBugReport, deleteBugReport, countUserOpenBugs,
   getUserAchievements, hasAchievement, awardAchievement,
   saveChatMsg, getChatHistory, trimChat, deleteChatMsg, clearAllChat,
   setMod, setMutedUntil, getAllUsers
@@ -701,6 +701,11 @@ app.post("/api/bugs/submit", (req, res) => {
   if (!title || !body) return res.status(400).json({ error: "Title and description required" });
   if (title.length > 100) return res.status(400).json({ error: "Title too long (100 max)" });
   if (body.length > 500) return res.status(400).json({ error: "Description too long (500 max)" });
+  if (countUserOpenBugs(user.id) >= 3) return res.status(429).json({ error: "You already have 3 open bug reports. Wait for staff to review them." });
+  if (user.created_at && Date.now() - user.created_at < 86400000 && !isStaff(user.username)) {
+    const hrs = Math.ceil((86400000 - (Date.now() - user.created_at)) / 3600000);
+    return res.status(403).json({ error: `Your account must be 24 hours old to report bugs. ${hrs}h remaining.` });
+  }
   submitBugReport(user.id, user.username, title.slice(0, 100), body.slice(0, 500));
   checkAchievement(user.id, "bug_report");
   res.json({ ok: true, message: "Bug report submitted! Thanks for helping improve the site." });
@@ -2327,6 +2332,13 @@ io.on("connection", (socket) => {
     if (freshUser && freshUser.muted_until && freshUser.muted_until > Date.now()) {
       const remaining = Math.ceil((freshUser.muted_until - Date.now()) / 60000);
       socket.emit("gchat:blocked", `You're muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
+      return;
+    }
+    // 24h account age requirement (staff/mods exempt)
+    if (freshUser && freshUser.created_at && Date.now() - freshUser.created_at < 86400000
+        && !isStaff(freshUser.username) && !freshUser.is_mod) {
+      const hrs = Math.ceil((86400000 - (Date.now() - freshUser.created_at)) / 3600000);
+      socket.emit("gchat:blocked", `Your account must be 24 hours old to chat. ${hrs}h remaining.`);
       return;
     }
     // Profanity filter
