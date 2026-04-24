@@ -107,7 +107,7 @@ const FORGE_MS=[
 
 // ══════ GAME STATE ══════
 let g=null,_raf=null,_particles=[],_tooltip=null;
-const TAB={MAP:0,STATS:1,FORGE:2,SKILLS:3,BATTLE:4,VICTORY:5,DEFEAT:6};
+const TAB={MAP:0,STATS:1,FORGE:2,SKILLS:3,SETTINGS:7,BATTLE:4,VICTORY:5,DEFEAT:6};
 
 function newGame(){
   return{
@@ -122,7 +122,7 @@ function newGame(){
     inv:[],// max 20
     forgeProg:0,
     lvl:1,xp:0,areaIdx:0,floor:0,areasCleared:0,_mapViewArea:0,
-    enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,
+    enemies:[],totalKills:0,totalCoins:0,log:[],tutPaused:false,autoAtk:true,manualReady:false,
   };
 }
 function xpNeed(l){return Math.round(20*l+5*l*l);}
@@ -206,22 +206,27 @@ function updateBattle(dt){
   const eDmg=p.dmg+(alive.length>=3&&p.ods>0?Math.round(p.dmg*p.ods/100):0);
   if(p.hpr>0&&p.hp>0)p.hp=Math.min(p.mhp,p.hp+p.hpr/60*dt);
   p.atkTimer-=dt;
-  if(p.atkTimer<=0){p.atkTimer=p.spd;p.atkCount++;
-    let mul=1,hitAll=false;
-    if(p.cri>0&&p.atkCount%p.cri===0)mul=2;
-    if(p.swp>0&&p.atkCount%p.swp===0)hitAll=true;
-    const tgt=alive[Math.min(p.target,alive.length-1)];
-    const targets=hitAll?alive:[tgt];
-    for(const t of targets){const raw=Math.round(eDmg*mul);const d=calcDmg(raw,t.shielding&&alive.length>1?t.arm*2:t.arm);
-      t.hp=Math.max(0,t.hp-d);t.dmgFlash=15;addP(t,`-${d}`,mul>1?"#ffd700":"#ff6b6b");
-      if(p.lfl>0)p.hp=Math.min(p.mhp,p.hp+d*p.lfl/100);
-      if(p.spl>0&&!hitAll){for(const nb of alive.filter(x=>x!==t)){const sd=Math.max(1,Math.round(d*p.spl/100));nb.hp=Math.max(0,nb.hp-sd);nb.dmgFlash=8;}}}
-    for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
+  if(p.atkTimer<=0){
+    if(!g.autoAtk){g.manualReady=true;p.atkTimer=0;}
+    else{p.atkTimer=p.spd;p.atkCount++;
+      let mul=1,hitAll=false;
+      if(p.cri>0&&p.atkCount%p.cri===0)mul=2;
+      if(p.swp>0&&p.atkCount%p.swp===0)hitAll=true;
+      const tgt=alive[Math.min(p.target,alive.length-1)];
+      const targets=hitAll?alive:[tgt];
+      for(const t of targets){const raw=Math.round(eDmg*mul);const d=calcDmg(raw,t.shielding&&alive.length>1?t.arm*2:t.arm);
+        t.hp=Math.max(0,t.hp-d);t.dmgFlash=15;addP(t,`-${d}`,mul>1?"#ffd700":"#ff6b6b");
+        if(p.lfl>0)p.hp=Math.min(p.mhp,p.hp+d*p.lfl/100);
+        if(p.spl>0&&!hitAll){for(const nb of alive.filter(x=>x!==t)){const sd=Math.max(1,Math.round(d*p.spl/100));nb.hp=Math.max(0,nb.hp-sd);nb.dmgFlash=8;}}}
+    }
+  }
+  // Process deaths (always runs, not just on attack)
+  for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
       g.player.xp=(g.player.xp||0)+(m.xp||5);
       while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts++;if(g.lvl%3===0)g.passivePts++;
         log(`⬆ Level ${g.lvl}!`);recalc();g.player.hp=g.player.mhp;}
       if(Math.random()<(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.60:.30)&&g.inv.length<20){const it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);}
-      const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}}
+      const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
     if(e.atkTimer<=0){e.atkTimer=e.spd;const d=calcDmg(e.dmg,eArm);
       if(p.es>0)p.es=Math.max(0,p.es-d);else p.hp=Math.max(0,p.hp-d);
@@ -302,9 +307,9 @@ function render(ctx){
 }
 
 function renderNav(ctx){
-  const labels=["M","≡","⚒","✦"];const tabs=[TAB.MAP,TAB.STATS,TAB.FORGE,TAB.SKILLS];
+  const labels=["M","≡","⚒","✦","⚙"];const tabs=[TAB.MAP,TAB.STATS,TAB.FORGE,TAB.SKILLS,TAB.SETTINGS];
   g._nav=[];
-  for(let i=0;i<4;i++){const x=W-180+i*42,y=MID-36;const active=g.tab===tabs[i];
+  for(let i=0;i<5;i++){const x=W-220+i*42,y=MID-36;const active=g.tab===tabs[i];
     ctx.fillStyle=active?"#2a3a2a":"#111";ctx.strokeStyle=active?"#4caf50":"#bbb";ctx.lineWidth=active?2:1;
     rr(ctx,x,y,34,28,3);ctx.fill();rr(ctx,x,y,34,28,3);ctx.stroke();
     ctx.fillStyle=active?"#4caf50":"#ccc";ctx.font="bold 15px Nunito,sans-serif";ctx.textAlign="center";
@@ -318,6 +323,7 @@ function renderTopPanel(ctx){
   else if(t===TAB.STATS)renderStats(ctx);
   else if(t===TAB.FORGE)renderForge(ctx);
   else if(t===TAB.SKILLS)renderSkills(ctx);
+  else if(t===TAB.SETTINGS)renderSettings(ctx);
   else if(t===TAB.BATTLE)renderBattle(ctx);
   else if(t===TAB.VICTORY)renderEnd(ctx,"🏆 Area Cleared!","#4caf50");
   else if(t===TAB.DEFEAT)renderEnd(ctx,"💀 Defeated!","#e04858");
@@ -340,10 +346,13 @@ function renderMap(ctx){
   if(transProgress>0&&transProgress<1){g._mapTrans=Math.min(1,transProgress+0.02);}
   // Themed emoji background (scattered, faded)
   const bgEmojis=AREA_BG[currentArea]||AREA_BG[0];
-  ctx.globalAlpha=0.08;ctx.font="24px serif";ctx.textAlign="center";
-  for(let row=0;row<5;row++)for(let col=0;col<10;col++){
-    const ei=(row*10+col)%bgEmojis.length;
-    ctx.fillText(bgEmojis[ei],40+col*75+(row%2)*35,30+row*52);}
+  ctx.globalAlpha=0.15;ctx.font="26px serif";ctx.textAlign="center";
+  const scrollT=(Date.now()/40)%120;
+  for(let row=-1;row<6;row++)for(let col=0;col<11;col++){
+    const ei=Math.abs((row*11+col))%bgEmojis.length;
+    const yy=20+row*50-scrollT+(col%2)*25;
+    const yyy=((yy%300)+300)%300-20;
+    ctx.fillText(bgEmojis[ei],30+col*72,yyy);}
   ctx.globalAlpha=1;
   // Area number / total
   ctx.fillStyle="#8ec8e8";ctx.font="bold 14px Nunito,sans-serif";ctx.textAlign="center";
@@ -500,6 +509,30 @@ function renderSkills(ctx){
   });
 }
 
+// ─── SETTINGS ───
+function renderSettings(ctx){
+  ctx.fillStyle="#aaa";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText("⚙ Settings",W/2,28);
+  g._setBtns=[];
+  const opts=[
+    {label:g.autoAtk?"Auto-Attack: ON":"Auto-Attack: OFF (click to attack)",key:"autoAtk",y:50,desc:g.autoAtk?"You attack automatically on timer":"You must click enemies to trigger each attack"},
+    {label:"Auto-Equip Best Items",key:"autoEquip",y:110,desc:"Equips the highest-stat item for each unlocked slot"},
+    {label:"Auto-Level Stats",key:"autoLevel",y:170,desc:"Spends all stat points (Life > Damage > Armor > Speed)"},
+    {label:"⚠ Reset Progress",key:"reset",y:230,desc:"Wipes all dungeon progress. Cannot be undone!",danger:true},
+  ];
+  opts.forEach(o=>{
+    const bx=W/2-160,bw=320,bh=48;
+    ctx.fillStyle=o.danger?"#2a1010":"#1a1a2a";
+    ctx.strokeStyle=o.danger?"#e04858":"#3a3a4a";ctx.lineWidth=1;
+    rr(ctx,bx,o.y,bw,bh,6);ctx.fill();rr(ctx,bx,o.y,bw,bh,6);ctx.stroke();
+    ctx.fillStyle=o.danger?"#f88":"#ddd";ctx.font="bold 13px Nunito,sans-serif";ctx.textAlign="center";
+    ctx.fillText(o.label,W/2,o.y+20);
+    ctx.fillStyle=o.danger?"#a66":"#888";ctx.font="10px Nunito,sans-serif";
+    ctx.fillText(o.desc,W/2,o.y+38);
+    g._setBtns.push({x:bx,y:o.y,w:bw,h:bh,key:o.key});
+  });
+}
+
 // ─── BATTLE ───
 function renderBattle(ctx){
   const a=AREAS[g.areaIdx],p=g.player;
@@ -530,7 +563,8 @@ function renderBattle(ctx){
   // Player
   ctx.font="28px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("😎",W/2,MID-50);ctx.textBaseline="alphabetic";
   // Attack timer
-  bar(ctx,W/2-40,MID-30,80,6,1-p.atkTimer/p.spd,"#8ec8e8");
+  bar(ctx,W/2-40,MID-30,80,6,1-p.atkTimer/p.spd,g.manualReady?"#ffd700":"#8ec8e8");
+  if(!g.autoAtk&&g.manualReady){ctx.fillStyle="#ffd700";ctx.font="bold 10px Nunito,sans-serif";ctx.textAlign="center";ctx.fillText("CLICK TO ATTACK!",W/2,MID-36);}
   // Log (top right)
   ctx.textAlign="right";ctx.font="9px Nunito,sans-serif";
   g.log.slice(0,4).forEach((m,i)=>{ctx.globalAlpha=1-i*.22;ctx.fillStyle="#ddd";ctx.fillText(m,W-16,22+i*12);});
@@ -561,6 +595,12 @@ function renderEnd(ctx,title,col){
 
 // ─── BOTTOM PANEL ───
 function renderBottomPanel(ctx){
+  // Exit button (bottom-left, always visible)
+  g._exitBtn={x:14,y:H-42,w:50,h:28};
+  ctx.fillStyle="#1a1a2a";rr(ctx,14,H-42,50,28,4);ctx.fill();
+  ctx.strokeStyle="#444";ctx.lineWidth=1;rr(ctx,14,H-42,50,28,4);ctx.stroke();
+  ctx.fillStyle="#f88";ctx.font="bold 10px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText("← Exit",39,H-24);
   const p=g.player;
   // HP bar
   const hpW=240;
@@ -612,6 +652,14 @@ function renderBottomPanel(ctx){
   }
   // Potion button (if in battle)
   g._potBtn=null;
+  if(g.tab===TAB.SETTINGS){
+    for(const b of(g._setBtns||[])){if(hit(mx,my,b)){
+      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;log(g.autoAtk?"Auto-attack ON":"Auto-attack OFF — click enemies to attack");}
+      if(b.key==="autoEquip"){autoEquipBest();}
+      if(b.key==="autoLevel"){autoLevelStats();}
+      if(b.key==="reset"){if(confirm("Reset ALL dungeon progress?")){
+        localStorage.removeItem("dd_save");g=newGame();recalc();g.player.hp=g.player.mhp;g.tab=TAB.MAP;log("Progress reset!");}}
+      return;}}}
   if(g.tab===TAB.BATTLE){
     const pots=g.inv.filter(it=>it&&it.name==="Potion"||it?.stats?.heal);
     // not implemented as separate potion type, but show flee hint
@@ -621,10 +669,49 @@ function renderBottomPanel(ctx){
 // ══════ INPUT ══════
 function hit(mx,my,r){return r&&mx>=r.x&&mx<=r.x+r.w&&my>=r.y&&my<=r.y+r.h;}
 
+function autoEquipBest(){
+  for(let slot=0;slot<6;slot++){
+    if(!g.slots[slot])continue;
+    const candidates=g.inv.filter(it=>it.slot===slot);
+    if(!candidates.length)continue;
+    // Score each item by total stats
+    const score=it=>{let s=0;for(const v of Object.values(it.stats||{}))s+=Math.abs(v);return s;};
+    candidates.sort((a,b)=>score(b)-score(a));
+    const best=candidates[0];
+    const current=g.equips[slot];
+    if(!current||score(best)>score(current)){
+      const old=g.equips[slot];g.equips[slot]=best;
+      const idx=g.inv.indexOf(best);if(idx>=0)g.inv.splice(idx,1);
+      if(old)g.inv.push(old);
+    }
+  }
+  recalc();log("✅ Auto-equipped best items!");
+}
+
+function autoLevelStats(){
+  if(g.statPts<=0){log("No stat points to spend!");return;}
+  const priority=["mhp","dmg","arm","spd"];
+  while(g.statPts>0){
+    // Find least-spent stat (priority order for ties)
+    let minKey=priority[0],minVal=g.spentStats[priority[0]];
+    for(const k of priority){if(g.spentStats[k]<minVal){minVal=g.spentStats[k];minKey=k;}}
+    g.spentStats[minKey]++;g.statPts--;
+  }
+  recalc();log("✅ Auto-leveled stats!");
+}
+
 function handleClick(mx,my,onFinish){
   _tooltip=null;
+  // Exit button (always active)
+  if(hit(mx,my,g._exitBtn)){
+    saveGame();
+    document.getElementById('dg-play-area').hidden=true;
+    document.getElementById('dg-menu').hidden=false;
+    return;
+  }
   // Nav buttons
-  for(const n of(g._nav||[])){if(hit(mx,my,n)){if(g.tab===TAB.BATTLE&&n.tab!==TAB.BATTLE)return;// can't nav during battle except via flee
+  for(const n of(g._nav||[])){if(hit(mx,my,n)){// Allow nav to settings/stats during battle
+      if(g.tab===TAB.BATTLE&&n.tab!==TAB.BATTLE&&n.tab!==TAB.SETTINGS&&n.tab!==TAB.STATS)return;
     if(g.tab===TAB.VICTORY||g.tab===TAB.DEFEAT)return;g.tab=n.tab;return;}}
   // Top panel clicks
   if(g.tab===TAB.MAP){
@@ -644,8 +731,18 @@ function handleClick(mx,my,onFinish){
       if(!reqMet)return;
       g.activePassives.add(b.idx);g.passivePts--;recalc();
     }return;}}}
+  if(g.tab===TAB.SETTINGS){
+    for(const b of(g._setBtns||[])){if(hit(mx,my,b)){
+      if(b.key==="autoAtk"){g.autoAtk=!g.autoAtk;log(g.autoAtk?"Auto-attack ON":"Auto-attack OFF — click enemies to attack");}
+      if(b.key==="autoEquip"){autoEquipBest();}
+      if(b.key==="autoLevel"){autoLevelStats();}
+      if(b.key==="reset"){if(confirm("Reset ALL dungeon progress?")){
+        localStorage.removeItem("dd_save");g=newGame();recalc();g.player.hp=g.player.mhp;g.tab=TAB.MAP;log("Progress reset!");}}
+      return;}}}
   if(g.tab===TAB.BATTLE){
     for(const b of(g._eBtns||[])){if(hit(mx,my,b)){g.player.target=b.idx;
+      if(!g.autoAtk&&g.manualReady){g.manualReady=false;g.player.atkTimer=g.player.spd;g.player.atkCount++;
+        /* manual attack triggers immediately on next frame */}
       if(g.tutPaused){g.tutPaused=false;g.player.atkTimer=g.player.spd;log("⚔️ Battle started! Watch the blue timer bar — you attack when it fills up.");}}}
     if(hit(mx,my,g._fleeBt)){g.tab=TAB.MAP;log("Fled!");}}
   if(g.tab===TAB.VICTORY||g.tab===TAB.DEFEAT){
