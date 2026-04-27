@@ -60,6 +60,8 @@ try { db.exec("ALTER TABLE users ADD COLUMN stock_cash REAL DEFAULT 1000"); } ca
 try { db.exec("ALTER TABLE users ADD COLUMN pfp_border TEXT DEFAULT 'none'"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN is_mod INTEGER DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN muted_until INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN is_staff INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN staff_perms TEXT DEFAULT '{}'"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS portfolios (
@@ -128,7 +130,9 @@ const s = {
   setPfpBorder: db.prepare("UPDATE users SET pfp_border = ? WHERE id = ?"),
   setMod: db.prepare("UPDATE users SET is_mod = ? WHERE id = ?"),
   setMutedUntil: db.prepare("UPDATE users SET muted_until = ? WHERE id = ?"),
-  allUsers: db.prepare("SELECT id, username, coins, is_banned, is_mod, muted_until, games_played, games_won, total_points, created_at FROM users ORDER BY id DESC"),
+  setStaff: db.prepare("UPDATE users SET is_staff = ? WHERE id = ?"),
+  setStaffPerms: db.prepare("UPDATE users SET staff_perms = ? WHERE id = ?"),
+  allUsers: db.prepare("SELECT id, username, coins, is_banned, is_mod, is_staff, staff_perms, muted_until, games_played, games_won, total_points, created_at FROM users ORDER BY id DESC"),
 };
 
 export function userCount() { return s.countUsers.get().n; }
@@ -177,7 +181,21 @@ export function setShares(userId, stockId, shares) {
 export function setPfpBorder(userId, border) { s.setPfpBorder.run(border, userId); }
 export function setMod(userId, isMod) { s.setMod.run(isMod ? 1 : 0, userId); }
 export function setMutedUntil(userId, until) { s.setMutedUntil.run(until, userId); }
+export function setStaffUser(userId, isStaff) { s.setStaff.run(isStaff ? 1 : 0, userId); }
+export function setStaffPerms(userId, perms) { s.setStaffPerms.run(JSON.stringify(perms), userId); }
+export function getStaffPerms(userId) { const u = s.getById.get(userId); try { return JSON.parse(u?.staff_perms || "{}"); } catch { return {}; } }
 export function getAllUsers() { return s.allUsers.all(); }
+
+// Wipe user progress — selective
+export function wipeUserProgress(userId, what) {
+  if (what === "all" || what === "coins") db.prepare("UPDATE users SET coins = 0 WHERE id = ?").run(userId);
+  if (what === "all" || what === "games") db.prepare("UPDATE users SET games_played = 0, games_won = 0, total_points = 0 WHERE id = ?").run(userId);
+  if (what === "all" || what === "achievements") db.prepare("DELETE FROM user_achievements WHERE user_id = ?").run(userId);
+  if (what === "all" || what === "shop") db.prepare("UPDATE users SET owned_items = '[\"default\",\"none\"]', name_color = 'default', title = 'none', pfp_emoji = '😎', custom_title = NULL, pfp_border = 'none' WHERE id = ?").run(userId);
+  if (what === "all" || what === "stocks") db.prepare("UPDATE users SET stock_cash = 1000 WHERE id = ?").run(userId);
+  // Delete stock portfolio
+  if (what === "all" || what === "stocks") { try { db.prepare("DELETE FROM portfolio WHERE user_id = ?").run(userId); } catch {} }
+}
 
 // Bug reports
 const bugStmts = {
@@ -251,10 +269,26 @@ export function safeUserData(u) {
     ownedItems: (() => { try { return JSON.parse(u.owned_items); } catch { return ["default","none"]; } })(),
     isBanned: !!u.is_banned, banReason: u.ban_reason,
     isMod: !!u.is_mod,
+    isStaff: !!u.is_staff,
+    staffPerms: (() => { try { return JSON.parse(u.staff_perms || "{}"); } catch { return {}; } })(),
     mutedUntil: u.muted_until || 0,
     pfpEmoji: u.pfp_emoji || '😎',
     customTitle: u.custom_title || null,
     stockCash: u.stock_cash ?? 1000,
-    pfpBorder: u.pfp_border || 'none'
+    pfpBorder: u.pfp_border || 'none',
+    createdAt: u.created_at || 0
   };
+}
+
+export function deleteAllUsersExcept(keepUsernames) {
+  const placeholders = keepUsernames.map(() => '?').join(',');
+  const delUsers = db.prepare(`DELETE FROM users WHERE username NOT IN (${placeholders})`);
+  const delSessions = db.prepare(`DELETE FROM sessions WHERE user_id NOT IN (SELECT id FROM users)`);
+  const delBugs = db.prepare(`DELETE FROM bug_reports WHERE user_id NOT IN (SELECT id FROM users)`);
+  const delAch = db.prepare(`DELETE FROM user_achievements WHERE user_id NOT IN (SELECT id FROM users)`);
+  const count = delUsers.run(...keepUsernames).changes;
+  delSessions.run();
+  delBugs.run();
+  delAch.run();
+  return count;
 }

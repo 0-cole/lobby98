@@ -17,6 +17,30 @@ window._socket = socket;
 let gchatInitialized = false;
 
 // ============================================================
+//   ANNOUNCEMENTS (stacking top bars)
+// ============================================================
+function showAnnouncement(text, type = 'info', autoClose = 0) {
+  const container = $('announcements');
+  if (!container) return;
+  const bar = document.createElement('div');
+  bar.className = `announce-bar ${type}`;
+  bar.innerHTML = `<span>${esc(text)}</span><button class="announce-x" title="Dismiss">✕</button>`;
+  const dismiss = () => { bar.style.animation = 'toastOut .2s ease forwards'; setTimeout(() => bar.remove(), 200); };
+  bar.querySelector('.announce-x').addEventListener('click', dismiss);
+  container.appendChild(bar);
+  if (autoClose > 0) setTimeout(dismiss, autoClose);
+}
+
+function checkNewUserNotice() {
+  if (!user || !user.createdAt) return;
+  const age = Date.now() - user.createdAt;
+  if (age < 86400000) {
+    const hrs = Math.ceil((86400000 - age) / 3600000);
+    showAnnouncement(`🕐 New account — chat and bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Play some games in the meantime!`, 'warn');
+  }
+}
+
+// ============================================================
 //   ROUTING
 // ============================================================
 const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market"];
@@ -90,7 +114,7 @@ async function checkSession() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); }
+    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); checkNewUserNotice(); }
     else { user = null; updateUI(); }
   } catch { user = null; updateUI(); }
 }
@@ -117,6 +141,7 @@ async function authSubmit(endpoint, form, errorEl) {
     socket.disconnect(); socket.connect();
     // Init global chat after reconnect gives the middleware time to set socket.data.user
     setTimeout(initGChatOnce, 600);
+    checkNewUserNotice();
   } catch { errorEl.textContent = "Network error"; }
 }
 
@@ -472,8 +497,8 @@ socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter }) => { myCha
 socket.on("chat:message", msg => { addChat(msg); scrollChat(); });
 socket.on("room:kicked", ({ by }) => { $("kicked-by").textContent = by ? `(by ${by})` : ""; resetRoomState(); showPage("page-kicked"); });
 socket.on("disconnect", () => { if (me) { resetRoomState(); showPage("page-dashboard"); } });
-socket.on("kicked", ({ reason }) => { alert("You've been kicked: " + (reason || "No reason")); location.reload(); });
-socket.on("banned", ({ reason }) => { alert("You've been banned: " + (reason || "No reason")); location.reload(); });
+socket.on("kicked", ({ reason }) => { showAnnouncement("You've been kicked: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
+socket.on("banned", ({ reason }) => { showAnnouncement("You've been banned: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
 
 // ============================================================
 //   ARCADE
@@ -673,18 +698,20 @@ const fnBtn = document.getElementById('fake-news-refresh');
 if (fnBtn) fnBtn.addEventListener('click', loadFakeNews);
 
 // Staff check
-let isStaffUser = false, isModUser = false;
+let isStaffUser = false, isModUser = false, isOwnerUser = false;
 async function checkStaff() {
   try {
     const res = await fetch('/api/staff/check');
     const data = await res.json();
+    isOwnerUser = data.isOwner;
     isStaffUser = data.isStaff;
     isModUser = data.isMod;
     const link = document.getElementById('nav-staff-link');
     if (link) link.hidden = !(data.isStaff || data.isMod);
-    // Staff/mod users get delete buttons on chat messages
     if (data.isStaff || data.isMod) document.body.classList.add('is-staff');
     else document.body.classList.remove('is-staff');
+    if (data.isOwner) document.body.classList.add('is-owner');
+    else document.body.classList.remove('is-owner');
   } catch {}
 }
 
@@ -755,6 +782,7 @@ if (staffLookupBtn) staffLookupBtn.addEventListener('click', async () => {
       const p = data.user;
       let statusBadges = '';
       if (p.isBanned) statusBadges += '<span class="staff-user-badge banned">Banned</span> ';
+      if (p.isStaff) statusBadges += '<span class="staff-user-badge" style="background:rgba(255,215,0,0.15);color:#ffd700">Staff</span> ';
       if (p.isMod) statusBadges += '<span class="staff-user-badge mod">Mod</span> ';
       if (p.mutedUntil && p.mutedUntil > Date.now()) {
         const mins = Math.ceil((p.mutedUntil - Date.now()) / 60000);
@@ -780,7 +808,7 @@ socket.on('site:event', ({ event }) => {
 });
 
 socket.on('site:broadcast', ({ message, from }) => {
-  alert(`📢 ${from}: ${message}`);
+  showAnnouncement(`📢 ${from}: ${message}`, 'broadcast');
 });
 
 socket.on('site:userEvent', ({ event, user: who }) => {
@@ -956,7 +984,7 @@ function renderRoomBrowser(roomList) {
       const nameInp = $("join-name-input");
       const name = nameInp?.value?.trim() || user?.username || "Player";
       socket.emit("room:join", { name, code: r.code }, resp => {
-        if (resp?.error) { alert(resp.error); return; }
+        if (resp?.error) { showAnnouncement(resp.error, 'danger', 5000); return; }
         me = resp.you; isSpectator = !!resp.spectator; enterRoom(resp.snapshot, resp.chat);
       });
     });
@@ -1169,6 +1197,20 @@ if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
   await refreshUser();
 });
 
+// ── Delete All Accounts ──
+const staffDeleteAllBtn = document.getElementById("staff-deleteall-btn");
+if (staffDeleteAllBtn) staffDeleteAllBtn.addEventListener("click", async () => {
+  const msg = $("staff-deleteall-msg"); msg.textContent = "";
+  if (!confirm("⚠️ This will DELETE every account except staff. Are you sure?")) return;
+  if (!confirm("FINAL WARNING: This cannot be undone. Type OK to proceed.")) return;
+  try {
+    const res = await fetch("/api/staff/deleteallaccounts", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({confirm:"DELETE_ALL"}) });
+    const data = await res.json();
+    msg.textContent = data.message || data.error;
+    msg.style.color = res.ok ? "var(--success)" : "var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
 // ── Timeout / Mute ──
 const staffMuteBtn = document.getElementById("staff-mute-btn");
 if (staffMuteBtn) staffMuteBtn.addEventListener("click", async () => {
@@ -1274,6 +1316,7 @@ if (staffUsersRefresh) staffUsersRefresh.addEventListener("click", async () => {
       let badges = '';
       if (u.online) badges += '<span class="staff-user-badge online">Online</span>';
       if (u.is_banned) badges += '<span class="staff-user-badge banned">Banned</span>';
+      if (u.is_staff) badges += '<span class="staff-user-badge" style="background:rgba(255,215,0,0.15);color:#ffd700">Staff</span>';
       if (u.is_mod) badges += '<span class="staff-user-badge mod">Mod</span>';
       if (u.muted_until && u.muted_until > Date.now()) badges += '<span class="staff-user-badge muted">Muted</span>';
       return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">🪙${u.coins}</span>${badges}</div>`;
@@ -1291,6 +1334,71 @@ setInterval(async () => {
     el.textContent = data.count || 0;
   } catch {}
 }, 5000);
+
+// ── Owner: Staff Management ──
+const staffPromoteBtn = document.getElementById("staff-promote-btn");
+if (staffPromoteBtn) staffPromoteBtn.addEventListener("click", async () => {
+  const u = $("staff-promote-user").value.trim();
+  const msg = $("staff-promote-msg"); msg.textContent = "";
+  if (!u) return;
+  const perms = {};
+  document.querySelectorAll("#staff-perms-grid input[type=checkbox]").forEach(cb => { if (cb.checked) perms[cb.dataset.perm] = true; });
+  try {
+    const res = await fetch("/api/staff/makestaff", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeStaff:true,perms}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffDemoteBtn = document.getElementById("staff-demote-btn");
+if (staffDemoteBtn) staffDemoteBtn.addEventListener("click", async () => {
+  const u = $("staff-promote-user").value.trim();
+  const msg = $("staff-promote-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/makestaff", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeStaff:false}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Staff: Wipe User Progress ──
+const staffWipeBtn = document.getElementById("staff-wipe-btn");
+if (staffWipeBtn) staffWipeBtn.addEventListener("click", async () => {
+  const u = $("staff-wipe-user").value.trim();
+  const what = $("staff-wipe-what").value;
+  const msg = $("staff-wipe-msg"); msg.textContent = "";
+  if (!u) return;
+  if (!confirm(`Wipe ${what} for ${u}? This cannot be undone.`)) return;
+  try {
+    const res = await fetch("/api/staff/wipeprogress", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,what}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Self-Wipe (profile settings) ──
+const wipeInput = document.getElementById("wipe-confirm-input");
+const wipeBtn = document.getElementById("wipe-confirm-btn");
+const WIPE_PHRASE = "I want to erase all the progress I have in everything I own.";
+if (wipeInput && wipeBtn) {
+  // Block paste
+  wipeInput.addEventListener("paste", e => e.preventDefault());
+  wipeInput.addEventListener("drop", e => e.preventDefault());
+  // Enable button only when exact match
+  wipeInput.addEventListener("input", () => {
+    wipeBtn.disabled = wipeInput.value !== WIPE_PHRASE;
+  });
+  wipeBtn.addEventListener("click", async () => {
+    const msg = $("wipe-msg"); msg.textContent = "";
+    if (wipeInput.value !== WIPE_PHRASE) { msg.textContent = "Type the exact sentence."; msg.style.color = "var(--danger)"; return; }
+    try {
+      const res = await fetch("/api/profile/wipe", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({confirmation:wipeInput.value}) });
+      const data = await res.json();
+      if (res.ok) {
+        msg.textContent = "All progress erased."; msg.style.color = "var(--success)";
+        wipeInput.value = ""; wipeBtn.disabled = true;
+        await refreshUser();
+      } else { msg.textContent = data.error; msg.style.color = "var(--danger)"; }
+    } catch { msg.textContent = "Error"; }
+  });
+}
 
 // ============================================================
 //   BUG REPORTS
@@ -1452,7 +1560,8 @@ function addGChatMsg(msg) {
   const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
   // Role badge
   let badge = '';
-  if (msg.isStaff) badge = '<span class="gchat-role-badge staff-badge">STAFF</span>';
+  if (msg.isOwner) badge = '<span class="gchat-role-badge owner-badge">OWNER</span>';
+  else if (msg.isStaff) badge = '<span class="gchat-role-badge staff-badge">STAFF</span>';
   else if (msg.isMod) badge = '<span class="gchat-role-badge mod-badge">MOD</span>';
   // Delete button (only visible to staff/mod via CSS)
   const delBtn = msg.id ? `<button class="gchat-delete-btn" data-del-id="${msg.id}" title="Delete message">✕</button>` : '';

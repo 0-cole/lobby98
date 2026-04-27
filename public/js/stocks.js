@@ -60,7 +60,7 @@
               body: JSON.stringify({ stockId, amount: 1 })
             });
             const d = await res.json();
-            if (!res.ok) { alert(d.error); return; }
+            if (!res.ok) { showAnnouncement(d.error, 'danger', 4000); return; }
             this.load(container); // refresh
           } catch {}
         });

@@ -354,7 +354,7 @@ function updateBattle(dt){
     }
   }
   // Process deaths (always runs, not just on attack)
-  for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
+  for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;g.statPts++;
       let xpGain=(m.xp||5)*2;
       if(p.dblXp>0&&Math.random()*100<p.dblXp){xpGain*=2;log("💰 Double XP!");}
       g.player.xp=(g.player.xp||0)+xpGain;
@@ -390,7 +390,8 @@ function floorCleared(){
   const a=AREAS[g.areaIdx];g.floor++;
   g.player.hp=Math.min(g.player.mhp,Math.ceil(g.player.hp+g.player.mhp*.15));
   g.player.es=Math.round(g.player.mhp*g.player.mes/100);
-  if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
+  if(g.floor>=a.floors.length){const isNewClear=g.areaIdx+1>g.areasCleared;g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
+    if(isNewClear){g.passivePts++;log("✦ +1 skill point for clearing a new world!");}
     g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);
     if(a.tutorial){
       log("📖 Tutorial complete! You now know the basics:");

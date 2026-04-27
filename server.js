@@ -22,7 +22,7 @@ import { pickPrompts } from "./prompts.js";
 import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
 import { pickEchoPrompts } from "./echoprompts.js";
-import { containsProfanity, cleanText } from "./filter.js";
+import { containsProfanity, cleanText, checkMessage } from "./filter.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
@@ -32,7 +32,9 @@ import {
   submitBugReport, getBugReports, resolveBugReport, deleteBugReport, countUserOpenBugs,
   getUserAchievements, hasAchievement, awardAchievement,
   saveChatMsg, getChatHistory, trimChat, deleteChatMsg, clearAllChat,
-  setMod, setMutedUntil, getAllUsers
+  setMod, setMutedUntil, getAllUsers,
+  deleteAllUsersExcept,
+  setStaffUser, setStaffPerms, getStaffPerms, wipeUserProgress
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,14 +64,41 @@ function clearCookie(res) {
 // ============================================================
 //   AUTH ENDPOINTS
 // ============================================================
+// Registration rate limit: max 2 accounts per IP per hour
+const regRateMap = new Map(); // ip -> [timestamp, timestamp, ...]
+function checkRegRate(ip) {
+  const now = Date.now(), window = 3600000; // 1 hour
+  const times = (regRateMap.get(ip) || []).filter(t => now - t < window);
+  regRateMap.set(ip, times);
+  return times.length < 2;
+}
+function recordReg(ip) {
+  const times = regRateMap.get(ip) || [];
+  times.push(Date.now());
+  regRateMap.set(ip, times);
+}
+// Clean up rate map every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, times] of regRateMap) {
+    const valid = times.filter(t => now - t < 3600000);
+    if (valid.length === 0) regRateMap.delete(ip);
+    else regRateMap.set(ip, valid);
+  }
+}, 600000);
+
 app.post("/api/register", async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: "Missing fields" });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: "Username: 3-16 chars, letters/numbers/underscore" });
   if (password.length < 4) return res.status(400).json({ error: "Password must be 4+ chars" });
+  // Rate limit by IP
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  if (!checkRegRate(ip)) return res.status(429).json({ error: "Too many accounts created. Try again later." });
   if (getUserByName(username)) return res.status(409).json({ error: "Username taken" });
   const hash = await bcrypt.hash(password, 10);
   const user = createUser(username, hash);
+  recordReg(ip);
   const token = makeToken();
   createSession(token, user.id);
   setCookie(res, token);
@@ -312,18 +341,22 @@ app.get("/api/fakenews", (req, res) => {
 // ============================================================
 //   STAFF ENDPOINTS
 // ============================================================
-const STAFF_USERS = ["cole"]; // hardcoded staff
+const OWNER_USERS = ["cole"]; // hardcoded owner — cannot be demoted
 
+function isOwner(username) { return OWNER_USERS.includes(username?.toLowerCase()); }
 function isStaff(username) {
-  return STAFF_USERS.includes(username?.toLowerCase());
+  if (isOwner(username)) return true;
+  const u = getUserByName(username);
+  return !!(u && u.is_staff);
 }
 
 app.get("/api/staff/check", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");
   const sess = cookies.session ? getSession(cookies.session) : null;
-  if (!sess) return res.json({ isStaff: false, isMod: false });
+  if (!sess) return res.json({ isOwner: false, isStaff: false, isMod: false });
   const user = getUserById(sess.user_id);
-  res.json({ isStaff: isStaff(user?.username), isMod: !!(user && user.is_mod) });
+  const perms = isOwner(user?.username) ? "all" : (() => { try { return JSON.parse(user?.staff_perms || "{}"); } catch { return {}; } })();
+  res.json({ isOwner: isOwner(user?.username), isStaff: isStaff(user?.username), isMod: !!(user && user.is_mod), staffPerms: perms });
 });
 
 app.post("/api/staff/givecoins", (req, res) => {
@@ -433,7 +466,14 @@ app.post("/api/staff/confetti", (req, res) => {
 // Check if user is staff OR mod (for actions mods can perform)
 function isStaffOrMod(user) {
   if (!user) return false;
-  return isStaff(user.username) || !!user.is_mod;
+  return isOwner(user.username) || !!user.is_staff || !!user.is_mod;
+}
+// Check if a staff user has a specific permission (owner has all)
+function hasPerm(user, perm) {
+  if (!user) return false;
+  if (isOwner(user.username)) return true;
+  if (!user.is_staff) return false;
+  try { const perms = JSON.parse(user.staff_perms || "{}"); return !!perms[perm]; } catch { return false; }
 }
 
 app.post("/api/staff/makemod", (req, res) => {
@@ -553,6 +593,88 @@ app.get("/api/staff/users", (req, res) => {
 
 app.get("/api/staff/onlinecount", (req, res) => {
   res.json({ count: io.sockets.sockets.size });
+});
+
+app.post("/api/staff/deleteallaccounts", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isOwner(staff?.username)) return res.status(403).json({ error: "Owner only" });
+  const { confirm } = req.body || {};
+  if (confirm !== "DELETE_ALL") return res.status(400).json({ error: "Must confirm with DELETE_ALL" });
+  // Disconnect all non-staff sockets
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user && !isStaff(s.data.user.username)) {
+      s.emit("kicked", { reason: "All accounts purged by staff" });
+      s.disconnect(true);
+    }
+  }
+  const count = deleteAllUsersExcept(OWNER_USERS);
+  res.json({ ok: true, message: `Deleted ${count} accounts. Staff accounts preserved.` });
+});
+
+// ── Owner-only: Make/Remove Staff with permissions ──
+app.post("/api/staff/makestaff", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const owner = getUserById(sess.user_id);
+  if (!isOwner(owner?.username)) return res.status(403).json({ error: "Owner only" });
+  const { username, makeStaff, perms } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isOwner(target.username)) return res.status(400).json({ error: "Can't modify owner" });
+  setStaffUser(target.id, !!makeStaff);
+  if (makeStaff && perms) setStaffPerms(target.id, perms);
+  if (!makeStaff) { setStaffPerms(target.id, {}); setMod(target.id, false); }
+  res.json({ ok: true, message: makeStaff ? `${target.username} is now staff` : `${target.username} is no longer staff` });
+});
+
+app.post("/api/staff/setperms", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const owner = getUserById(sess.user_id);
+  if (!isOwner(owner?.username)) return res.status(403).json({ error: "Owner only" });
+  const { username, perms } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (!target.is_staff) return res.status(400).json({ error: "User is not staff" });
+  setStaffPerms(target.id, perms || {});
+  res.json({ ok: true, message: `Updated permissions for ${target.username}` });
+});
+
+// ── Staff: Wipe user progress (requires wipe permission) ──
+app.post("/api/staff/wipeprogress", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!hasPerm(staff, "wipe")) return res.status(403).json({ error: "No wipe permission" });
+  const { username, what } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isOwner(target.username)) return res.status(400).json({ error: "Can't wipe owner" });
+  const valid = ["all", "coins", "games", "achievements", "shop", "stocks"];
+  if (!valid.includes(what)) return res.status(400).json({ error: "Invalid wipe type. Use: " + valid.join(", ") });
+  wipeUserProgress(target.id, what);
+  res.json({ ok: true, message: `Wiped ${what} for ${target.username}` });
+});
+
+// ── Self-wipe: User erases their own progress ──
+app.post("/api/profile/wipe", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  const { confirmation } = req.body || {};
+  const expected = "I want to erase all the progress I have in everything I own.";
+  if (confirmation !== expected) return res.status(400).json({ error: "Confirmation text doesn't match" });
+  // Wipe everything but keep username/password/staff/mod status
+  wipeUserProgress(user.id, "all");
+  res.json({ ok: true, message: "All progress has been erased." });
 });
 
 // Profile endpoints
@@ -2320,6 +2442,66 @@ app.post("/api/achievements/dungeon", (req, res) => {
   res.json({ ok: true });
 });
 
+// ═══════════════════════════════════════════════════
+// CHAT MODERATION SYSTEM
+// ═══════════════════════════════════════════════════
+// Rate limiting: max 3 messages per 5 seconds per user
+const chatRateMap = new Map(); // userId -> [timestamp, ...]
+function checkChatRate(userId) {
+  const now = Date.now(), window = 5000;
+  const times = (chatRateMap.get(userId) || []).filter(t => now - t < window);
+  chatRateMap.set(userId, times);
+  if (times.length >= 3) return false;
+  times.push(now);
+  chatRateMap.set(userId, times);
+  return true;
+}
+
+// Duplicate detection: block same message twice in a row
+const lastMsgMap = new Map(); // userId -> { text, time }
+function isDuplicate(userId, text) {
+  const last = lastMsgMap.get(userId);
+  if (last && last.text === text && Date.now() - last.time < 30000) return true;
+  lastMsgMap.set(userId, { text, time: Date.now() });
+  return false;
+}
+
+// Auto-escalation: track filter violations per user
+const violationMap = new Map(); // userId -> { count, lastTime }
+function recordViolation(userId) {
+  const now = Date.now();
+  const v = violationMap.get(userId) || { count: 0, lastTime: 0 };
+  // Reset if last violation was over 1 hour ago
+  if (now - v.lastTime > 3600000) v.count = 0;
+  v.count++;
+  v.lastTime = now;
+  violationMap.set(userId, v);
+  // Auto-mute escalation
+  if (v.count >= 6) {
+    setMutedUntil(userId, now + 3600000); // 1 hour
+    return { autoMuted: true, duration: 60 };
+  } else if (v.count >= 3) {
+    setMutedUntil(userId, now + 600000); // 10 minutes
+    return { autoMuted: true, duration: 10 };
+  }
+  return { autoMuted: false, remaining: (v.count >= 3 ? 0 : 3 - v.count) };
+}
+
+// Clean up rate maps every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, times] of chatRateMap) {
+    const valid = times.filter(t => now - t < 5000);
+    if (valid.length === 0) chatRateMap.delete(id); else chatRateMap.set(id, valid);
+  }
+  for (const [id, last] of lastMsgMap) {
+    if (now - last.time > 60000) lastMsgMap.delete(id);
+  }
+  for (const [id, v] of violationMap) {
+    if (now - v.lastTime > 3600000) violationMap.delete(id);
+  }
+}, 300000);
+
 io.on("connection", (socket) => {
 
   // ----- Global Chat (persistent) -----
@@ -2327,8 +2509,11 @@ io.on("connection", (socket) => {
     if (!socket.data.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
+    const uid = socket.data.user.id;
+    const isUserStaff = isStaff(socket.data.user.username);
+
     // Check mute
-    const freshUser = getUserById(socket.data.user.id);
+    const freshUser = getUserById(uid);
     if (freshUser && freshUser.muted_until && freshUser.muted_until > Date.now()) {
       const remaining = Math.ceil((freshUser.muted_until - Date.now()) / 60000);
       socket.emit("gchat:blocked", `You're muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
@@ -2336,14 +2521,35 @@ io.on("connection", (socket) => {
     }
     // 24h account age requirement (staff/mods exempt)
     if (freshUser && freshUser.created_at && Date.now() - freshUser.created_at < 86400000
-        && !isStaff(freshUser.username) && !freshUser.is_mod) {
+        && !isUserStaff && !freshUser.is_mod) {
       const hrs = Math.ceil((86400000 - (Date.now() - freshUser.created_at)) / 3600000);
       socket.emit("gchat:blocked", `Your account must be 24 hours old to chat. ${hrs}h remaining.`);
       return;
     }
-    // Profanity filter
-    if (containsProfanity(text)) {
-      socket.emit("gchat:blocked", "Message blocked for inappropriate language");
+    // Rate limiting: 3 messages per 5 seconds (staff exempt)
+    if (!isUserStaff && !checkChatRate(uid)) {
+      socket.emit("gchat:blocked", "Slow down! Max 3 messages per 5 seconds.");
+      return;
+    }
+    // Duplicate detection (staff exempt)
+    if (!isUserStaff && isDuplicate(uid, text)) {
+      socket.emit("gchat:blocked", "Don't send the same message twice.");
+      return;
+    }
+    // Advanced profanity/slur filter
+    const filterResult = checkMessage(text);
+    if (filterResult) {
+      const esc = recordViolation(uid);
+      let feedback = "Message blocked for inappropriate language";
+      if (filterResult.severity === 'severe') feedback = "Message blocked — slurs and hate speech are not tolerated";
+      else if (filterResult.reason === 'evasion') feedback = "Message blocked — filter evasion detected";
+      else if (filterResult.reason === 'spam') feedback = "Message blocked — character spam";
+      if (esc.autoMuted) {
+        feedback += `. Auto-muted for ${esc.duration} minutes.`;
+        // Notify user about auto-mute
+        socket.emit("gchat:muted", { minutes: esc.duration });
+      }
+      socket.emit("gchat:blocked", feedback);
       return;
     }
     // Word Spy anti-cheat: block messages containing the active spy word
@@ -2368,19 +2574,22 @@ io.on("connection", (socket) => {
         }
       }
     }
-    const isUserStaff = isStaff(socket.data.user.username);
+    // AI Moderation (async, only for messages that passed keyword filter)
+    // Fire-and-forget style: send the message optimistically, delete if AI flags it
     const isUserMod = !!(freshUser && freshUser.is_mod);
+    const isUserOwner = isOwner(socket.data.user.username);
     const entry = {
       user: socket.data.user.username,
       color: socket.data.user.nameColor || "#22aed1",
       text,
       time: Date.now(),
+      isOwner: isUserOwner,
       isStaff: isUserStaff,
       isMod: isUserMod,
     };
     try { entry.id = saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
     io.emit("gchat:msg", entry);
-    checkAchievement(socket.data.user.id, "chat_first");
+    checkAchievement(uid, "chat_first");
   });
 
   socket.on("gchat:history", (_, ack) => {
@@ -2390,7 +2599,7 @@ io.on("connection", (socket) => {
         // Attach role info to history messages
         const enriched = history.map(m => {
           const u = getUserByName(m.username);
-          return { ...m, user: m.username, isStaff: isStaff(m.username), isMod: !!(u && u.is_mod) };
+          return { ...m, user: m.username, isOwner: isOwner(m.username), isStaff: isStaff(m.username), isMod: !!(u && u.is_mod) };
         });
         ack(enriched);
       } catch { ack([]); }

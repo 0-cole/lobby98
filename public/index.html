@@ -47,6 +47,9 @@
     </div>
   </nav>
 
+  <!-- === ANNOUNCEMENT BARS === -->
+  <div id="announcements"></div>
+
   <main class="stage" id="stage">
 
     <!-- ============== AUTH ============== -->
@@ -321,6 +324,73 @@
           <button class="btn btn-ghost" id="logout-btn">Log Out</button>
         </div>
       </div>
+      <div class="glass-card">
+        <h2 class="card-title" style="color:var(--danger)">⚠️ Erase All Progress</h2>
+        <p class="card-desc" style="font-size:12px;color:var(--ink3)">This will permanently delete your coins, achievements, shop items, game stats, and stock portfolio. Your username and password will be kept. This cannot be undone.</p>
+        <p style="font-size:12px;color:var(--danger);margin:8px 0;font-weight:700">Type exactly: <em>"I want to erase all the progress I have in everything I own."</em></p>
+        <input class="inp" type="text" id="wipe-confirm-input" placeholder="Type the sentence above..." style="width:100%" autocomplete="off" />
+        <button class="btn btn-danger" id="wipe-confirm-btn" style="width:100%;margin-top:8px" disabled>Erase Everything</button>
+        <p class="form-err" id="wipe-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h2 class="card-title">📋 Update Log</h2>
+        <div style="max-height:400px;overflow-y:auto;font-size:13px;color:var(--ink2);line-height:1.6" id="update-log">
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.5 — April 2026</div>
+            <div>👑 Owner/Staff/Mod role hierarchy with selective permissions</div>
+            <div>🧹 Staff can wipe user progress (coins, games, achievements, shop, stocks)</div>
+            <div>⚠️ Self-wipe option in Settings (type exact phrase, paste blocked)</div>
+            <div>🍀 New Luck skill tree branch (Scavenger, Fortune, Jackpot, Treasure, Golden Touch)</div>
+            <div>⚔️ Major dungeon rebalance — 2x XP, 2 stat pts/level, +1 stat per kill, +1 skill per world</div>
+            <div>🗺️ Area selector redesigned as sliding carousel</div>
+            <div>🔄 Shift+hover item comparison in dungeon inventory</div>
+            <div>✦ Skill tree now uses tabs for 4 branches</div>
+            <div>🛡️ Advanced chat moderation — leetspeak/homoglyph/spacing evasion detection</div>
+            <div>⏱️ Chat rate limiting (3 msg / 5 sec) and duplicate detection</div>
+            <div>⚠️ Auto-mute escalation (3 violations = 10 min, 6 = 1 hour)</div>
+            <div>🔒 Registration rate limit (2 accounts/IP/hour)</div>
+            <div>🕐 24-hour account age for chat & bugs, new user notice bar</div>
+            <div>📋 This update log!</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.4 — Staff Panel Overhaul</div>
+            <div>🛡️ Redesigned staff panel with 14 admin tools (Eastlake-style grid)</div>
+            <div>💬 Per-message delete buttons on global chat for staff/mods</div>
+            <div>🔇 Timeout/mute system (up to 24 hours)</div>
+            <div>👢 Kick user, ⭐ Make/Remove Mod, 🔑 Reset Password</div>
+            <div>👥 User list with online/banned/mod/muted badges</div>
+            <div>🐛 Bug report spam limit (3 per user)</div>
+            <div>🕐 24-hour account age required for chat & bug reports</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.3 — Global Chat</div>
+            <div>💬 Persistent global chat sidebar (survives restarts)</div>
+            <div>🏷️ STAFF and MOD role badges on messages</div>
+            <div>🚫 Profanity filter with user feedback</div>
+            <div>🕵️ Word Spy anti-cheat blocks spy words in chat</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.2 — Deep Dive RPG</div>
+            <div>⚔️ 26 areas, 50+ monsters, 5 rarities, 8 unique weapons</div>
+            <div>⚒️ Forge & dismantle system</div>
+            <div>✦ Skill tree with 4 branches</div>
+            <div>🏆 Auto-save, settings panel, tutorial</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.1 — Arcade & Market</div>
+            <div>🎮 5 arcade games + Blitz multiplayer shooter</div>
+            <div>📈 Fake stock market with live prices</div>
+            <div>🛒 Cosmetic shop (name colors, borders, titles)</div>
+            <div>🏆 16 achievements</div>
+          </div>
+          <div>
+            <div style="font-weight:700;color:var(--ink1)">v1.0 — Launch</div>
+            <div>🎉 4 party games: Frequency, Word Spy, Chain, Echo</div>
+            <div>👤 Accounts, profiles, leaderboard</div>
+            <div>🎨 Frutiger Aero UI</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ============== MARKET ============== -->
@@ -437,6 +507,49 @@
           <p class="form-err" id="staff-mod-msg"></p>
         </div>
 
+        <!-- Owner: Staff Management -->
+        <div class="glass-card owner-only">
+          <h3 class="settings-label">👑 Staff Management <span style="font-size:9px;background:rgba(255,215,0,0.2);color:#ffd700;padding:1px 6px;border-radius:4px;margin-left:4px">OWNER</span></h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <input class="inp" type="text" id="staff-promote-user" placeholder="username" style="flex:1;min-width:100px" />
+            <button class="btn btn-primary btn-sm" id="staff-promote-btn">Make Staff</button>
+            <button class="btn btn-ghost btn-sm" id="staff-demote-btn">Remove Staff</button>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Permissions (check to grant):</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px" id="staff-perms-grid">
+            <label><input type="checkbox" data-perm="ban" /> Ban/Unban</label>
+            <label><input type="checkbox" data-perm="kick" /> Kick</label>
+            <label><input type="checkbox" data-perm="mute" /> Mute</label>
+            <label><input type="checkbox" data-perm="coins" /> Give Coins</label>
+            <label><input type="checkbox" data-perm="items" /> Give Items</label>
+            <label><input type="checkbox" data-perm="broadcast" /> Broadcast</label>
+            <label><input type="checkbox" data-perm="event" /> Site Events</label>
+            <label><input type="checkbox" data-perm="chat" /> Clear Chat</label>
+            <label><input type="checkbox" data-perm="resetpw" /> Reset Password</label>
+            <label><input type="checkbox" data-perm="wipe" /> Wipe Progress</label>
+            <label><input type="checkbox" data-perm="mod" /> Make Mods</label>
+          </div>
+          <p class="form-err" id="staff-promote-msg"></p>
+        </div>
+
+        <!-- Staff: Wipe User Progress -->
+        <div class="glass-card">
+          <h3 class="settings-label">🧹 Wipe User Progress</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input class="inp" type="text" id="staff-wipe-user" placeholder="username" style="flex:1;min-width:100px" />
+            <select class="inp" id="staff-wipe-what" style="width:120px">
+              <option value="all">Everything</option>
+              <option value="coins">Coins only</option>
+              <option value="games">Game stats</option>
+              <option value="achievements">Achievements</option>
+              <option value="shop">Shop/cosmetics</option>
+              <option value="stocks">Stocks</option>
+            </select>
+            <button class="btn btn-danger btn-sm" id="staff-wipe-btn">Wipe</button>
+          </div>
+          <p class="form-err" id="staff-wipe-msg"></p>
+        </div>
+
         <!-- Give Coins -->
         <div class="glass-card">
           <h3 class="settings-label">🪙 Give Coins</h3>
@@ -512,6 +625,10 @@
             <button class="btn btn-primary btn-sm" id="staff-nuke-btn">💥 UI Nuke</button>
             <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn">🪙 +1000 to self</button>
           </div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(224,72,88,0.15)">
+            <button class="btn btn-danger btn-sm" id="staff-deleteall-btn" style="width:100%">☢️ Delete ALL Non-Staff Accounts</button>
+            <p class="form-err" id="staff-deleteall-msg"></p>
+          </div>
         </div>
 
         <!-- User List -->
@@ -571,5 +688,81 @@
   <script src="js/stocks.js"></script>
   <script src="js/shooter.js"></script>
   <script type="module" src="js/client.js"></script>
+  <!-- Hidden YouTube Player -->
+  <div id="yt-player-wrap" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none"><div id="yt-player"></div></div>
+
+  <!-- Music Control Button -->
+  <button id="music-toggle" title="Toggle music" style="position:fixed;bottom:44px;left:12px;z-index:300;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s">🔇</button>
+
+  <script>
+  (function(){
+    const TRACKS = ['gVOzQfe_GQE','1YRRvQuCfjM','x_x4THh-tJk'];
+    let player = null, started = false, muted = false, currentIdx = -1;
+
+    // Shuffle helper
+    function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+    let queue = shuffle(TRACKS);
+
+    function nextTrack(){
+      currentIdx++;
+      if(currentIdx >= queue.length){ queue = shuffle(TRACKS); currentIdx = 0; }
+      if(player && player.loadVideoById) player.loadVideoById(queue[currentIdx]);
+    }
+
+    // Load YT IFrame API
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+
+    window.onYouTubeIframeAPIReady = function(){
+      player = new YT.Player('yt-player', {
+        height:'1',width:'1',
+        videoId: queue[0],
+        playerVars: { autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
+        events: {
+          onReady: function(e){
+            e.target.setVolume(15); // Quiet — 15% volume
+            currentIdx = 0;
+          },
+          onStateChange: function(e){
+            if(e.data === YT.PlayerState.ENDED) nextTrack();
+          },
+          onError: function(){ nextTrack(); }
+        }
+      });
+    };
+
+    // Start on first user interaction (click anywhere)
+    function startMusic(){
+      if(started) return;
+      started = true;
+      if(player && player.playVideo){ player.playVideo(); }
+      else { setTimeout(startMusic, 500); started = false; return; }
+      const btn = document.getElementById('music-toggle');
+      if(btn) btn.textContent = '🎵';
+      document.removeEventListener('click', startMusic);
+      document.removeEventListener('keydown', startMusic);
+    }
+    document.addEventListener('click', startMusic, { once: false });
+    document.addEventListener('keydown', startMusic, { once: false });
+
+    // Toggle button
+    const btn = document.getElementById('music-toggle');
+    if(btn) btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(!player) return;
+      if(!started){ startMusic(); return; }
+      muted = !muted;
+      if(muted){ player.mute(); btn.textContent = '🔇'; }
+      else { player.unMute(); btn.textContent = '🎵'; }
+    });
+    // Right-click to skip track
+    if(btn) btn.addEventListener('contextmenu', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(started && player) nextTrack();
+    });
+  })();
+  </script>
+
 </body>
 </html>
