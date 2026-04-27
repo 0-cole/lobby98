@@ -336,16 +336,42 @@ label{display:flex;flex-direction:column;gap:4px}
 /* FOOTER */
 .site-footer{text-align:center;padding:18px 16px 28px;color:var(--ink3);font-size:12px;font-weight:500;position:relative;z-index:10}
 
-/* XMB Wave Ribbon (PS3 style — centered) */
+/* XMB Wave Ribbon (PS3 style — centered, 13 layers) */
 .xmb-wave{position:fixed;top:50%;left:0;right:0;height:400px;transform:translateY(-50%);z-index:-7;pointer-events:none;overflow:hidden}
 .xmb-svg{width:100%;height:100%}
 .xmb-path{fill-opacity:0.28}
-.xmb-1{fill:rgba(60,190,240,0.7);animation:xmbFlow1 12s ease-in-out infinite}
-.xmb-2{fill:rgba(100,220,200,0.6);animation:xmbFlow2 15s ease-in-out infinite}
-.xmb-3{fill:rgba(200,240,140,0.5);animation:xmbFlow3 18s ease-in-out infinite}
-@keyframes xmbFlow1{0%,100%{d:path("M0,220 C360,120 720,320 1080,180 C1260,120 1380,260 1440,220 L1440,280 C1380,240 1260,180 1080,220 C720,280 360,160 0,260 Z")}50%{d:path("M0,180 C300,300 600,100 900,240 C1200,340 1380,140 1440,200 L1440,260 C1380,200 1200,300 900,200 C600,140 300,260 0,240 Z")}}
-@keyframes xmbFlow2{0%,100%{d:path("M0,240 C300,140 600,320 900,190 C1100,120 1300,280 1440,230 L1440,300 C1300,250 1100,170 900,240 C600,300 300,180 0,290 Z")}50%{d:path("M0,200 C360,280 720,130 1080,260 C1260,320 1380,170 1440,210 L1440,270 C1380,220 1260,300 1080,230 C720,170 360,260 0,250 Z")}}
-@keyframes xmbFlow3{0%,100%{d:path("M0,260 C240,160 480,340 720,210 C960,120 1200,300 1440,250 L1440,320 C1200,270 960,170 720,260 C480,320 240,200 0,310 Z")}50%{d:path("M0,230 C300,320 600,150 900,280 C1100,210 1300,330 1440,270 L1440,330 C1300,300 1100,240 900,310 C600,200 300,300 0,280 Z")}}
+/* 3 BIG */
+.xmb-b1{fill:rgba(60,190,240,0.55);animation:xmbB1 12s ease-in-out infinite}
+.xmb-b2{fill:rgba(80,210,220,0.50);animation:xmbB2 15s ease-in-out infinite}
+.xmb-b3{fill:rgba(100,230,180,0.45);animation:xmbB3 18s ease-in-out infinite}
+/* 4 SMALL */
+.xmb-s1{fill:rgba(50,180,250,0.40);animation:xmbS1 10s ease-in-out infinite}
+.xmb-s2{fill:rgba(90,220,200,0.35);animation:xmbS2 13s ease-in-out infinite}
+.xmb-s3{fill:rgba(120,230,160,0.35);animation:xmbS3 16s ease-in-out infinite}
+.xmb-s4{fill:rgba(180,240,130,0.30);animation:xmbS4 11s ease-in-out infinite}
+/* 6 TINY */
+.xmb-t1{fill:rgba(40,170,255,0.50);animation:xmbT1 8s ease-in-out infinite}
+.xmb-t2{fill:rgba(70,200,230,0.45);animation:xmbT2 9s ease-in-out infinite}
+.xmb-t3{fill:rgba(100,215,200,0.40);animation:xmbT3 7s ease-in-out infinite}
+.xmb-t4{fill:rgba(130,225,170,0.40);animation:xmbT4 10s ease-in-out infinite}
+.xmb-t5{fill:rgba(160,235,140,0.35);animation:xmbT5 8.5s ease-in-out infinite}
+.xmb-t6{fill:rgba(190,240,120,0.35);animation:xmbT6 11s ease-in-out infinite}
+/* BIG animations */
+@keyframes xmbB1{0%,100%{d:path("M0,180 C360,100 720,280 1080,150 C1260,100 1380,230 1440,180 L1440,240 C1380,200 1260,150 1080,200 C720,260 360,140 0,230 Z")}50%{d:path("M0,170 C300,250 600,110 900,220 C1200,300 1380,130 1440,190 L1440,250 C1380,180 1200,270 900,180 C600,140 300,230 0,220 Z")}}
+@keyframes xmbB2{0%,100%{d:path("M0,210 C300,130 600,300 900,170 C1100,110 1300,260 1440,210 L1440,270 C1300,230 1100,160 900,220 C600,280 300,170 0,260 Z")}50%{d:path("M0,200 C360,270 720,140 1080,240 C1260,290 1380,160 1440,200 L1440,260 C1380,210 1260,270 1080,210 C720,170 360,250 0,250 Z")}}
+@keyframes xmbB3{0%,100%{d:path("M0,240 C240,150 480,320 720,190 C960,120 1200,280 1440,240 L1440,300 C1200,260 960,170 720,240 C480,300 240,190 0,290 Z")}50%{d:path("M0,230 C300,300 600,160 900,270 C1100,200 1300,310 1440,250 L1440,310 C1300,290 1100,240 900,280 C600,200 300,290 0,280 Z")}}
+/* SMALL animations */
+@keyframes xmbS1{0%,100%{d:path("M0,160 C400,120 800,220 1200,140 C1350,120 1400,180 1440,160 L1440,185 C1400,170 1350,140 1200,165 C800,210 400,140 0,185 Z")}50%{d:path("M0,155 C350,190 700,130 1050,175 C1300,200 1400,150 1440,165 L1440,190 C1400,160 1300,190 1050,168 C700,145 350,185 0,180 Z")}}
+@keyframes xmbS2{0%,100%{d:path("M0,195 C350,150 700,260 1050,180 C1250,140 1380,220 1440,195 L1440,220 C1380,205 1250,160 1050,205 C700,250 350,170 0,220 Z")}50%{d:path("M0,190 C400,230 800,165 1200,215 C1350,240 1420,190 1440,200 L1440,225 C1420,200 1350,230 1200,210 C800,180 400,225 0,215 Z")}}
+@keyframes xmbS3{0%,100%{d:path("M0,230 C300,190 650,290 1000,210 C1200,170 1350,250 1440,230 L1440,255 C1350,240 1200,190 1000,235 C650,280 300,210 0,255 Z")}50%{d:path("M0,225 C350,260 700,200 1050,245 C1250,270 1380,215 1440,235 L1440,260 C1380,225 1250,260 1050,240 C700,215 350,255 0,250 Z")}}
+@keyframes xmbS4{0%,100%{d:path("M0,265 C280,220 560,310 840,240 C1080,190 1320,280 1440,260 L1440,285 C1320,270 1080,210 840,265 C560,300 280,240 0,285 Z")}50%{d:path("M0,260 C330,290 660,230 990,275 C1200,300 1380,245 1440,265 L1440,290 C1380,255 1200,290 990,270 C660,245 330,285 0,280 Z")}}
+/* TINY animations */
+@keyframes xmbT1{0%,100%{d:path("M0,145 C480,125 960,180 1440,145 L1440,155 C960,175 480,135 0,155 Z")}50%{d:path("M0,150 C400,165 800,135 1200,155 C1360,162 1420,148 1440,152 L1440,162 C1420,155 1360,158 1200,160 C800,145 400,160 0,160 Z")}}
+@keyframes xmbT2{0%,100%{d:path("M0,175 C360,155 720,210 1080,170 C1260,155 1380,190 1440,175 L1440,185 C1380,185 1260,165 1080,180 C720,205 360,165 0,185 Z")}50%{d:path("M0,178 C400,195 800,165 1200,185 C1350,192 1420,178 1440,180 L1440,190 C1420,184 1350,188 1200,188 C800,172 400,192 0,188 Z")}}
+@keyframes xmbT3{0%,100%{d:path("M0,200 C400,180 800,230 1200,195 C1350,185 1420,210 1440,200 L1440,210 C1420,205 1350,195 1200,205 C800,225 400,190 0,210 Z")}50%{d:path("M0,205 C360,218 720,192 1080,210 C1280,218 1400,202 1440,205 L1440,215 C1400,208 1280,214 1080,212 C720,198 360,215 0,215 Z")}}
+@keyframes xmbT4{0%,100%{d:path("M0,225 C320,210 640,250 960,220 C1200,205 1380,240 1440,225 L1440,235 C1380,235 1200,215 960,230 C640,245 320,220 0,235 Z")}50%{d:path("M0,228 C380,240 760,218 1140,232 C1320,238 1400,225 1440,228 L1440,238 C1400,230 1320,234 1140,235 C760,224 380,238 0,238 Z")}}
+@keyframes xmbT5{0%,100%{d:path("M0,255 C440,235 880,280 1320,250 C1400,245 1430,260 1440,255 L1440,265 C1430,262 1400,255 1320,260 C880,275 440,245 0,265 Z")}50%{d:path("M0,258 C400,268 800,248 1200,262 C1360,268 1420,256 1440,258 L1440,268 C1420,262 1360,265 1200,265 C800,255 400,265 0,268 Z")}}
+@keyframes xmbT6{0%,100%{d:path("M0,280 C360,265 720,300 1080,275 C1260,265 1380,290 1440,280 L1440,290 C1380,286 1260,275 1080,285 C720,296 360,275 0,290 Z")}50%{d:path("M0,282 C420,292 840,272 1260,285 C1380,290 1420,280 1440,282 L1440,292 C1420,286 1380,288 1260,290 C840,278 420,290 0,292 Z")}}
 
 /* Extra bubbles */
 .b10{left:8%;width:42px;height:42px;animation-duration:23s;animation-delay:-18s}
@@ -524,9 +550,6 @@ body.theme-midnight .orb1{background:radial-gradient(circle,rgba(130,60,220,.4),
 body.theme-midnight .orb2{background:radial-gradient(circle,rgba(80,20,160,.4),transparent 70%)}
 body.theme-midnight .orb3{background:radial-gradient(circle,rgba(200,140,255,.15),transparent 70%)}
 body.theme-midnight .bubble{background:radial-gradient(circle at 30% 25%,rgba(200,160,255,.6)0%,rgba(140,80,200,.2)25%,rgba(80,40,140,.08)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(100,50,180,.12),inset 4px 4px 10px rgba(200,160,255,.3),0 0 16px rgba(140,80,200,.15)}
-body.theme-midnight .xmb-1{fill:rgba(130,60,220,0.7)}
-body.theme-midnight .xmb-2{fill:rgba(100,40,180,0.6)}
-body.theme-midnight .xmb-3{fill:rgba(180,120,255,0.5)}
 body.theme-midnight .top-nav{background:rgba(20,10,40,.6)}
 body.theme-midnight .nav-link{color:var(--ink3)}
 body.theme-midnight .nav-link:hover{background:rgba(100,50,180,.3)}
@@ -544,9 +567,6 @@ body.theme-sunset .orb1{background:radial-gradient(circle,rgba(255,100,60,.5),tr
 body.theme-sunset .orb2{background:radial-gradient(circle,rgba(255,180,40,.5),transparent 70%)}
 body.theme-sunset .orb3{background:radial-gradient(circle,rgba(255,220,140,.2),transparent 70%)}
 body.theme-sunset .bubble{background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.8)0%,rgba(255,200,180,.3)25%,rgba(255,140,80,.1)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(200,80,40,.1),inset 4px 4px 10px rgba(255,255,255,.5),0 0 16px rgba(255,180,100,.2)}
-body.theme-sunset .xmb-1{fill:rgba(255,100,60,0.7)}
-body.theme-sunset .xmb-2{fill:rgba(255,160,40,0.6)}
-body.theme-sunset .xmb-3{fill:rgba(255,220,100,0.5)}
 
 /* ── Golden Hour (yellow/amber/warm) ── */
 body.theme-golden{--sky1:#d4a020;--sky2:#c08818;--sky3:#e8c060;--deep:#4a3010;--mid:#b08020;--accent:#d4a020;--accent-lt:#e8c868;--ink:#3a2810;--ink2:#7a6040;--ink3:#a09060;--glass:rgba(255,255,255,0.50);--glass-edge:rgba(255,240,200,0.75);--glass-sh:rgba(80,50,10,0.12);--neo:#f0e8d0;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(80,50,10,0.12)}
@@ -555,9 +575,6 @@ body.theme-golden .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 2
 body.theme-golden .orb1{background:radial-gradient(circle,rgba(255,200,50,.5),transparent 70%)}
 body.theme-golden .orb2{background:radial-gradient(circle,rgba(220,160,30,.5),transparent 70%)}
 body.theme-golden .orb3{background:radial-gradient(circle,rgba(255,240,180,.2),transparent 70%)}
-body.theme-golden .xmb-1{fill:rgba(255,200,50,0.7)}
-body.theme-golden .xmb-2{fill:rgba(220,170,40,0.6)}
-body.theme-golden .xmb-3{fill:rgba(255,230,130,0.5)}
 
 /* ── Forest (emerald/green) ── */
 body.theme-forest{--sky1:#1a6030;--sky2:#2a8040;--sky3:#60b060;--deep:#0a2a10;--mid:#1a7030;--accent:#30a050;--accent-lt:#70d080;--ink:#0a2a10;--ink2:#3a6a40;--ink3:#5a8a60;--glass:rgba(255,255,255,0.48);--glass-edge:rgba(200,240,200,0.7);--glass-sh:rgba(10,50,20,0.15);--neo:#d8f0d8;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(10,50,20,0.12)}
@@ -566,9 +583,6 @@ body.theme-forest .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 2
 body.theme-forest .orb1{background:radial-gradient(circle,rgba(60,180,80,.4),transparent 70%)}
 body.theme-forest .orb2{background:radial-gradient(circle,rgba(100,200,120,.4),transparent 70%)}
 body.theme-forest .orb3{background:radial-gradient(circle,rgba(180,240,180,.15),transparent 70%)}
-body.theme-forest .xmb-1{fill:rgba(60,180,80,0.7)}
-body.theme-forest .xmb-2{fill:rgba(80,200,100,0.6)}
-body.theme-forest .xmb-3{fill:rgba(140,220,140,0.5)}
 
 /* ── Sakura (pink/lavender) ── */
 body.theme-sakura{--sky1:#e08090;--sky2:#c080b0;--sky3:#e0b0c0;--deep:#4a1a2a;--mid:#c06080;--accent:#e080a0;--accent-lt:#f0b0c0;--ink:#4a1a2a;--ink2:#8a4a60;--ink3:#a07080;--glass:rgba(255,255,255,0.50);--glass-edge:rgba(255,210,220,0.75);--glass-sh:rgba(100,20,50,0.10);--neo:#f8e0e8;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(100,20,50,0.10)}
@@ -577,9 +591,6 @@ body.theme-sakura .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 2
 body.theme-sakura .orb1{background:radial-gradient(circle,rgba(255,140,180,.4),transparent 70%)}
 body.theme-sakura .orb2{background:radial-gradient(circle,rgba(200,120,180,.4),transparent 70%)}
 body.theme-sakura .orb3{background:radial-gradient(circle,rgba(255,200,220,.15),transparent 70%)}
-body.theme-sakura .xmb-1{fill:rgba(255,140,180,0.7)}
-body.theme-sakura .xmb-2{fill:rgba(220,120,160,0.6)}
-body.theme-sakura .xmb-3{fill:rgba(255,180,200,0.5)}
 
 /* ── Neon (cyan/magenta cyberpunk) ── */
 body.theme-neon{--sky1:#0a0a20;--sky2:#0d0d30;--sky3:#0a0a18;--deep:#e0f0ff;--mid:#00e5ff;--accent:#ff00ff;--accent-lt:#ff80ff;--ink:#e0f0ff;--ink2:#80c0e0;--ink3:#5090b0;--glass:rgba(10,10,30,0.6);--glass-hi:rgba(20,20,50,0.7);--glass-edge:rgba(0,200,255,0.2);--glass-sh:rgba(0,0,0,0.4);--neo:rgba(15,15,35,0.6);--neo-hi:rgba(30,30,60,0.5);--neo-lo:rgba(0,0,0,0.5)}
@@ -589,9 +600,6 @@ body.theme-neon .orb1{background:radial-gradient(circle,rgba(0,229,255,.4),trans
 body.theme-neon .orb2{background:radial-gradient(circle,rgba(255,0,255,.3),transparent 70%)}
 body.theme-neon .orb3{background:radial-gradient(circle,rgba(0,255,200,.1),transparent 70%)}
 body.theme-neon .bubble{background:radial-gradient(circle at 30% 25%,rgba(0,229,255,.4)0%,rgba(255,0,255,.15)25%,rgba(0,200,255,.05)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(0,100,200,.1),inset 4px 4px 10px rgba(0,229,255,.2),0 0 16px rgba(255,0,255,.1)}
-body.theme-neon .xmb-1{fill:rgba(0,229,255,0.65)}
-body.theme-neon .xmb-2{fill:rgba(255,0,255,0.5)}
-body.theme-neon .xmb-3{fill:rgba(0,255,200,0.4)}
 body.theme-neon .top-nav{background:rgba(8,8,20,.7)}
 body.theme-neon .nav-link{color:var(--ink3)}
 body.theme-neon .nav-link:hover{background:rgba(0,200,255,.15)}
@@ -609,9 +617,6 @@ body.theme-ocean .orb1{background:radial-gradient(circle,rgba(30,120,180,.4),tra
 body.theme-ocean .orb2{background:radial-gradient(circle,rgba(20,160,180,.4),transparent 70%)}
 body.theme-ocean .orb3{background:radial-gradient(circle,rgba(80,200,220,.12),transparent 70%)}
 body.theme-ocean .bubble{background:radial-gradient(circle at 30% 25%,rgba(100,200,240,.5)0%,rgba(40,140,180,.2)25%,rgba(20,100,140,.08)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(10,60,100,.1),inset 4px 4px 10px rgba(80,180,220,.2),0 0 16px rgba(40,140,180,.12)}
-body.theme-ocean .xmb-1{fill:rgba(30,120,180,0.7)}
-body.theme-ocean .xmb-2{fill:rgba(20,160,180,0.6)}
-body.theme-ocean .xmb-3{fill:rgba(60,180,200,0.5)}
 body.theme-ocean .top-nav{background:rgba(5,20,40,.6)}
 body.theme-ocean .nav-link{color:var(--ink3)}
 body.theme-ocean .nav-link:hover{background:rgba(30,120,180,.25)}
@@ -629,9 +634,6 @@ body.theme-lava .orb1{background:radial-gradient(circle,rgba(255,60,30,.35),tran
 body.theme-lava .orb2{background:radial-gradient(circle,rgba(200,40,20,.3),transparent 70%)}
 body.theme-lava .orb3{background:radial-gradient(circle,rgba(255,120,60,.1),transparent 70%)}
 body.theme-lava .bubble{background:radial-gradient(circle at 30% 25%,rgba(255,120,60,.4)0%,rgba(200,40,20,.15)25%,rgba(150,30,15,.06)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(100,20,10,.1),inset 4px 4px 10px rgba(255,100,50,.15),0 0 16px rgba(255,60,30,.08)}
-body.theme-lava .xmb-1{fill:rgba(255,60,30,0.65)}
-body.theme-lava .xmb-2{fill:rgba(200,40,20,0.5)}
-body.theme-lava .xmb-3{fill:rgba(255,140,60,0.4)}
 body.theme-lava .top-nav{background:rgba(15,5,5,.65)}
 body.theme-lava .nav-link{color:var(--ink3)}
 body.theme-lava .nav-link:hover{background:rgba(200,40,20,.25)}
@@ -648,6 +650,122 @@ body.theme-arctic .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 2
 body.theme-arctic .orb1{background:radial-gradient(circle,rgba(160,220,255,.4),transparent 70%)}
 body.theme-arctic .orb2{background:radial-gradient(circle,rgba(200,240,255,.4),transparent 70%)}
 body.theme-arctic .orb3{background:radial-gradient(circle,rgba(230,245,255,.2),transparent 70%)}
-body.theme-arctic .xmb-1{fill:rgba(120,200,240,0.7)}
-body.theme-arctic .xmb-2{fill:rgba(160,220,255,0.6)}
-body.theme-arctic .xmb-3{fill:rgba(200,235,255,0.5)}
+
+/* Theme wave overrides (13 ribbons) */
+body.theme-midnight .xmb-b1{fill:rgba(130,60,220,0.55)}
+body.theme-midnight .xmb-b2{fill:rgba(100,40,180,0.5)}
+body.theme-midnight .xmb-b3{fill:rgba(180,120,255,0.45)}
+body.theme-midnight .xmb-s1{fill:rgba(120,50,200,0.4)}
+body.theme-midnight .xmb-s2{fill:rgba(90,30,170,0.35)}
+body.theme-midnight .xmb-s3{fill:rgba(160,100,240,0.35)}
+body.theme-midnight .xmb-s4{fill:rgba(200,140,255,0.3)}
+body.theme-midnight .xmb-t1{fill:rgba(130,60,220,0.45)}
+body.theme-midnight .xmb-t2{fill:rgba(100,40,180,0.4)}
+body.theme-midnight .xmb-t3{fill:rgba(180,120,255,0.38)}
+body.theme-midnight .xmb-t4{fill:rgba(130,60,220,0.35)}
+body.theme-midnight .xmb-t5{fill:rgba(100,40,180,0.32)}
+body.theme-midnight .xmb-t6{fill:rgba(180,120,255,0.3)}
+body.theme-sunset .xmb-b1{fill:rgba(255,100,60,0.55)}
+body.theme-sunset .xmb-b2{fill:rgba(255,160,40,0.5)}
+body.theme-sunset .xmb-b3{fill:rgba(255,220,100,0.45)}
+body.theme-sunset .xmb-s1{fill:rgba(255,80,50,0.4)}
+body.theme-sunset .xmb-s2{fill:rgba(255,130,30,0.35)}
+body.theme-sunset .xmb-s3{fill:rgba(255,180,60,0.35)}
+body.theme-sunset .xmb-s4{fill:rgba(255,210,90,0.3)}
+body.theme-sunset .xmb-t1{fill:rgba(255,100,60,0.45)}
+body.theme-sunset .xmb-t2{fill:rgba(255,160,40,0.4)}
+body.theme-sunset .xmb-t3{fill:rgba(255,220,100,0.38)}
+body.theme-sunset .xmb-t4{fill:rgba(255,100,60,0.35)}
+body.theme-sunset .xmb-t5{fill:rgba(255,160,40,0.32)}
+body.theme-sunset .xmb-t6{fill:rgba(255,220,100,0.3)}
+body.theme-golden .xmb-b1{fill:rgba(255,200,50,0.55)}
+body.theme-golden .xmb-b2{fill:rgba(220,170,40,0.5)}
+body.theme-golden .xmb-b3{fill:rgba(255,230,130,0.45)}
+body.theme-golden .xmb-s1{fill:rgba(240,180,40,0.4)}
+body.theme-golden .xmb-s2{fill:rgba(200,150,30,0.35)}
+body.theme-golden .xmb-s3{fill:rgba(245,210,80,0.35)}
+body.theme-golden .xmb-s4{fill:rgba(255,235,150,0.3)}
+body.theme-golden .xmb-t1{fill:rgba(255,200,50,0.45)}
+body.theme-golden .xmb-t2{fill:rgba(220,170,40,0.4)}
+body.theme-golden .xmb-t3{fill:rgba(255,230,130,0.38)}
+body.theme-golden .xmb-t4{fill:rgba(255,200,50,0.35)}
+body.theme-golden .xmb-t5{fill:rgba(220,170,40,0.32)}
+body.theme-golden .xmb-t6{fill:rgba(255,230,130,0.3)}
+body.theme-forest .xmb-b1{fill:rgba(60,180,80,0.55)}
+body.theme-forest .xmb-b2{fill:rgba(80,200,100,0.5)}
+body.theme-forest .xmb-b3{fill:rgba(140,220,140,0.45)}
+body.theme-forest .xmb-s1{fill:rgba(50,160,70,0.4)}
+body.theme-forest .xmb-s2{fill:rgba(70,190,90,0.35)}
+body.theme-forest .xmb-s3{fill:rgba(120,210,120,0.35)}
+body.theme-forest .xmb-s4{fill:rgba(160,230,160,0.3)}
+body.theme-forest .xmb-t1{fill:rgba(60,180,80,0.45)}
+body.theme-forest .xmb-t2{fill:rgba(80,200,100,0.4)}
+body.theme-forest .xmb-t3{fill:rgba(140,220,140,0.38)}
+body.theme-forest .xmb-t4{fill:rgba(60,180,80,0.35)}
+body.theme-forest .xmb-t5{fill:rgba(80,200,100,0.32)}
+body.theme-forest .xmb-t6{fill:rgba(140,220,140,0.3)}
+body.theme-sakura .xmb-b1{fill:rgba(255,140,180,0.55)}
+body.theme-sakura .xmb-b2{fill:rgba(220,120,160,0.5)}
+body.theme-sakura .xmb-b3{fill:rgba(255,180,200,0.45)}
+body.theme-sakura .xmb-s1{fill:rgba(240,120,160,0.4)}
+body.theme-sakura .xmb-s2{fill:rgba(210,100,140,0.35)}
+body.theme-sakura .xmb-s3{fill:rgba(245,160,190,0.35)}
+body.theme-sakura .xmb-s4{fill:rgba(255,190,210,0.3)}
+body.theme-sakura .xmb-t1{fill:rgba(255,140,180,0.45)}
+body.theme-sakura .xmb-t2{fill:rgba(220,120,160,0.4)}
+body.theme-sakura .xmb-t3{fill:rgba(255,180,200,0.38)}
+body.theme-sakura .xmb-t4{fill:rgba(255,140,180,0.35)}
+body.theme-sakura .xmb-t5{fill:rgba(220,120,160,0.32)}
+body.theme-sakura .xmb-t6{fill:rgba(255,180,200,0.3)}
+body.theme-neon .xmb-b1{fill:rgba(0,229,255,0.55)}
+body.theme-neon .xmb-b2{fill:rgba(255,0,255,0.5)}
+body.theme-neon .xmb-b3{fill:rgba(0,255,200,0.45)}
+body.theme-neon .xmb-s1{fill:rgba(0,200,240,0.4)}
+body.theme-neon .xmb-s2{fill:rgba(220,0,220,0.35)}
+body.theme-neon .xmb-s3{fill:rgba(0,230,180,0.35)}
+body.theme-neon .xmb-s4{fill:rgba(180,0,255,0.3)}
+body.theme-neon .xmb-t1{fill:rgba(0,229,255,0.45)}
+body.theme-neon .xmb-t2{fill:rgba(255,0,255,0.4)}
+body.theme-neon .xmb-t3{fill:rgba(0,255,200,0.38)}
+body.theme-neon .xmb-t4{fill:rgba(0,229,255,0.35)}
+body.theme-neon .xmb-t5{fill:rgba(255,0,255,0.32)}
+body.theme-neon .xmb-t6{fill:rgba(0,255,200,0.3)}
+body.theme-ocean .xmb-b1{fill:rgba(30,120,180,0.55)}
+body.theme-ocean .xmb-b2{fill:rgba(20,160,180,0.5)}
+body.theme-ocean .xmb-b3{fill:rgba(60,180,200,0.45)}
+body.theme-ocean .xmb-s1{fill:rgba(20,100,160,0.4)}
+body.theme-ocean .xmb-s2{fill:rgba(15,140,170,0.35)}
+body.theme-ocean .xmb-s3{fill:rgba(50,160,190,0.35)}
+body.theme-ocean .xmb-s4{fill:rgba(80,190,210,0.3)}
+body.theme-ocean .xmb-t1{fill:rgba(30,120,180,0.45)}
+body.theme-ocean .xmb-t2{fill:rgba(20,160,180,0.4)}
+body.theme-ocean .xmb-t3{fill:rgba(60,180,200,0.38)}
+body.theme-ocean .xmb-t4{fill:rgba(30,120,180,0.35)}
+body.theme-ocean .xmb-t5{fill:rgba(20,160,180,0.32)}
+body.theme-ocean .xmb-t6{fill:rgba(60,180,200,0.3)}
+body.theme-lava .xmb-b1{fill:rgba(255,60,30,0.55)}
+body.theme-lava .xmb-b2{fill:rgba(200,40,20,0.5)}
+body.theme-lava .xmb-b3{fill:rgba(255,140,60,0.45)}
+body.theme-lava .xmb-s1{fill:rgba(240,50,20,0.4)}
+body.theme-lava .xmb-s2{fill:rgba(180,30,15,0.35)}
+body.theme-lava .xmb-s3{fill:rgba(255,100,40,0.35)}
+body.theme-lava .xmb-s4{fill:rgba(255,160,80,0.3)}
+body.theme-lava .xmb-t1{fill:rgba(255,60,30,0.45)}
+body.theme-lava .xmb-t2{fill:rgba(200,40,20,0.4)}
+body.theme-lava .xmb-t3{fill:rgba(255,140,60,0.38)}
+body.theme-lava .xmb-t4{fill:rgba(255,60,30,0.35)}
+body.theme-lava .xmb-t5{fill:rgba(200,40,20,0.32)}
+body.theme-lava .xmb-t6{fill:rgba(255,140,60,0.3)}
+body.theme-arctic .xmb-b1{fill:rgba(120,200,240,0.55)}
+body.theme-arctic .xmb-b2{fill:rgba(160,220,255,0.5)}
+body.theme-arctic .xmb-b3{fill:rgba(200,235,255,0.45)}
+body.theme-arctic .xmb-s1{fill:rgba(100,180,230,0.4)}
+body.theme-arctic .xmb-s2{fill:rgba(140,210,250,0.35)}
+body.theme-arctic .xmb-s3{fill:rgba(180,225,255,0.35)}
+body.theme-arctic .xmb-s4{fill:rgba(210,240,255,0.3)}
+body.theme-arctic .xmb-t1{fill:rgba(120,200,240,0.45)}
+body.theme-arctic .xmb-t2{fill:rgba(160,220,255,0.4)}
+body.theme-arctic .xmb-t3{fill:rgba(200,235,255,0.38)}
+body.theme-arctic .xmb-t4{fill:rgba(120,200,240,0.35)}
+body.theme-arctic .xmb-t5{fill:rgba(160,220,255,0.32)}
+body.theme-arctic .xmb-t6{fill:rgba(200,235,255,0.3)}
