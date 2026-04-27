@@ -24,7 +24,7 @@ import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
 import { pickEchoPrompts } from "./echoprompts.js";
 import { containsProfanity, cleanText, checkMessage } from "./filter.js";
-import { GRADIENTS, GRADIENT_BY_ID, isGradientId } from "./gradients.js";
+import { GRADIENTS } from "./gradients.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
@@ -707,9 +707,7 @@ app.post("/api/profile/update", (req, res) => {
   if (pfpEmoji) setPfpEmoji(user.id, pfpEmoji.slice(0, 4));
   if (nameColor) {
     const owned = getOwnedItems(user.id);
-    // Gradient IDs are free for everyone (huge gallery in profile picker).
-    // Shop colors still require ownership.
-    if (owned.includes(nameColor) || isGradientId(nameColor)) setColor(user.id, nameColor);
+    if (owned.includes(nameColor)) setColor(user.id, nameColor);
   }
   if (title !== undefined) {
     if (title === "custom" && customTitle) {

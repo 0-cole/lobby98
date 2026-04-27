@@ -1382,24 +1382,6 @@ function loadProfile() {
     colorPicker.appendChild(swatch);
   }
 
-  // Gradient preview chip — shows whether the user currently has a free gradient
-  // equipped (from the picker modal), or "None" if they're on a solid color.
-  const gradPreview = $("gradient-current-preview");
-  if (gradPreview) {
-    gradPreview.innerHTML = "";
-    const equipped = user.nameColor && COLOR_REGISTRY[user.nameColor];
-    const chip = document.createElement("div");
-    if (equipped && equipped.gradient && user.nameColor.startsWith("grad_")) {
-      const g = GRADIENTS_LIST.find(x => x.id === user.nameColor);
-      chip.className = "gradient-current-chip";
-      chip.innerHTML = `<span class="swatch-mini" style="background:${equipped.css}"></span><span>Equipped: ${g ? g.name : user.nameColor}</span>`;
-    } else {
-      chip.className = "gradient-current-chip empty";
-      chip.textContent = "No gradient equipped";
-    }
-    gradPreview.appendChild(chip);
-  }
-
   // Title picker
   const titlePicker = $("profile-title-picker"); titlePicker.innerHTML = "";
   for (const t of SHOP_TITLES) {
@@ -1471,13 +1453,62 @@ $("custom-title-btn").addEventListener("click", async () => {
 });
 
 // ============================================================
-//   GRADIENT PICKER MODAL
+//   GRADIENT BACKGROUND PICKER
 // ============================================================
-// Opens a full-screen overlay (the "shadow on the page") with a scrollable
-// grid of all 380+ free gradients. Search filters by name. Clicking a swatch
-// equips it as the user's name color (server validates against gradient list,
-// not owned_items, since gradients are free). Closes via X, backdrop, or ESC.
+// Opens a modal (with a backdrop "shadow" overlay) showing all 380+ gradients.
+// Clicking one applies it as the page background — separate from the base theme.
+// The base theme still controls glass cards, ink, accent colors, etc.; the
+// gradient is purely the wallpaper. Saved to localStorage so it survives reloads.
 let _gradientSearch = "";
+
+// Inject (or update) a <style> tag that overrides .sky-bg with the chosen gradient.
+// Uses !important so it wins over theme-class rules in style.css.
+function applyGradientBackground(css) {
+  let tag = document.getElementById('custom-gradient-bg-style');
+  if (!tag) {
+    tag = document.createElement('style');
+    tag.id = 'custom-gradient-bg-style';
+    document.head.appendChild(tag);
+  }
+  // The aurora ::after overlay gets dimmed slightly so it doesn't muddy bold gradients,
+  // but we keep it for the Frutiger Aero shimmer.
+  tag.textContent = `body .sky-bg{background:${css}!important}body .sky-bg::after{opacity:0.5}`;
+  document.body.classList.add('has-custom-bg');
+  localStorage.setItem('lobby98_gradient_bg', css);
+  localStorage.setItem('lobby98_gradient_bg_id', _currentGradientId || '');
+}
+
+function clearGradientBackground() {
+  const tag = document.getElementById('custom-gradient-bg-style');
+  if (tag) tag.remove();
+  document.body.classList.remove('has-custom-bg');
+  localStorage.removeItem('lobby98_gradient_bg');
+  localStorage.removeItem('lobby98_gradient_bg_id');
+  _currentGradientId = null;
+}
+
+let _currentGradientId = localStorage.getItem('lobby98_gradient_bg_id') || null;
+
+function renderGradientCurrentPreview() {
+  const wrap = $("gradient-current-preview");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const chip = document.createElement("div");
+  if (_currentGradientId && GRADIENTS_LIST.length) {
+    const g = GRADIENTS_LIST.find(x => x.id === _currentGradientId);
+    if (g) {
+      chip.className = "gradient-current-chip";
+      chip.innerHTML = `<span class="swatch-mini" style="background:${g.css}"></span><span>Active: ${esc(g.name)}</span>`;
+    } else {
+      chip.className = "gradient-current-chip";
+      chip.innerHTML = `<span class="swatch-mini" style="background:${localStorage.getItem('lobby98_gradient_bg') || '#888'}"></span><span>Custom gradient active</span>`;
+    }
+  } else {
+    chip.className = "gradient-current-chip empty";
+    chip.textContent = "Using base theme background";
+  }
+  wrap.appendChild(chip);
+}
 
 function renderGradientGrid() {
   const grid = $("gradient-grid");
@@ -1491,27 +1522,26 @@ function renderGradientGrid() {
     if (meta) meta.textContent = `0 of ${GRADIENTS_LIST.length} gradients`;
     return;
   }
-  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to equip`;
+  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to apply as background`;
   // DocumentFragment for one-shot append (380+ nodes is non-trivial).
   const frag = document.createDocumentFragment();
   for (const g of filtered) {
     const sw = document.createElement("div");
-    sw.className = "gradient-swatch" + (user?.nameColor === g.id ? " equipped" : "");
+    sw.className = "gradient-swatch" + (_currentGradientId === g.id ? " equipped" : "");
     sw.style.background = g.css;
     sw.title = g.name;
     sw.innerHTML = `<div class="gradient-swatch-label">${esc(g.name)}</div>`;
-    sw.addEventListener("click", async () => {
-      try {
-        const res = await fetch("/api/profile/update", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ nameColor: g.id }) });
-        if (!res.ok) return;
-        await refreshUser();
-        loadProfile();
-        playSound('click');
-        spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle');
-        // Refresh just the grid's equipped state without rebuilding everything.
-        grid.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
-        sw.classList.add('equipped');
-      } catch {}
+    sw.addEventListener("click", () => {
+      _currentGradientId = g.id;
+      // Use a steeper angle for full-page background — 170deg matches the existing theme look.
+      const bgCss = g.css.replace(/^linear-gradient\(90deg,/, 'linear-gradient(170deg,');
+      applyGradientBackground(bgCss);
+      playSound('click');
+      spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle');
+      // Refresh equipped state without rebuilding the whole grid.
+      grid.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+      sw.classList.add('equipped');
+      renderGradientCurrentPreview();
     });
     frag.appendChild(sw);
   }
@@ -1532,6 +1562,7 @@ async function openGradientPicker() {
   const search = $("gradient-search");
   if (search) { search.value = ""; setTimeout(() => search.focus(), 250); }
   renderGradientGrid();
+  renderGradientCurrentPreview();
 }
 
 function closeGradientPicker() {
@@ -1554,11 +1585,10 @@ document.addEventListener("click", (e) => {
     // Click on backdrop itself (not its children) closes.
     closeGradientPicker();
   } else if (e.target?.id === "gradient-clear-btn") {
-    // Revert to default solid color so the gradient is removed.
-    fetch("/api/profile/update", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ nameColor: "default" }) })
-      .then(() => refreshUser())
-      .then(() => { loadProfile(); closeGradientPicker(); playSound('click'); })
-      .catch(() => {});
+    clearGradientBackground();
+    renderGradientCurrentPreview();
+    document.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+    playSound('click');
   }
 });
 
@@ -1575,6 +1605,9 @@ document.addEventListener("keydown", (e) => {
     if (modal && !modal.hidden) closeGradientPicker();
   }
 });
+
+// Pre-populate the "currently active" chip in Settings as soon as the gradient list loads.
+loadGradients().then(renderGradientCurrentPreview);
 
 // ============================================================
 //   EXPANDED STAFF HANDLERS

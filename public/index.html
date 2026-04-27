@@ -14,6 +14,16 @@
     // Apply theme BEFORE anything renders so loading screen matches
     const _t = localStorage.getItem('lobby98_theme');
     if (_t) document.body.classList.add(_t);
+    // Apply saved gradient background (separate from theme — layers on top)
+    const _g = localStorage.getItem('lobby98_gradient_bg');
+    if (_g) {
+      // _g is the raw CSS value, e.g. "linear-gradient(170deg,#091E3A,#2F80ED,#2D9EE0)"
+      const s = document.createElement('style');
+      s.id = 'custom-gradient-bg-style';
+      s.textContent = `body .sky-bg{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
+      document.head.appendChild(s);
+      document.body.classList.add('has-custom-bg');
+    }
   </script>
   <!-- 9. LOADING SCREEN -->
   <div id="loading-screen">
@@ -388,12 +398,6 @@
         <div id="profile-color-picker" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div class="glass-card">
-        <h3 class="card-title">🌈 Gradient Name Color</h3>
-        <p class="card-desc">Pick from 380+ free gradients. Equipping one overrides your solid name color.</p>
-        <div id="gradient-current-preview" style="margin-bottom:12px"></div>
-        <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse All Gradients</button>
-      </div>
-      <div class="glass-card">
         <h3 class="card-title">Title</h3>
         <p class="card-desc">Choose from your owned titles, or create a custom one (1000 coins).</p>
         <div id="profile-title-picker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
@@ -432,6 +436,12 @@
             <div class="theme-swatch" data-theme="theme-lava" style="background:linear-gradient(135deg,#1a0505,#3a0a0a,#200505);border:1px solid rgba(255,60,30,0.2)"><span style="color:#ff8060">Lava</span></div>
             <div class="theme-swatch" data-theme="theme-arctic" style="background:linear-gradient(135deg,#90c8e8,#c0e8ff,#f0f8ff)"><span style="color:#1a4060">Arctic</span></div>
           </div>
+        </div>
+        <div class="settings-section">
+          <h3 class="settings-label">🌈 Gradient Background</h3>
+          <p class="card-desc" style="margin-top:-4px">Pick from 380+ gradients to use as your page background. Layers over your chosen theme — the theme controls glass cards & text, the gradient is the wallpaper.</p>
+          <div id="gradient-current-preview" style="margin-bottom:10px"></div>
+          <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse All Gradients</button>
         </div>
         <div class="settings-section">
           <h3 class="settings-label">Change Password</h3>
@@ -858,12 +868,12 @@
   <div id="gradient-modal" class="gradient-backdrop" hidden>
     <div class="gradient-modal-card glass-card" role="dialog" aria-label="Gradient picker">
       <div class="gradient-modal-header">
-        <h3 style="margin:0;font-size:18px">🌈 Gradient Gallery</h3>
+        <h3 style="margin:0;font-size:18px">🌈 Gradient Backgrounds</h3>
         <button class="gradient-modal-close" id="gradient-modal-close" aria-label="Close">✕</button>
       </div>
       <div class="gradient-modal-controls">
         <input type="text" class="inp" id="gradient-search" placeholder="Search gradients (e.g. ocean, sunset, neon)..." autocomplete="off" />
-        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Revert to your solid name color">Clear gradient</button>
+        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Revert to your base theme background">Reset to base theme</button>
       </div>
       <div class="gradient-modal-meta" id="gradient-meta"></div>
       <div class="gradient-modal-grid" id="gradient-grid"></div>
