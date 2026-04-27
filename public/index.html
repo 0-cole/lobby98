@@ -388,6 +388,12 @@
         <div id="profile-color-picker" style="display:flex;flex-wrap:wrap;gap:8px"></div>
       </div>
       <div class="glass-card">
+        <h3 class="card-title">🌈 Gradient Name Color</h3>
+        <p class="card-desc">Pick from 380+ free gradients. Equipping one overrides your solid name color.</p>
+        <div id="gradient-current-preview" style="margin-bottom:12px"></div>
+        <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse All Gradients</button>
+      </div>
+      <div class="glass-card">
         <h3 class="card-title">Title</h3>
         <p class="card-desc">Choose from your owned titles, or create a custom one (1000 coins).</p>
         <div id="profile-title-picker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
@@ -844,6 +850,26 @@
   <script src="js/stocks.js"></script>
   <script src="js/shooter.js"></script>
   <script type="module" src="js/client.js"></script>
+
+  <!-- ============== GRADIENT PICKER MODAL ============== -->
+  <!-- Hidden by default. The .open class on the backdrop fades in the dark overlay
+       (the "shadow on the page") and slides the inner card up. Click backdrop, X
+       button, or ESC key to close — all routed through closeGradientPicker(). -->
+  <div id="gradient-modal" class="gradient-backdrop" hidden>
+    <div class="gradient-modal-card glass-card" role="dialog" aria-label="Gradient picker">
+      <div class="gradient-modal-header">
+        <h3 style="margin:0;font-size:18px">🌈 Gradient Gallery</h3>
+        <button class="gradient-modal-close" id="gradient-modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="gradient-modal-controls">
+        <input type="text" class="inp" id="gradient-search" placeholder="Search gradients (e.g. ocean, sunset, neon)..." autocomplete="off" />
+        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Revert to your solid name color">Clear gradient</button>
+      </div>
+      <div class="gradient-modal-meta" id="gradient-meta"></div>
+      <div class="gradient-modal-grid" id="gradient-grid"></div>
+    </div>
+  </div>
+
   <!-- Hidden YouTube Player -->
   <div id="yt-player-wrap" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none"><div id="yt-player"></div></div>
 

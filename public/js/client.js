@@ -17,6 +17,47 @@ window._socket = socket;
 let gchatInitialized = false;
 
 // ============================================================
+//   COLOR / GRADIENT REGISTRY
+// ============================================================
+// Unifies shop name colors (paid, ID-based) with the free gradient gallery.
+// Each entry: { css, gradient }. Used by applyNameColor() to render usernames
+// correctly in chat, leaderboards, and profile previews.
+const COLOR_REGISTRY = Object.create(null);
+let GRADIENTS_LIST = []; // populated from /api/gradients on init
+
+function registerColor(id, css, isGradient) {
+  if (!id) return;
+  COLOR_REGISTRY[id] = { css, gradient: !!isGradient };
+}
+
+// Apply a color or gradient to a DOM element's text. Falls back to default ink
+// color if the ID isn't recognized (e.g. legacy/deleted color, anonymous user).
+function applyNameColor(el, colorId) {
+  if (!el) return;
+  // Reset prior styles so toggling between solid and gradient cleans up.
+  el.style.background = '';
+  el.style.webkitBackgroundClip = '';
+  el.style.backgroundClip = '';
+  el.style.webkitTextFillColor = '';
+  const entry = colorId ? COLOR_REGISTRY[colorId] : null;
+  if (!entry) {
+    // Legacy fallback: if it looks like a hex/named color, just use it as-is.
+    if (typeof colorId === 'string' && /^#|^[a-z]+$/i.test(colorId)) el.style.color = colorId;
+    else el.style.color = '';
+    return;
+  }
+  if (entry.gradient) {
+    el.style.background = entry.css;
+    el.style.webkitBackgroundClip = 'text';
+    el.style.backgroundClip = 'text';
+    el.style.color = 'transparent';
+    el.style.webkitTextFillColor = 'transparent';
+  } else {
+    el.style.color = entry.css;
+  }
+}
+
+// ============================================================
 //   2. TOAST NOTIFICATIONS
 // ============================================================
 function showToast(text, icon = '✨', duration = 3000) {
@@ -267,7 +308,29 @@ async function checkSession() {
     const data = await res.json();
     if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); checkNewUserNotice(); loadDailyChallenges(); }
     else { user = null; updateUI(); }
+    // Preload color/gradient registry so chat renders correctly from the first message.
+    loadGradients();
+    fetch("/api/shop").then(r => r.json()).then(d => {
+      if (d?.items?.colors) for (const c of d.items.colors) registerColor(c.id, c.color, !!c.gradient);
+    }).catch(() => {});
   } catch { user = null; updateUI(); }
+}
+
+// Fetch the full free-gradient gallery once and register every entry.
+// Called on session-check and again right before opening the picker (idempotent).
+async function loadGradients() {
+  if (GRADIENTS_LIST.length > 0) return GRADIENTS_LIST;
+  try {
+    const res = await fetch("/api/gradients");
+    const data = await res.json();
+    GRADIENTS_LIST = data.gradients || [];
+    for (const g of GRADIENTS_LIST) registerColor(g.id, g.css, true);
+    // Re-apply colors to any chat usernames that rendered before the registry was ready.
+    document.querySelectorAll('.chat-msg-user[data-color-id]').forEach(el => {
+      applyNameColor(el, el.dataset.colorId);
+    });
+  } catch {}
+  return GRADIENTS_LIST;
 }
 
 // Refresh user data WITHOUT navigating — use after profile/shop changes
@@ -709,6 +772,10 @@ async function loadShop() {
   try {
     const res = await fetch("/api/shop");
     const data = await res.json();
+    // Populate the color registry from shop data so chat/leaderboard can render correctly.
+    if (data.items?.colors) {
+      for (const c of data.items.colors) registerColor(c.id, c.color, !!c.gradient);
+    }
     if (data.user) { user = data.user; updateUI(); }
     renderShop(data.items, data.user);
     // Restore scroll position after rebuild
@@ -1315,6 +1382,24 @@ function loadProfile() {
     colorPicker.appendChild(swatch);
   }
 
+  // Gradient preview chip — shows whether the user currently has a free gradient
+  // equipped (from the picker modal), or "None" if they're on a solid color.
+  const gradPreview = $("gradient-current-preview");
+  if (gradPreview) {
+    gradPreview.innerHTML = "";
+    const equipped = user.nameColor && COLOR_REGISTRY[user.nameColor];
+    const chip = document.createElement("div");
+    if (equipped && equipped.gradient && user.nameColor.startsWith("grad_")) {
+      const g = GRADIENTS_LIST.find(x => x.id === user.nameColor);
+      chip.className = "gradient-current-chip";
+      chip.innerHTML = `<span class="swatch-mini" style="background:${equipped.css}"></span><span>Equipped: ${g ? g.name : user.nameColor}</span>`;
+    } else {
+      chip.className = "gradient-current-chip empty";
+      chip.textContent = "No gradient equipped";
+    }
+    gradPreview.appendChild(chip);
+  }
+
   // Title picker
   const titlePicker = $("profile-title-picker"); titlePicker.innerHTML = "";
   for (const t of SHOP_TITLES) {
@@ -1383,6 +1468,112 @@ $("custom-title-btn").addEventListener("click", async () => {
     if (data.user) { user = data.user; updateUI(); }
     inp.value = ""; loadProfile();
   } catch { $("custom-title-error").textContent = "Error"; }
+});
+
+// ============================================================
+//   GRADIENT PICKER MODAL
+// ============================================================
+// Opens a full-screen overlay (the "shadow on the page") with a scrollable
+// grid of all 380+ free gradients. Search filters by name. Clicking a swatch
+// equips it as the user's name color (server validates against gradient list,
+// not owned_items, since gradients are free). Closes via X, backdrop, or ESC.
+let _gradientSearch = "";
+
+function renderGradientGrid() {
+  const grid = $("gradient-grid");
+  const meta = $("gradient-meta");
+  if (!grid) return;
+  const q = _gradientSearch.trim().toLowerCase();
+  const filtered = q ? GRADIENTS_LIST.filter(g => g.name.toLowerCase().includes(q)) : GRADIENTS_LIST;
+  grid.innerHTML = "";
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--ink3);padding:40px 0;font-weight:600">No gradients match "${esc(_gradientSearch)}"</div>`;
+    if (meta) meta.textContent = `0 of ${GRADIENTS_LIST.length} gradients`;
+    return;
+  }
+  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to equip`;
+  // DocumentFragment for one-shot append (380+ nodes is non-trivial).
+  const frag = document.createDocumentFragment();
+  for (const g of filtered) {
+    const sw = document.createElement("div");
+    sw.className = "gradient-swatch" + (user?.nameColor === g.id ? " equipped" : "");
+    sw.style.background = g.css;
+    sw.title = g.name;
+    sw.innerHTML = `<div class="gradient-swatch-label">${esc(g.name)}</div>`;
+    sw.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/profile/update", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ nameColor: g.id }) });
+        if (!res.ok) return;
+        await refreshUser();
+        loadProfile();
+        playSound('click');
+        spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle');
+        // Refresh just the grid's equipped state without rebuilding everything.
+        grid.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+        sw.classList.add('equipped');
+      } catch {}
+    });
+    frag.appendChild(sw);
+  }
+  grid.appendChild(frag);
+}
+
+async function openGradientPicker() {
+  await loadGradients(); // idempotent; cached after first call
+  const modal = $("gradient-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  // Force a reflow so the .open transition actually animates instead of jumping.
+  modal.offsetHeight;
+  modal.classList.add("open");
+  // Lock body scroll while open
+  document.body.style.overflow = "hidden";
+  _gradientSearch = "";
+  const search = $("gradient-search");
+  if (search) { search.value = ""; setTimeout(() => search.focus(), 250); }
+  renderGradientGrid();
+}
+
+function closeGradientPicker() {
+  const modal = $("gradient-modal");
+  if (!modal) return;
+  modal.classList.remove("open");
+  document.body.style.overflow = "";
+  // Wait for fade-out before fully hiding (matches CSS transition duration).
+  setTimeout(() => { modal.hidden = true; }, 280);
+}
+
+// Wire up triggers — done with optional chaining since profile elements
+// might not exist on every page state.
+document.addEventListener("click", (e) => {
+  if (e.target?.id === "open-gradient-picker-btn") {
+    openGradientPicker();
+  } else if (e.target?.id === "gradient-modal-close") {
+    closeGradientPicker();
+  } else if (e.target?.id === "gradient-modal") {
+    // Click on backdrop itself (not its children) closes.
+    closeGradientPicker();
+  } else if (e.target?.id === "gradient-clear-btn") {
+    // Revert to default solid color so the gradient is removed.
+    fetch("/api/profile/update", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ nameColor: "default" }) })
+      .then(() => refreshUser())
+      .then(() => { loadProfile(); closeGradientPicker(); playSound('click'); })
+      .catch(() => {});
+  }
+});
+
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "gradient-search") {
+    _gradientSearch = e.target.value || "";
+    renderGradientGrid();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = $("gradient-modal");
+    if (modal && !modal.hidden) closeGradientPicker();
+  }
 });
 
 // ============================================================
@@ -1837,7 +2028,10 @@ function addGChatMsg(msg) {
   else if (msg.isMod) badge = '<span class="gchat-role-badge mod-badge">MOD</span>';
   // Delete button (only visible to staff/mod via CSS)
   const delBtn = msg.id ? `<button class="gchat-delete-btn" data-del-id="${msg.id}" title="Delete message">✕</button>` : '';
-  div.innerHTML = `${badge}<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>${delBtn}`;
+  div.innerHTML = `${badge}<span class="chat-msg-user" data-color-id="${esc(msg.color || '')}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>${delBtn}`;
+  // Apply name color/gradient via helper (handles background-clip:text for gradients).
+  const userSpan = div.querySelector('.chat-msg-user');
+  if (userSpan) applyNameColor(userSpan, msg.color);
   // Wire delete button
   const delBtnEl = div.querySelector('.gchat-delete-btn');
   if (delBtnEl) {

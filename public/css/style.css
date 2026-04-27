@@ -922,3 +922,47 @@ body.theme-arctic #loading-screen{background:linear-gradient(170deg,#90c8e8,#c0e
 body.theme-arctic #loading-screen .loader-brand{color:#1a4060}
 body.theme-arctic #loading-screen .loader-brand span{background:linear-gradient(180deg,#60b0e0,#4090c0);-webkit-background-clip:text;background-clip:text;color:transparent}
 body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,#60b0e0,#4090c0)}
+
+/* ============================================================
+   GRADIENT PICKER MODAL
+   - Backdrop is the "shadow on the page" — fades in when opened, removed when closed.
+   - Inner card matches glass-card aesthetic with frosted blur.
+   - Grid of swatches scrolls inside; modal itself stays fixed-size.
+   ============================================================ */
+.gradient-backdrop{position:fixed;inset:0;z-index:900;background:rgba(8,16,32,0.55);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1);display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;transition:opacity .25s ease}
+.gradient-backdrop.open{opacity:1;pointer-events:auto}
+.gradient-backdrop[hidden]{display:none}
+
+.gradient-modal-card{width:min(880px,100%);max-height:88vh;display:flex;flex-direction:column;padding:20px 22px;margin:0;transform:translateY(20px) scale(.97);transition:transform .28s cubic-bezier(.2,.9,.3,1.2);overflow:hidden}
+.gradient-backdrop.open .gradient-modal-card{transform:translateY(0) scale(1)}
+
+.gradient-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0}
+.gradient-modal-close{background:var(--neo);border:none;border-radius:50%;width:34px;height:34px;font-size:14px;font-weight:700;cursor:pointer;color:var(--ink2);box-shadow:2px 2px 5px var(--neo-lo),-1px -1px 4px var(--neo-hi);transition:all .15s}
+.gradient-modal-close:hover{color:var(--danger);transform:rotate(90deg)}
+
+.gradient-modal-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;flex-shrink:0}
+.gradient-modal-controls .inp{flex:1;min-width:200px;font-size:13px}
+.gradient-modal-meta{font-size:11px;color:var(--ink3);margin-bottom:10px;flex-shrink:0;font-weight:600}
+
+.gradient-modal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;overflow-y:auto;padding:4px 6px 8px 4px;flex:1;min-height:0}
+.gradient-modal-grid::-webkit-scrollbar{width:8px}
+.gradient-modal-grid::-webkit-scrollbar-track{background:rgba(0,0,0,0.05);border-radius:4px}
+.gradient-modal-grid::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.25);border-radius:4px}
+.gradient-modal-grid::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.4)}
+
+.gradient-swatch{position:relative;height:64px;border-radius:12px;cursor:pointer;overflow:hidden;border:2px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.3);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.gradient-swatch:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 6px 16px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.4)}
+.gradient-swatch.equipped{border-color:#fff;box-shadow:0 0 0 3px var(--accent),0 4px 12px rgba(0,0,0,0.25)}
+.gradient-swatch-label{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,0.7) 100%);color:#fff;font-size:11px;font-weight:700;padding:14px 8px 6px;text-shadow:0 1px 2px rgba(0,0,0,0.6);text-align:center;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gradient-swatch.equipped .gradient-swatch-label::after{content:" ✓";color:#fff}
+
+/* Currently-equipped preview chip on the profile card */
+.gradient-current-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;background:var(--neo);box-shadow:inset 2px 2px 5px var(--neo-lo),inset -1px -1px 4px var(--neo-hi);font-size:12px;font-weight:700;color:var(--ink2)}
+.gradient-current-chip .swatch-mini{width:28px;height:14px;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15)}
+.gradient-current-chip.empty{color:var(--ink3);font-style:italic}
+
+@media (max-width:480px){
+  .gradient-modal-card{padding:16px 14px;max-height:92vh}
+  .gradient-modal-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+  .gradient-swatch{height:56px}
+}

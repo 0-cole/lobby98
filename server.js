@@ -24,6 +24,7 @@ import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
 import { pickEchoPrompts } from "./echoprompts.js";
 import { containsProfanity, cleanText, checkMessage } from "./filter.js";
+import { GRADIENTS, GRADIENT_BY_ID, isGradientId } from "./gradients.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
@@ -201,6 +202,12 @@ app.get("/api/shop", (req, res) => {
   const sess = cookies.session ? getSession(cookies.session) : null;
   const user = sess ? getUserById(sess.user_id) : null;
   res.json({ items: SHOP_ITEMS, user: user ? safeUserData(user) : null });
+});
+
+// All ~380 gradients are free cosmetics — exposed here so the client can
+// render the picker modal and resolve gradient IDs back to CSS for chat/leaderboard.
+app.get("/api/gradients", (_req, res) => {
+  res.json({ gradients: GRADIENTS });
 });
 
 app.post("/api/shop/buy", (req, res) => {
@@ -700,7 +707,9 @@ app.post("/api/profile/update", (req, res) => {
   if (pfpEmoji) setPfpEmoji(user.id, pfpEmoji.slice(0, 4));
   if (nameColor) {
     const owned = getOwnedItems(user.id);
-    if (owned.includes(nameColor)) setColor(user.id, nameColor);
+    // Gradient IDs are free for everyone (huge gallery in profile picker).
+    // Shop colors still require ownership.
+    if (owned.includes(nameColor) || isGradientId(nameColor)) setColor(user.id, nameColor);
   }
   if (title !== undefined) {
     if (title === "custom" && customTitle) {
