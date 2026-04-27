@@ -10,6 +10,11 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <script>
+    // Apply theme BEFORE anything renders so loading screen matches
+    const _t = localStorage.getItem('lobby98_theme');
+    if (_t) document.body.classList.add(_t);
+  </script>
   <!-- 9. LOADING SCREEN -->
   <div id="loading-screen">
     <div class="loader-brand">Lobby <span>98</span></div>

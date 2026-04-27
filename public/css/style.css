@@ -860,3 +860,65 @@ body.theme-arctic .xmb-t6{fill:rgba(200,235,255,0.3)}
 /* Daily challenge progress bar */
 .daily-bar{height:6px;background:rgba(0,0,0,0.08);border-radius:3px;overflow:hidden;margin-top:6px}
 .daily-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--mid));border-radius:3px;transition:width .3s ease}
+
+/* Themed loading screens */
+body.theme-midnight #loading-screen{background:linear-gradient(170deg,#1a0530,#2a1050,#0d0520)}
+body.theme-midnight #loading-screen .loader-brand{color:#e0d0ff}
+body.theme-midnight #loading-screen .loader-brand span{background:linear-gradient(180deg,#bb86fc,#9b59b6);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-midnight #loading-screen .loader-sub{color:rgba(200,170,240,0.6)}
+body.theme-midnight #loading-screen .loader-fill{background:linear-gradient(90deg,#bb86fc,#9b59b6)}
+body.theme-midnight #loading-screen .loader-bar{background:rgba(100,50,180,0.2)}
+body.theme-midnight #loading-screen .loader-dot{background:rgba(180,120,255,0.4)}
+
+body.theme-sunset #loading-screen{background:linear-gradient(170deg,#c04040,#e88030,#f0b040)}
+body.theme-sunset #loading-screen .loader-brand{color:#4a1a1a}
+body.theme-sunset #loading-screen .loader-brand span{background:linear-gradient(180deg,#e06040,#c04020);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-sunset #loading-screen .loader-sub{color:rgba(74,26,26,0.6)}
+body.theme-sunset #loading-screen .loader-fill{background:linear-gradient(90deg,#e06040,#c04020)}
+
+body.theme-golden #loading-screen{background:linear-gradient(170deg,#c09020,#d4a020,#e8c060)}
+body.theme-golden #loading-screen .loader-brand{color:#4a3010}
+body.theme-golden #loading-screen .loader-brand span{background:linear-gradient(180deg,#d4a020,#b08020);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-golden #loading-screen .loader-fill{background:linear-gradient(90deg,#d4a020,#b08020)}
+
+body.theme-forest #loading-screen{background:linear-gradient(170deg,#0a4020,#2a8040,#60b060)}
+body.theme-forest #loading-screen .loader-brand{color:#d0f0d0}
+body.theme-forest #loading-screen .loader-brand span{background:linear-gradient(180deg,#30a050,#1a7030);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-forest #loading-screen .loader-sub{color:rgba(200,240,200,0.6)}
+body.theme-forest #loading-screen .loader-fill{background:linear-gradient(90deg,#30a050,#1a7030)}
+body.theme-forest #loading-screen .loader-bar{background:rgba(30,80,40,0.2)}
+body.theme-forest #loading-screen .loader-dot{background:rgba(100,200,120,0.4)}
+
+body.theme-sakura #loading-screen{background:linear-gradient(170deg,#d06080,#e08090,#e0b0c0)}
+body.theme-sakura #loading-screen .loader-brand{color:#4a1a2a}
+body.theme-sakura #loading-screen .loader-brand span{background:linear-gradient(180deg,#e080a0,#c06080);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-sakura #loading-screen .loader-fill{background:linear-gradient(90deg,#e080a0,#c06080)}
+
+body.theme-neon #loading-screen{background:linear-gradient(170deg,#050515,#0a0a20,#0d0d30)}
+body.theme-neon #loading-screen .loader-brand{color:#e0f0ff}
+body.theme-neon #loading-screen .loader-brand span{background:linear-gradient(180deg,#00e5ff,#ff00ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-neon #loading-screen .loader-sub{color:rgba(0,229,255,0.5)}
+body.theme-neon #loading-screen .loader-fill{background:linear-gradient(90deg,#00e5ff,#ff00ff)}
+body.theme-neon #loading-screen .loader-bar{background:rgba(0,200,255,0.1)}
+body.theme-neon #loading-screen .loader-dot{background:rgba(0,229,255,0.4)}
+
+body.theme-ocean #loading-screen{background:linear-gradient(170deg,#041828,#0a3060,#1a6080)}
+body.theme-ocean #loading-screen .loader-brand{color:#c0e0f0}
+body.theme-ocean #loading-screen .loader-brand span{background:linear-gradient(180deg,#20a0c0,#1a80a0);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-ocean #loading-screen .loader-sub{color:rgba(160,210,230,0.5)}
+body.theme-ocean #loading-screen .loader-fill{background:linear-gradient(90deg,#20a0c0,#1a80a0)}
+body.theme-ocean #loading-screen .loader-bar{background:rgba(20,80,120,0.2)}
+body.theme-ocean #loading-screen .loader-dot{background:rgba(60,180,200,0.4)}
+
+body.theme-lava #loading-screen{background:linear-gradient(170deg,#1a0505,#3a0a0a,#200505)}
+body.theme-lava #loading-screen .loader-brand{color:#ffd0c0}
+body.theme-lava #loading-screen .loader-brand span{background:linear-gradient(180deg,#ff4030,#e03020);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-lava #loading-screen .loader-sub{color:rgba(255,140,100,0.5)}
+body.theme-lava #loading-screen .loader-fill{background:linear-gradient(90deg,#ff4030,#e03020)}
+body.theme-lava #loading-screen .loader-bar{background:rgba(200,40,20,0.15)}
+body.theme-lava #loading-screen .loader-dot{background:rgba(255,80,40,0.4)}
+
+body.theme-arctic #loading-screen{background:linear-gradient(170deg,#90c8e8,#c0e8ff,#f0f8ff)}
+body.theme-arctic #loading-screen .loader-brand{color:#1a4060}
+body.theme-arctic #loading-screen .loader-brand span{background:linear-gradient(180deg,#60b0e0,#4090c0);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,#60b0e0,#4090c0)}
