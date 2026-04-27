@@ -1,5 +1,6 @@
 // server.js — Lobby 98 (scribbl-style)
 // ============================================================
+const SITE_VERSION = Date.now().toString(36); // Changes on every server restart/deploy
 // No accounts, no database. Just rooms with join codes.
 //
 // Flow:
@@ -126,6 +127,8 @@ app.post("/api/logout", (req, res) => {
   clearCookie(res);
   res.json({ ok: true });
 });
+
+app.get("/api/version", (req, res) => { res.json({ version: SITE_VERSION }); });
 
 app.get("/api/me", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");

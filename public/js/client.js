@@ -1557,7 +1557,25 @@ function addGChatMsg(msg) {
   div.className = 'chat-msg';
   if (msg.id) div.dataset.msgId = msg.id;
   const time = new Date(msg.time);
-  const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+  const now = new Date();
+  const isToday = time.toDateString() === now.toDateString();
+  const isYesterday = time.toDateString() === new Date(now - 86400000).toDateString();
+  const hhmm = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+  let ts;
+  if (isToday) ts = hhmm;
+  else if (isYesterday) ts = `Yesterday ${hhmm}`;
+  else ts = `${time.getMonth()+1}/${time.getDate()} ${hhmm}`;
+  // Date separator — insert if this message is on a different day than the previous
+  const prevMsg = gchatMessages.lastElementChild;
+  const prevTime = prevMsg?.dataset?.time ? new Date(Number(prevMsg.dataset.time)) : null;
+  if (prevTime && time.toDateString() !== prevTime.toDateString()) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'text-align:center;font-size:9px;color:var(--ink3);padding:4px 0;opacity:0.7;font-weight:700';
+    const dayLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : `${time.getMonth()+1}/${time.getDate()}/${time.getFullYear()}`;
+    sep.textContent = `── ${dayLabel} ──`;
+    gchatMessages.appendChild(sep);
+  }
+  div.dataset.time = msg.time;
   // Role badge
   let badge = '';
   if (msg.isOwner) badge = '<span class="gchat-role-badge owner-badge">OWNER</span>';
@@ -1724,6 +1742,31 @@ if (dashChangelogToggle) dashChangelogToggle.addEventListener('click', () => {
   extra.hidden = !extra.hidden;
   dashChangelogToggle.textContent = extra.hidden ? 'Show older updates' : 'Hide older updates';
 });
+
+// ============================================================
+//   VERSION CHECK — prompt reload on update
+// ============================================================
+let _siteVersion = null;
+let _updatePrompted = false;
+async function checkSiteVersion() {
+  try {
+    const res = await fetch('/api/version');
+    const data = await res.json();
+    if (!_siteVersion) { _siteVersion = data.version; return; }
+    if (data.version !== _siteVersion && !_updatePrompted) {
+      _updatePrompted = true;
+      const container = $('announcements');
+      if (!container) return;
+      const bar = document.createElement('div');
+      bar.className = 'announce-bar info';
+      bar.innerHTML = `<span>🔄 Lobby 98 has been updated!</span><button class="btn btn-ghost btn-sm" style="color:#fff;border:1px solid rgba(255,255,255,0.4);margin-left:8px;font-size:11px" onclick="location.reload()">Reload</button><button class="announce-x" title="Dismiss">✕</button>`;
+      bar.querySelector('.announce-x').addEventListener('click', () => { bar.style.animation='toastOut .2s ease forwards'; setTimeout(()=>bar.remove(),200); });
+      container.appendChild(bar);
+    }
+  } catch {}
+}
+checkSiteVersion();
+setInterval(checkSiteVersion, 30000); // Check every 30 seconds
 
 checkSession();
 checkStaff();
