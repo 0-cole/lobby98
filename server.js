@@ -35,7 +35,10 @@ import {
   saveChatMsg, getChatHistory, trimChat, deleteChatMsg, clearAllChat,
   setMod, setMutedUntil, getAllUsers,
   deleteAllUsersExcept,
-  setStaffUser, setStaffPerms, getStaffPerms, wipeUserProgress
+  setStaffUser, setStaffPerms, getStaffPerms, wipeUserProgress,
+  setAvatar, sendFriendRequest, acceptFriend, removeFriend, getFriends, getPendingRequests,
+  sendDM, getDMs, addReaction, getReactions, getReactionsBulk,
+  getDailyProgress, incrementDaily, claimDaily
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -279,6 +282,13 @@ app.post("/api/arcade/score", (req, res) => {
     const updatedUser = getUserById(user.id);
     if (updatedUser.coins >= 500) checkAchievement(user.id, "arcade_500");
     if (updatedUser.coins >= 2000) checkAchievement(user.id, "arcade_2000");
+    // Daily challenge tracking
+    trackDaily(user.id, 'arcade_3');
+    trackDaily(user.id, 'arcade_5');
+    trackDaily(user.id, 'coins_100', finalCoins);
+    trackDaily(user.id, 'coins_200', finalCoins);
+    if (game === 'snake' && coins >= 25) trackDaily(user.id, 'snake_50');
+    if (game === 'memory') { const rawScore = Number(req.body.rawScore) || 99; if (rawScore <= 20) trackDaily(user.id, 'memory_low'); }
   }
   res.json({ ok: true, coinsEarned: coins, user: safeUserData(getUserById(user.id)) });
 });
@@ -872,6 +882,121 @@ app.post("/api/profile/border", (req, res) => {
 });
 
 // ============================================================
+//   AVATAR
+// ============================================================
+app.post("/api/profile/avatar", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { avatar } = req.body || {};
+  if (!avatar || typeof avatar !== 'object') return res.status(400).json({ error: "Invalid avatar" });
+  setAvatar(sess.user_id, avatar);
+  res.json({ ok: true, user: safeUserData(getUserById(sess.user_id)) });
+});
+
+// ============================================================
+//   FRIENDS
+// ============================================================
+app.post("/api/friends/request", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { username } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.id === sess.user_id) return res.status(400).json({ error: "Can't friend yourself" });
+  const result = sendFriendRequest(sess.user_id, target.id);
+  if (result.status === 'accepted') return res.json({ ok: true, message: "Already friends!" });
+  if (result.status === 'pending') return res.json({ ok: true, message: "Request already pending" });
+  // Notify target via socket
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === target.id) {
+      const from = getUserById(sess.user_id);
+      s.emit("friend:request", { from: from.username, fromId: from.id });
+    }
+  }
+  res.json({ ok: true, message: `Friend request sent to ${target.username}` });
+});
+
+app.post("/api/friends/accept", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { fromId } = req.body || {};
+  acceptFriend(fromId, sess.user_id);
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/remove", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { friendId } = req.body || {};
+  removeFriend(sess.user_id, friendId);
+  res.json({ ok: true });
+});
+
+app.get("/api/friends", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const friends = getFriends(sess.user_id);
+  const pending = getPendingRequests(sess.user_id);
+  // Attach online status
+  const onlineIds = new Set();
+  for (const [, s] of io.sockets.sockets) if (s.data?.user?.id) onlineIds.add(s.data.user.id);
+  const friendList = friends.map(f => {
+    const fId = f.from_id === sess.user_id ? f.to_id : f.from_id;
+    return { id: fId, username: f.username, pfpEmoji: f.pfp_emoji, avatar: (() => { try { return JSON.parse(f.avatar||"{}"); } catch { return {}; } })(), online: onlineIds.has(fId) };
+  });
+  res.json({ friends: friendList, pending: pending.map(p => ({ id: p.from_id, username: p.username, pfpEmoji: p.pfp_emoji })) });
+});
+
+// ============================================================
+//   DIRECT MESSAGES
+// ============================================================
+app.get("/api/dm/:friendId", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const messages = getDMs(sess.user_id, Number(req.params.friendId));
+  res.json({ messages });
+});
+
+app.post("/api/dm/send", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { friendId, text } = req.body || {};
+  if (!text?.trim()) return res.status(400).json({ error: "Empty message" });
+  const fromUser = getUserById(sess.user_id);
+  sendDM(sess.user_id, friendId, text.trim().slice(0, 300));
+  // Notify friend via socket
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === friendId) {
+      s.emit("dm:message", { from: fromUser.username, fromId: fromUser.id, text: text.trim().slice(0, 300), time: Date.now() });
+    }
+  }
+  res.json({ ok: true });
+});
+
+// ============================================================
+//   CHAT REACTIONS
+// ============================================================
+app.post("/api/chat/react", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { messageId, emoji } = req.body || {};
+  const validEmojis = ['👍','❤️','😂','😮','😢','🔥'];
+  if (!validEmojis.includes(emoji)) return res.status(400).json({ error: "Invalid reaction" });
+  const added = addReaction(messageId, sess.user_id, emoji);
+  const reactions = getReactions(messageId);
+  io.emit("gchat:reactions", { messageId, reactions });
+  res.json({ ok: true, added, reactions });
+});
+
+// ============================================================
 //   GAME COMPLETION — award coins to logged-in players
 // ============================================================
 
@@ -897,12 +1022,18 @@ function awardGameCoins(room) {
   for (const [pid, score] of g.scores) {
     const sock = io.sockets.sockets.get(pid);
     if (sock?.data?.user?.id && score > 0) {
+      const uid = sock.data.user.id;
       const allScores = [...g.scores.values()];
       const maxScore = Math.max(...allScores);
       const won = score === maxScore;
-      recordGame(sock.data.user.id, won, score);
+      recordGame(uid, won, score);
+      // Daily challenge tracking
+      trackDaily(uid, 'party_1');
+      trackDaily(uid, 'party_3');
+      trackDaily(uid, 'coins_100', score);
+      trackDaily(uid, 'coins_200', score);
       // Notify the client their coins updated
-      const updated = getUserById(sock.data.user.id);
+      const updated = getUserById(uid);
       if (updated) sock.emit("user:updated", safeUserData(updated));
     }
   }
@@ -2385,7 +2516,7 @@ const ACHIEVEMENTS = [
   {id:"dungeon_10",name:"Dungeon Crawler",desc:"Clear 10 dungeon areas",icon:"🗡️",coins:200},
   {id:"dungeon_20",name:"Deep Diver",desc:"Clear 20 dungeon areas",icon:"🌊",coins:400},
   {id:"dungeon_all",name:"The Finisher",desc:"Clear all dungeon areas",icon:"♾️",coins:1000},
-  {id:"coins_1000",name:"Thousandaire",desc:"Own 1,000 coins",icon:"🪙",coins:0},
+  {id:"coins_1000",name:"Thousandaire",desc:"Own 1,000 coins",icon:"💰",coins:0},
   {id:"coins_10000",name:"Rich",desc:"Own 10,000 coins",icon:"💰",coins:0},
   {id:"shop_5",name:"Fashionista",desc:"Buy 5 shop items",icon:"🛍️",coins:50},
   {id:"bug_report",name:"Bug Hunter",desc:"Submit a bug report",icon:"🐛",coins:25},
@@ -2505,6 +2636,98 @@ setInterval(() => {
   }
 }, 300000);
 
+// ============================================================
+//   DAILY CHALLENGES
+// ============================================================
+const CHALLENGE_POOL = [
+  { key: 'arcade_3', name: 'Arcade Grinder', desc: 'Play 3 arcade games', goal: 3, reward: 75, icon: '🕹️' },
+  { key: 'arcade_5', name: 'Arcade Marathon', desc: 'Play 5 arcade games', goal: 5, reward: 120, icon: '🎮' },
+  { key: 'coins_100', name: 'Coin Collector', desc: 'Earn 100 coins', goal: 100, reward: 50, icon: '💰' },
+  { key: 'coins_200', name: 'Big Earner', desc: 'Earn 200 coins', goal: 200, reward: 100, icon: '💰' },
+  { key: 'chat_10', name: 'Social Butterfly', desc: 'Send 10 chat messages', goal: 10, reward: 40, icon: '💬' },
+  { key: 'chat_25', name: 'Chatterbox', desc: 'Send 25 chat messages', goal: 25, reward: 80, icon: '💬' },
+  { key: 'party_1', name: 'Party Starter', desc: 'Play 1 party game', goal: 1, reward: 60, icon: '🎭' },
+  { key: 'party_3', name: 'Party Animal', desc: 'Play 3 party games', goal: 3, reward: 150, icon: '🎭' },
+  { key: 'dungeon_5', name: 'Monster Slayer', desc: 'Kill 5 dungeon monsters', goal: 5, reward: 80, icon: '⚔️' },
+  { key: 'dungeon_15', name: 'Dungeon Crawler', desc: 'Kill 15 dungeon monsters', goal: 15, reward: 150, icon: '⚔️' },
+  { key: 'snake_50', name: 'Sssnake', desc: 'Score 50+ in Snake', goal: 1, reward: 100, icon: '🐍' },
+  { key: 'memory_low', name: 'Sharp Mind', desc: 'Beat Memory Match in under 20 moves', goal: 1, reward: 100, icon: '🧠' },
+];
+
+function getTodayStr() { return new Date().toISOString().slice(0, 10); }
+
+// Deterministic daily challenge selection using date as seed
+function getDailyChallenges() {
+  const day = getTodayStr();
+  let seed = 0;
+  for (const ch of day) seed = ((seed << 5) - seed + ch.charCodeAt(0)) | 0;
+  seed = Math.abs(seed);
+  const shuffled = [...CHALLENGE_POOL].sort((a, b) => {
+    const ha = ((seed * 31 + a.key.charCodeAt(0)) | 0) % 1000;
+    const hb = ((seed * 31 + b.key.charCodeAt(0)) | 0) % 1000;
+    return ha - hb;
+  });
+  return shuffled.slice(0, 3);
+}
+
+app.get("/api/daily", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const challenges = getDailyChallenges();
+  const day = getTodayStr();
+  const progress = getDailyProgress(sess.user_id, day);
+  const result = challenges.map(c => {
+    const p = progress.find(x => x.challenge_key === c.key);
+    return { ...c, progress: p?.progress || 0, claimed: !!(p?.claimed) };
+  });
+  // Time until reset (midnight UTC)
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  const resetIn = tomorrow - now;
+  res.json({ challenges: result, resetIn });
+});
+
+app.post("/api/daily/claim", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { challengeKey } = req.body || {};
+  const day = getTodayStr();
+  const challenges = getDailyChallenges();
+  const challenge = challenges.find(c => c.key === challengeKey);
+  if (!challenge) return res.status(400).json({ error: "Invalid challenge" });
+  const progress = getDailyProgress(sess.user_id, day);
+  const p = progress.find(x => x.challenge_key === challengeKey);
+  if (!p || p.progress < challenge.goal) return res.status(400).json({ error: "Challenge not complete" });
+  if (p.claimed) return res.status(400).json({ error: "Already claimed" });
+  claimDaily(sess.user_id, challengeKey, day);
+  addCoins(sess.user_id, challenge.reward);
+  res.json({ ok: true, reward: challenge.reward });
+});
+
+// Helper: track daily challenge progress (called from game completion handlers)
+function trackDaily(userId, key, amount = 1) {
+  if (!userId) return;
+  const day = getTodayStr();
+  incrementDaily(userId, key, day, amount);
+}
+
+// ============================================================
+//   SPECTATOR MODE (Arcade)
+// ============================================================
+const liveArcadeGames = new Map(); // odataId -> { username, game, score, startedAt }
+
+app.get("/api/arcade/live", (req, res) => {
+  const list = [];
+  for (const [id, g] of liveArcadeGames) {
+    list.push({ id, username: g.username, game: g.game, score: g.score, startedAt: g.startedAt });
+  }
+  res.json({ games: list });
+});
+
 io.on("connection", (socket) => {
 
   // ----- Global Chat (persistent) -----
@@ -2520,13 +2743,6 @@ io.on("connection", (socket) => {
     if (freshUser && freshUser.muted_until && freshUser.muted_until > Date.now()) {
       const remaining = Math.ceil((freshUser.muted_until - Date.now()) / 60000);
       socket.emit("gchat:blocked", `You're muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
-      return;
-    }
-    // 24h account age requirement (staff/mods exempt)
-    if (freshUser && freshUser.created_at && Date.now() - freshUser.created_at < 86400000
-        && !isUserStaff && !freshUser.is_mod) {
-      const hrs = Math.ceil((86400000 - (Date.now() - freshUser.created_at)) / 3600000);
-      socket.emit("gchat:blocked", `Your account must be 24 hours old to chat. ${hrs}h remaining.`);
       return;
     }
     // Rate limiting: 3 messages per 5 seconds (staff exempt)
@@ -2593,6 +2809,8 @@ io.on("connection", (socket) => {
     try { entry.id = saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
     io.emit("gchat:msg", entry);
     checkAchievement(uid, "chat_first");
+    trackDaily(uid, 'chat_10');
+    trackDaily(uid, 'chat_25');
   });
 
   socket.on("gchat:history", (_, ack) => {
@@ -2887,8 +3105,50 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ----- Spectator Mode (Arcade) -----
+  socket.on("arcade:start", ({ game }) => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    liveArcadeGames.set(id, { username: socket.data.user.username, game, score: 0, startedAt: Date.now(), socketId: socket.id });
+    socket.join(`spectate:${id}`);
+    io.emit("arcade:liveUpdate");
+  });
+
+  socket.on("arcade:frame", ({ score, state }) => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    const g = liveArcadeGames.get(id);
+    if (g) { g.score = score || 0; }
+    socket.to(`spectate:${id}`).emit("spectate:frame", { score, state });
+  });
+
+  socket.on("arcade:end", () => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    liveArcadeGames.delete(id);
+    io.to(`spectate:${id}`).emit("spectate:ended");
+    socket.leave(`spectate:${id}`);
+    io.emit("arcade:liveUpdate");
+  });
+
+  socket.on("spectate:join", ({ playerId }) => {
+    socket.join(`spectate:${playerId}`);
+  });
+
+  socket.on("spectate:leave", ({ playerId }) => {
+    socket.leave(`spectate:${playerId}`);
+  });
+
   // ----- Disconnect handling -----
   socket.on("disconnect", () => {
+    // Clean up live arcade games
+    if (socket.data?.user?.id) {
+      const id = socket.data.user.id;
+      if (liveArcadeGames.has(id)) {
+        liveArcadeGames.delete(id);
+        io.emit("arcade:liveUpdate");
+      }
+    }
     handleLeave(socket);
   });
 

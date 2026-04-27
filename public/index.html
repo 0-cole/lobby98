@@ -10,6 +10,14 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- 9. LOADING SCREEN -->
+  <div id="loading-screen">
+    <div class="loader-brand">Lobby <span>98</span></div>
+    <div class="loader-sub">Loading your experience...</div>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+    <div class="loader-dots"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+  </div>
+
   <div class="sky-bg"></div>
   <div class="xmb-wave"><svg class="xmb-svg" viewBox="0 0 1440 400" preserveAspectRatio="none">
     <!-- 3 BIG ribbons -->
@@ -42,9 +50,10 @@
   <!-- === NAV (hidden when not logged in) === -->
   <nav class="top-nav" id="top-nav" hidden>
     <div class="nav-left">
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu">☰</button>
       <div class="nav-brand">Lobby <span class="b98">98</span></div>
     </div>
-    <div class="nav-links">
+    <div class="nav-links" id="nav-links-wrap">
       <button class="nav-link active" data-page="dashboard">Home</button>
       <button class="nav-link" data-page="play">Party Games</button>
       <button class="nav-link" data-page="arcade">Arcade</button>
@@ -55,10 +64,11 @@
       <button class="nav-link" data-page="settings">Settings</button>
       <button class="nav-link" data-page="leaderboard">Leaderboard</button>
       <button class="nav-link" data-page="achievements">🏆 Achievements</button>
+      <button class="nav-link" data-page="friends">👥 Friends</button>
       <button class="nav-link nav-staff" data-page="staff" id="nav-staff-link" hidden>Staff</button>
     </div>
     <div class="nav-right">
-      <span class="nav-coins" id="nav-coins">🪙 0</span>
+      <span class="nav-coins" id="nav-coins"><span class="coin-i"></span> 0</span>
       <button class="btn btn-ghost btn-sm" id="bug-report-btn" style="font-size:11px;padding:5px 10px">🐛 Report Bug</button>
       <span class="nav-user" id="nav-user">User</span>
     </div>
@@ -136,6 +146,10 @@
           <p class="dc-desc">Change password, view stats, manage your profile.</p>
         </div>
       </div>
+      <div class="glass-card" id="daily-challenges-card">
+        <h3 class="card-title">🎯 Daily Challenges <span style="font-size:11px;font-weight:600;color:var(--ink3)" id="daily-reset-timer"></span></h3>
+        <div id="daily-challenges-list"><p style="color:var(--ink3);font-size:13px">Loading challenges...</p></div>
+      </div>
       <div class="glass-card">
         <h3 class="card-title">📋 What's New</h3>
         <div style="font-size:13px;color:var(--ink2);line-height:1.6">
@@ -144,7 +158,10 @@
           <div>🎵 Ambient background music with shuffle</div>
           <div>👑 Owner/Staff/Mod role hierarchy</div>
           <div>🍀 Luck skill tree + major dungeon rebalance</div>
-          <div>🛡️ Advanced chat moderation & anti-spam</div>
+          <div>👥 Friends system with DMs and online status</div>
+          <div>😂 Chat reactions (👍❤️😂😮😢🔥)</div>
+          <div>🎭 Avatar builder with faces, hats & colors</div>
+          <div>✨ Page transitions, sounds, particles & loading screen</div>
         </div>
         <div id="dash-changelog-extra" hidden style="font-size:13px;color:var(--ink2);line-height:1.6;margin-top:10px">
           <div style="margin-bottom:10px">
@@ -309,13 +326,22 @@
         <button class="btn btn-ghost btn-sm" id="arcade-back" style="margin-bottom:12px">← Back to arcade</button>
         <div id="arcade-game-container"></div>
       </div>
+      <div class="glass-card" id="arcade-spectate-area" hidden>
+        <button class="btn btn-ghost btn-sm" id="spectate-back" style="margin-bottom:12px">← Back to arcade</button>
+        <h3 class="card-title" id="spectate-title">Watching...</h3>
+        <div id="spectate-container"></div>
+      </div>
+      <div class="glass-card" id="arcade-live-card">
+        <h3 class="card-title">👁️ Live Games</h3>
+        <div id="arcade-live-list"><p style="color:var(--ink3);font-size:13px">No one is playing right now</p></div>
+      </div>
     </section>
 
     <!-- ============== SHOP ============== -->
     <section class="page" id="page-shop" hidden>
       <div class="glass-card shop-header">
         <h2 class="card-title">🛍️ Shop</h2>
-        <div class="shop-balance"><span class="shop-coins" id="shop-coins">🪙 0</span><span class="shop-sub">Earn coins by playing games</span></div>
+        <div class="shop-balance"><span class="shop-coins" id="shop-coins"><span class="coin-i"></span> 0</span><span class="shop-sub">Earn coins by playing games</span></div>
       </div>
       <div id="shop-content"></div>
     </section>
@@ -323,13 +349,32 @@
     <!-- ============== PROFILE ============== -->
     <section class="page" id="page-profile" hidden>
       <div class="glass-card" style="text-align:center;padding:28px">
-        <div id="profile-pfp" style="font-size:64px;margin-bottom:8px">😎</div>
+        <div id="profile-avatar-preview" style="display:flex;justify-content:center;margin-bottom:8px"></div>
+        <div id="profile-pfp" style="font-size:64px;margin-bottom:8px;display:none">😎</div>
         <h2 class="card-title" style="justify-content:center" id="profile-username">Username</h2>
         <p id="profile-title-display" style="color:var(--mid);font-weight:700;font-size:14px"></p>
       </div>
       <div class="glass-card">
+        <h3 class="card-title">🎨 Avatar Builder</h3>
+        <p class="card-desc">Build your avatar — shown on your profile and friends list.</p>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Face</span>
+          <div id="avatar-face-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:28px;cursor:pointer"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Hat / Accessory</span>
+          <div id="avatar-hat-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:24px;cursor:pointer"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Background Color</span>
+          <div id="avatar-bg-picker" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="avatar-save-btn" style="width:100%;margin-top:4px">Save Avatar</button>
+        <p class="form-err" id="avatar-save-msg"></p>
+      </div>
+      <div class="glass-card">
         <h3 class="card-title">Profile Picture</h3>
-        <p class="card-desc">Pick an emoji as your profile picture.</p>
+        <p class="card-desc">Or pick a simple emoji instead.</p>
         <div id="pfp-picker" style="display:flex;flex-wrap:wrap;gap:8px;font-size:28px;cursor:pointer"></div>
       </div>
       <div class="glass-card">
@@ -343,9 +388,14 @@
         <div id="profile-title-picker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input class="inp" type="text" id="custom-title-input" maxlength="20" placeholder="Custom title (1-2 words)" style="flex:1;min-width:160px" />
-          <button class="btn btn-primary btn-sm" id="custom-title-btn">Set (🪙1000)</button>
+          <button class="btn btn-primary btn-sm" id="custom-title-btn">Set (<span class="coin-i"></span>1000)</button>
         </div>
         <p class="form-err" id="custom-title-error"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">✨ Profile Aura</h3>
+        <p class="card-desc">Equip a border glow from your owned auras.</p>
+        <div id="profile-border-picker" style="display:flex;flex-wrap:wrap;gap:10px"></div>
       </div>
       <div class="glass-card">
         <h3 class="card-title">Inventory</h3>
@@ -505,6 +555,37 @@
       <div id="dg-play-area" class="dungeon-container" hidden></div>
     </section>
 
+    <!-- ============== FRIENDS ============== -->
+    <section class="page" id="page-friends" hidden>
+      <div class="glass-card">
+        <h2 class="card-title">👥 Friends</h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input class="inp" type="text" id="friend-add-input" placeholder="Add friend by username..." style="flex:1" />
+          <button class="btn btn-primary btn-sm" id="friend-add-btn">Add</button>
+        </div>
+        <p class="form-err" id="friend-add-msg"></p>
+      </div>
+      <div class="glass-card" id="friend-requests-card" hidden>
+        <h3 class="card-title" style="font-size:16px">📬 Pending Requests</h3>
+        <div id="friend-requests-list"></div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title" style="font-size:16px">Friends List <span id="friend-online-count" style="font-size:12px;color:var(--ink3)"></span></h3>
+        <div id="friends-list"><p style="color:var(--ink3);font-size:13px">No friends yet. Add someone above!</p></div>
+      </div>
+      <div class="glass-card" id="dm-panel" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 class="card-title" style="font-size:16px;margin:0" id="dm-title">DM</h3>
+          <button class="btn btn-ghost btn-sm" id="dm-close">✕ Close</button>
+        </div>
+        <div id="dm-messages" style="max-height:300px;overflow-y:auto;margin-bottom:10px;padding:8px;background:var(--neo);border-radius:var(--rs)"></div>
+        <div style="display:flex;gap:8px">
+          <input class="inp" type="text" id="dm-input" placeholder="Type a message..." style="flex:1" maxlength="300" />
+          <button class="btn btn-primary btn-sm" id="dm-send-btn">Send</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ============== STAFF ============== -->
     <section class="page" id="page-staff" hidden>
       <div class="glass-card"><h2 class="card-title" style="color:var(--danger)">🛡️ Staff Panel</h2><p class="card-desc">Administrative tools. Handle with care.</p>
@@ -620,7 +701,7 @@
 
         <!-- Give Coins -->
         <div class="glass-card">
-          <h3 class="settings-label">🪙 Give Coins</h3>
+          <h3 class="settings-label"><span class="coin-i"></span> Give Coins</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input class="inp" type="text" id="staff-coins-user" placeholder="username" style="flex:1;min-width:120px" />
             <input class="inp" type="number" id="staff-coins-amount" placeholder="amount" style="width:100px" />
@@ -665,7 +746,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <select class="inp" id="staff-event-select" style="flex:1">
               <option value="">No active event</option>
-              <option value="double-coins">🪙 Double Coins Weekend</option>
+              <option value="double-coins"><span class="coin-i"></span> Double Coins Weekend</option>
               <option value="happy-hour">🎉 Happy Hour (1.5x coins)</option>
               <option value="chaos-mode">🌀 Chaos Mode (UI wobbles)</option>
             </select>
@@ -691,7 +772,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" id="staff-confetti-btn">🎊 Confetti</button>
             <button class="btn btn-primary btn-sm" id="staff-nuke-btn">💥 UI Nuke</button>
-            <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn">🪙 +1000 to self</button>
+            <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn"><span class="coin-i"></span> +1000 to self</button>
           </div>
           <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(224,72,88,0.15)">
             <button class="btn btn-danger btn-sm" id="staff-deleteall-btn" style="width:100%">☢️ Delete ALL Non-Staff Accounts</button>
@@ -734,6 +815,7 @@
   </main>
   <!-- Global Chat Sidebar (persistent, always visible except party games) -->
   <aside class="gchat-sidebar" id="gchat-sidebar" hidden>
+    <button id="gchat-close-mobile">✕</button>
     <div class="gchat-head">
       <span>💬 Chat</span>
       <span style="font-size:11px;color:var(--ink3);font-weight:600" id="gchat-online"></span>
@@ -744,6 +826,7 @@
       <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 10px;flex-shrink:0">▶</button>
     </form>
   </aside>
+  <button id="gchat-mobile-toggle" title="Open chat">💬</button>
 
   <div class="news-ticker" id="news-ticker">
     <span class="ticker-label">📰 LOBBY 98 NEWS</span>

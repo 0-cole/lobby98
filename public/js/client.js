@@ -17,6 +17,141 @@ window._socket = socket;
 let gchatInitialized = false;
 
 // ============================================================
+//   2. TOAST NOTIFICATIONS
+// ============================================================
+function showToast(text, icon = '✨', duration = 3000) {
+  const container = document.getElementById('toast-container') || (() => {
+    const d = document.createElement('div');
+    d.id = 'toast-container';
+    d.style.cssText = 'position:fixed;bottom:50px;right:16px;z-index:500;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none';
+    document.body.appendChild(d);
+    return d;
+  })();
+  const t = document.createElement('div');
+  t.style.cssText = 'background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);color:#fff;padding:10px 16px;border-radius:12px;font-family:Nunito,sans-serif;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);animation:toastSlideIn .3s ease;pointer-events:auto;max-width:280px';
+  t.innerHTML = `<span style="font-size:18px;flex-shrink:0">${icon}</span><span>${text}</span>`;
+  container.appendChild(t);
+  setTimeout(() => { t.style.animation = 'toastSlideOut .25s ease forwards'; setTimeout(() => t.remove(), 250); }, duration);
+}
+
+// ============================================================
+//   3. PARTICLE EFFECTS
+// ============================================================
+const _particleCanvas = (() => {
+  const c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;z-index:999;pointer-events:none';
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  document.body.appendChild(c);
+  window.addEventListener('resize', () => { c.width = window.innerWidth; c.height = window.innerHeight; });
+  return c;
+})();
+const _pCtx = _particleCanvas.getContext('2d');
+let _particles = [];
+
+function spawnParticles(x, y, type = 'coins') {
+  const count = type === 'coins' ? 12 : type === 'sparkle' ? 15 : 25;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 4;
+    const p = {
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - (type === 'confetti' ? 2 : 1),
+      life: 1,
+      decay: 0.015 + Math.random() * 0.015,
+      size: type === 'sparkle' ? 2 + Math.random() * 3 : 3 + Math.random() * 5,
+      type,
+      color: type === 'coins' ? `hsl(${45 + Math.random() * 15},90%,${55 + Math.random() * 20}%)`
+           : type === 'sparkle' ? `hsl(${180 + Math.random() * 60},80%,${70 + Math.random() * 20}%)`
+           : `hsl(${Math.random() * 360},80%,65%)`,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.2,
+    };
+    _particles.push(p);
+  }
+}
+
+function _tickParticles() {
+  _pCtx.clearRect(0, 0, _particleCanvas.width, _particleCanvas.height);
+  _particles = _particles.filter(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay; p.rotation += p.rotSpeed;
+    if (p.life <= 0) return false;
+    _pCtx.save();
+    _pCtx.globalAlpha = p.life;
+    _pCtx.translate(p.x, p.y);
+    _pCtx.rotate(p.rotation);
+    if (p.type === 'sparkle') {
+      _pCtx.fillStyle = p.color;
+      // 4-point star
+      _pCtx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+        const r = i % 2 === 0 ? p.size : p.size * 0.3;
+        _pCtx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      _pCtx.closePath(); _pCtx.fill();
+    } else if (p.type === 'coins') {
+      _pCtx.fillStyle = p.color;
+      _pCtx.beginPath(); _pCtx.arc(0, 0, p.size, 0, Math.PI * 2); _pCtx.fill();
+      _pCtx.fillStyle = 'rgba(255,255,255,0.5)';
+      _pCtx.beginPath(); _pCtx.arc(-p.size * 0.2, -p.size * 0.2, p.size * 0.4, 0, Math.PI * 2); _pCtx.fill();
+    } else {
+      _pCtx.fillStyle = p.color;
+      _pCtx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+    }
+    _pCtx.restore();
+    return true;
+  });
+  requestAnimationFrame(_tickParticles);
+}
+_tickParticles();
+
+// ============================================================
+//   5. SOUND EFFECTS (Web Audio API — tiny bleeps)
+// ============================================================
+let _audioCtx = null;
+function _getAudio() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+function playSound(type) {
+  try {
+    const ctx = _getAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    gain.gain.value = 0.08;
+    const t = ctx.currentTime;
+    if (type === 'click') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(400, t + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08); osc.start(t); osc.stop(t + 0.08);
+    } else if (type === 'coin') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(880, t); osc.frequency.setValueAtTime(1100, t + 0.08);
+      gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2); osc.start(t); osc.stop(t + 0.2);
+    } else if (type === 'achieve') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(523, t); osc.frequency.setValueAtTime(659, t + 0.1); osc.frequency.setValueAtTime(784, t + 0.2);
+      gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4); osc.start(t); osc.stop(t + 0.4);
+    } else if (type === 'levelup') {
+      osc.type = 'square'; osc.frequency.setValueAtTime(440, t); osc.frequency.setValueAtTime(554, t + 0.08); osc.frequency.setValueAtTime(659, t + 0.16); osc.frequency.setValueAtTime(880, t + 0.24);
+      gain.gain.setValueAtTime(0.06, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4); osc.start(t); osc.stop(t + 0.4);
+    } else if (type === 'chat') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(600, t); osc.frequency.exponentialRampToValueAtTime(900, t + 0.05);
+      gain.gain.setValueAtTime(0.04, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08); osc.start(t); osc.stop(t + 0.08);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
+      gain.gain.setValueAtTime(0.06, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2); osc.start(t); osc.stop(t + 0.2);
+    } else if (type === 'win') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(523, t); osc.frequency.setValueAtTime(659, t + 0.1); osc.frequency.setValueAtTime(784, t + 0.2); osc.frequency.setValueAtTime(1047, t + 0.3);
+      gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5); osc.start(t); osc.stop(t + 0.5);
+    } else if (type === 'page') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(500, t); osc.frequency.exponentialRampToValueAtTime(700, t + 0.04);
+      gain.gain.setValueAtTime(0.03, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06); osc.start(t); osc.stop(t + 0.06);
+    }
+  } catch {}
+}
+
+// ============================================================
 //   ANNOUNCEMENTS (stacking top bars)
 // ============================================================
 function showAnnouncement(text, type = 'info', autoClose = 0) {
@@ -36,21 +171,34 @@ function checkNewUserNotice() {
   const age = Date.now() - user.createdAt;
   if (age < 86400000) {
     const hrs = Math.ceil((86400000 - age) / 3600000);
-    showAnnouncement(`🕐 New account — chat and bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Play some games in the meantime!`, 'warn');
+    showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn');
   }
 }
 
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market","page-achievements","page-friends"];
 
 function showPage(id) {
-  PAGES.forEach(p => { const el = $(p); if (el) el.hidden = p !== id; });
-  // Update nav
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market"};
+  const outgoing = PAGES.find(p => !$(p)?.hidden && p !== id);
+  PAGES.forEach(p => {
+    const el = $(p);
+    if (!el) return;
+    if (p === id) {
+      el.hidden = false;
+      el.style.animation = 'pageIn .25s ease forwards';
+      playSound('page');
+    } else if (p === outgoing) {
+      el.style.animation = 'pageOut .15s ease forwards';
+      setTimeout(() => { el.hidden = true; el.style.animation = ''; }, 150);
+    } else {
+      el.hidden = true;
+      el.style.animation = '';
+    }
+  });
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
-  // Show/hide global chat sidebar
   if (user && !GCHAT_HIDDEN_PAGES.has(id)) showGChat();
   else hideGChat();
 }
@@ -60,7 +208,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -73,6 +221,9 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "achievements") loadAchievements();
     if (l.dataset.page === "profile") loadProfile();
     if (l.dataset.page === "market") loadMarket();
+    if (l.dataset.page === "friends") loadFriends();
+    if (l.dataset.page === "arcade") loadLiveGames();
+    if (l.dataset.page === "dashboard") loadDailyChallenges();
   });
 });
 
@@ -87,7 +238,7 @@ document.querySelectorAll(".dash-card").forEach(c => {
 function updateUI() {
   if (!user) { $("top-nav").hidden = true; showPage("page-auth"); return; }
   $("top-nav").hidden = false;
-  $("nav-coins").textContent = "🪙 " + (user.coins || 0);
+  $("nav-coins").innerHTML = '<span class="coin-i"></span> ' + (user.coins || 0);
   $("nav-user").textContent = user.username;
   $("dash-greeting").textContent = `Welcome back, ${user.username}!`;
   $("ds-coins").textContent = user.coins || 0;
@@ -114,17 +265,34 @@ async function checkSession() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); checkNewUserNotice(); }
+    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); checkNewUserNotice(); loadDailyChallenges(); }
     else { user = null; updateUI(); }
   } catch { user = null; updateUI(); }
 }
 
 // Refresh user data WITHOUT navigating — use after profile/shop changes
+let _prevCoins = null;
 async function refreshUser() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); }
+    if (data.loggedIn) {
+      const oldCoins = _prevCoins;
+      user = data.user;
+      _prevCoins = user.coins;
+      updateUI();
+      // Coin gain toast + particles
+      if (oldCoins !== null && user.coins > oldCoins) {
+        const gained = user.coins - oldCoins;
+        showToast(`+${gained} coins`, '💰', 2500);
+        playSound('coin');
+        const coinEl = document.getElementById('nav-coins');
+        if (coinEl) {
+          const r = coinEl.getBoundingClientRect();
+          spawnParticles(r.left + r.width / 2, r.top + r.height / 2, 'coins');
+        }
+      }
+    }
   } catch {}
 }
 
@@ -548,7 +716,7 @@ async function loadShop() {
   } catch {}
 }
 function renderShop(items, u) {
-  $("shop-coins").textContent = "🪙 " + (u?.coins || 0);
+  $("shop-coins").innerHTML = '<span class="coin-i"></span> ' + (u?.coins || 0);
   const container = $("shop-content"); container.innerHTML = "";
   const owned = u?.ownedItems || ["default","none"];
   // Colors
@@ -603,6 +771,7 @@ function renderShop(items, u) {
         if (o) { await fetch("/api/profile/border",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({border:b.id})}); }
         else if (af) { await fetch("/api/shop/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({itemId:b.id})}); }
         else return;
+        await refreshUser();
         loadShop();
       });
       bg.appendChild(d);
@@ -729,7 +898,7 @@ async function loadLeaderboard() {
       const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
       const row = document.createElement('div');
       row.className = `lb-row ${i < 3 ? 'lb-top' : ''} ${isMe ? 'lb-me' : ''}`;
-      row.innerHTML = `<span class="lb-rank">${rank}</span><span class="lb-name">${esc(p.username)}${isMe ? ' (you)' : ''}</span><span class="lb-val">${p.totalPoints} pts</span><span class="lb-label">🪙 ${p.coins}</span>`;
+      row.innerHTML = `<span class="lb-rank">${rank}</span><span class="lb-name">${esc(p.username)}${isMe ? ' (you)' : ''}</span><span class="lb-val">${p.totalPoints} pts</span><span class="lb-label">💰 ${p.coins}</span>`;
       t.appendChild(row);
     });
     if (data.leaderboard.length === 0) c.innerHTML = '<p style="color:var(--ink3);text-align:center">No players yet. Be the first!</p>';
@@ -788,7 +957,7 @@ if (staffLookupBtn) staffLookupBtn.addEventListener('click', async () => {
         const mins = Math.ceil((p.mutedUntil - Date.now()) / 60000);
         statusBadges += `<span class="staff-user-badge muted">Muted ${mins}m</span> `;
       }
-      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong> ${statusBadges}<br>🪙 ${p.coins} coins · 🎮 ${p.gamesPlayed} games · 🏆 ${p.gamesWon} wins · ⭐ ${p.totalPoints} pts<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
+      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong> ${statusBadges}<br>💰 ${p.coins} coins · 🎮 ${p.gamesPlayed} games · 🏆 ${p.gamesWon} wins · ⭐ ${p.totalPoints} pts<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
     } else r.innerHTML = `<p style="color:var(--danger)">Not found</p>`;
   } catch { r.innerHTML = 'Error'; }
 });
@@ -799,7 +968,7 @@ socket.on('site:event', ({ event }) => {
   const existing = document.querySelector('.event-banner');
   if (existing) existing.remove();
   if (!event) return;
-  const names = { 'double-coins': '🪙 DOUBLE COINS ACTIVE!', 'happy-hour': '🎉 HAPPY HOUR — 1.5x Coins!', 'chaos-mode': '🌀 CHAOS MODE' };
+  const names = { 'double-coins': '💰 DOUBLE COINS ACTIVE!', 'happy-hour': '🎉 HAPPY HOUR — 1.5x Coins!', 'chaos-mode': '🌀 CHAOS MODE' };
   const banner = document.createElement('div');
   banner.className = 'event-banner';
   banner.textContent = names[event] || event;
@@ -1055,11 +1224,68 @@ function getBorderStyle(id) { return BORDER_STYLES[id] || "none"; }
 
 function loadProfile() {
   if (!user) return;
+  // Avatar preview
+  const currentAvatar = user.avatar || {};
+  $("profile-avatar-preview").innerHTML = renderAvatarPreview(currentAvatar, 80);
   $("profile-pfp").innerHTML = `<span class="pfp-circle" style="box-shadow:${getBorderStyle(user.pfpBorder)}"><span class="pfp-emoji">${user.pfpEmoji || '😎'}</span></span>`;
   $("profile-username").textContent = user.username;
   const titleDisplay = $("profile-title-display");
   if (user.title === "custom" && user.customTitle) titleDisplay.textContent = user.customTitle;
   else { const t = SHOP_TITLES.find(x => x.id === user.title); titleDisplay.textContent = t && t.id !== "none" ? t.name : ""; }
+
+  // Avatar builder pickers
+  const _av = { face: currentAvatar.face || '😀', hat: currentAvatar.hat || 'none', bg: currentAvatar.bg || '#22aed1' };
+  function refreshAvatarPreview() { $("profile-avatar-preview").innerHTML = renderAvatarPreview(_av, 80); }
+
+  const facePicker = $("avatar-face-picker"); facePicker.innerHTML = "";
+  AVATAR_PARTS.face.forEach(f => {
+    const btn = document.createElement("span");
+    btn.textContent = f;
+    btn.style.cssText = `cursor:pointer;padding:4px;border-radius:8px;transition:all .15s;${_av.face===f?'background:var(--accent);':''}`;
+    btn.addEventListener("click", () => {
+      _av.face = f; facePicker.querySelectorAll('span').forEach(s => s.style.background = '');
+      btn.style.background = 'var(--accent)'; refreshAvatarPreview(); playSound('click');
+    });
+    facePicker.appendChild(btn);
+  });
+
+  const hatPicker = $("avatar-hat-picker"); hatPicker.innerHTML = "";
+  AVATAR_PARTS.hat.forEach(h => {
+    const btn = document.createElement("span");
+    btn.textContent = h === 'none' ? '🚫' : h;
+    btn.style.cssText = `cursor:pointer;padding:4px;border-radius:8px;transition:all .15s;${_av.hat===h?'background:var(--accent);':''}`;
+    btn.addEventListener("click", () => {
+      _av.hat = h; hatPicker.querySelectorAll('span').forEach(s => s.style.background = '');
+      btn.style.background = 'var(--accent)'; refreshAvatarPreview(); playSound('click');
+    });
+    hatPicker.appendChild(btn);
+  });
+
+  const bgPicker = $("avatar-bg-picker"); bgPicker.innerHTML = "";
+  AVATAR_PARTS.bg.forEach(bg => {
+    const swatch = document.createElement("div");
+    swatch.style.cssText = `width:32px;height:32px;border-radius:50%;background:${bg};cursor:pointer;border:3px solid ${_av.bg===bg?'var(--deep)':'transparent'};transition:all .15s;box-shadow:0 2px 6px rgba(0,0,0,0.15)`;
+    swatch.addEventListener("click", () => {
+      _av.bg = bg; bgPicker.querySelectorAll('div').forEach(s => s.style.borderColor = 'transparent');
+      swatch.style.borderColor = 'var(--deep)'; refreshAvatarPreview(); playSound('click');
+    });
+    bgPicker.appendChild(swatch);
+  });
+
+  const saveBtn = $("avatar-save-btn");
+  const saveMsg = $("avatar-save-msg");
+  // Remove old listeners by replacing
+  const newSaveBtn = saveBtn.cloneNode(true);
+  saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+  newSaveBtn.addEventListener("click", async () => {
+    saveMsg.textContent = "";
+    try {
+      const res = await fetch("/api/profile/avatar", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({avatar:_av}) });
+      const data = await res.json();
+      if (res.ok) { saveMsg.textContent = "Avatar saved!"; saveMsg.style.color = "var(--success)"; await refreshUser(); playSound('achieve'); spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle'); }
+      else { saveMsg.textContent = data.error; saveMsg.style.color = "var(--danger)"; }
+    } catch { saveMsg.textContent = "Error"; }
+  });
 
   // PFP picker
   const pfpPicker = $("pfp-picker"); pfpPicker.innerHTML = "";
@@ -1108,6 +1334,26 @@ function loadProfile() {
     customBtn.className = "btn btn-sm btn-primary"; customBtn.textContent = user.customTitle;
     customBtn.style.fontSize = "12px";
     titlePicker.appendChild(customBtn);
+  }
+
+  // Border / Aura picker
+  const borderPicker = $("profile-border-picker");
+  if (borderPicker) {
+    borderPicker.innerHTML = "";
+    const borderItems = Object.keys(BORDER_STYLES);
+    for (const bId of borderItems) {
+      if (bId !== "none" && !owned.includes(bId)) continue; // only show owned + none
+      const style = BORDER_STYLES[bId];
+      const isEquipped = user.pfpBorder === bId;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = `text-align:center;cursor:pointer;padding:6px;border-radius:12px;transition:all .15s;${isEquipped?'background:rgba(34,174,209,0.15);':''}`;
+      wrap.innerHTML = `<div style="width:48px;height:48px;border-radius:50%;background:var(--neo);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 4px;box-shadow:${style}">😎</div><div style="font-size:10px;font-weight:700;color:${isEquipped?'var(--accent)':'var(--ink3)'}">${bId==='none'?'None':bId.replace('glow-','').replace(/^\w/,c=>c.toUpperCase())}</div>`;
+      wrap.addEventListener("click", async () => {
+        await fetch("/api/profile/border", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({border:bId}) });
+        await refreshUser(); loadProfile(); playSound('click');
+      });
+      borderPicker.appendChild(wrap);
+    }
   }
 
   // Inventory
@@ -1319,7 +1565,7 @@ if (staffUsersRefresh) staffUsersRefresh.addEventListener("click", async () => {
       if (u.is_staff) badges += '<span class="staff-user-badge" style="background:rgba(255,215,0,0.15);color:#ffd700">Staff</span>';
       if (u.is_mod) badges += '<span class="staff-user-badge mod">Mod</span>';
       if (u.muted_until && u.muted_until > Date.now()) badges += '<span class="staff-user-badge muted">Muted</span>';
-      return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">🪙${u.coins}</span>${badges}</div>`;
+      return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">💰${u.coins}</span>${badges}</div>`;
     }).join('');
   } catch { list.innerHTML = '<p style="color:var(--ink3)">Error loading</p>'; }
 });
@@ -1502,6 +1748,13 @@ function initGChatOnce() {
   gchatInitialized = true;
   initChat();
   initAchievementListener();
+  initFriendListeners();
+  // Chat reactions
+  if (window._socket) {
+    window._socket.on('gchat:reactions', ({ messageId, reactions }) => {
+      updateReactions(messageId, reactions);
+    });
+  }
 }
 
 function initChat() {
@@ -1522,6 +1775,7 @@ function initChat() {
   window._socket.on('gchat:msg', (msg) => {
     addGChatMsg(msg);
     scrollGlobalChat();
+    if (user && msg.user !== user.username) playSound('chat');
   });
   // Blocked message feedback (Word Spy anti-cheat, profanity, etc.)
   window._socket.on('gchat:blocked', (reason) => {
@@ -1593,6 +1847,11 @@ function addGChatMsg(msg) {
     });
   }
   gchatMessages.appendChild(div);
+  // Add reaction bar
+  if (msg.id) addReactionBar(div, msg.id);
+  // Show reaction bar on hover
+  div.addEventListener('mouseenter', () => { const bar = div.querySelector('.reaction-bar'); if (bar) bar.style.display = 'flex'; });
+  div.addEventListener('mouseleave', () => { const bar = div.querySelector('.reaction-bar'); const picker = div.querySelector('.reaction-picker'); if (bar && !picker) bar.style.display = bar.querySelector('.reaction-counts')?.innerHTML ? 'flex' : 'none'; });
   if (gchatMessages.children.length > 150) gchatMessages.removeChild(gchatMessages.firstChild);
 }
 
@@ -1631,6 +1890,8 @@ async function loadAchievements() {
 
 // Achievement toast notification
 function showAchievementToast(data) {
+  playSound('achieve');
+  spawnParticles(window.innerWidth / 2, window.innerHeight / 2, 'sparkle');
   const toast = document.createElement('div');
   toast.className = 'ach-toast';
   toast.innerHTML = `<span class="ach-toast-icon">${data.icon || '🏆'}</span><div class="ach-toast-text"><div class="ach-toast-title">Achievement Unlocked!</div>${esc(data.name)}${data.coins > 0 ? ` · +${data.coins} coins` : ''}</div>`;
@@ -1744,6 +2005,309 @@ if (dashChangelogToggle) dashChangelogToggle.addEventListener('click', () => {
 });
 
 // ============================================================
+//   6. AVATAR BUILDER
+// ============================================================
+const AVATAR_PARTS = {
+  face: ['😀','😊','😎','🤓','😈','👻','🤖','🐱','🐸','🦊','🐼','🐵','🦁','🐲','🎃'],
+  hat: ['none','🎩','🧢','👑','🎓','🪖','🎀','🌸','⭐','🔥','❄️','💎','🌈'],
+  bg: ['#22aed1','#e04858','#4caf50','#9c27b0','#ff9800','#2196f3','#e91e63','#00bcd4','#ff5722','#607d8b','#ffd700','#1a1a2e'],
+};
+function renderAvatarPreview(avatar, size = 48) {
+  const bg = avatar.bg || '#22aed1';
+  const face = avatar.face || '😀';
+  const hat = avatar.hat || 'none';
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.55)}px;position:relative;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15)">${face}${hat!=='none'?`<span style="position:absolute;top:-${Math.round(size*0.15)}px;font-size:${Math.round(size*0.35)}px">${hat}</span>`:''}</div>`;
+}
+
+// ============================================================
+//   7. FRIENDS & DMs
+// ============================================================
+let _currentDmFriend = null;
+async function loadFriends() {
+  try {
+    const res = await fetch('/api/friends');
+    const data = await res.json();
+    // Pending requests
+    const reqCard = $('friend-requests-card');
+    const reqList = $('friend-requests-list');
+    if (data.pending?.length) {
+      reqCard.hidden = false;
+      reqList.innerHTML = data.pending.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.05)"><span style="font-size:20px">${p.pfpEmoji||'😎'}</span><strong style="flex:1">${esc(p.username)}</strong><button class="btn btn-primary btn-sm" onclick="acceptFriend(${p.id})">Accept</button><button class="btn btn-ghost btn-sm" onclick="rejectFriend(${p.id})">Decline</button></div>`).join('');
+    } else reqCard.hidden = true;
+    // Friends list
+    const list = $('friends-list');
+    const onlineCount = data.friends.filter(f => f.online).length;
+    $('friend-online-count').textContent = data.friends.length > 0 ? `(${onlineCount} online)` : '';
+    if (!data.friends.length) { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">No friends yet. Add someone above!</p>'; return; }
+    list.innerHTML = data.friends.sort((a,b)=>b.online-a.online).map(f => {
+      const av = renderAvatarPreview(f.avatar || {}, 32);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.05)"><span style="position:relative">${av}<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:${f.online?'var(--success)':'#888'};border:2px solid var(--white)"></span></span><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis">${esc(f.username)}</div><div style="font-size:11px;color:var(--ink3)">${f.online?'Online':'Offline'}</div></div><button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openDM(${f.id},'${esc(f.username)}')">💬</button><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--danger)" onclick="unfriend(${f.id})">✕</button></div>`;
+    }).join('');
+  } catch {}
+}
+
+window.acceptFriend = async (id) => { await fetch('/api/friends/accept', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fromId:id}) }); loadFriends(); showToast('Friend request accepted!', '🤝'); };
+window.rejectFriend = async (id) => { await fetch('/api/friends/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:id}) }); loadFriends(); };
+window.unfriend = async (id) => { if (!confirm('Remove this friend?')) return; await fetch('/api/friends/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:id}) }); loadFriends(); };
+window.openDM = async (friendId, name) => {
+  _currentDmFriend = friendId;
+  $('dm-panel').hidden = false;
+  $('dm-title').textContent = `💬 ${name}`;
+  $('dm-messages').innerHTML = '<p style="color:var(--ink3);font-size:12px;text-align:center">Loading...</p>';
+  try {
+    const res = await fetch(`/api/dm/${friendId}`);
+    const data = await res.json();
+    const msgEl = $('dm-messages');
+    if (!data.messages?.length) { msgEl.innerHTML = '<p style="color:var(--ink3);font-size:12px;text-align:center">No messages yet</p>'; return; }
+    msgEl.innerHTML = data.messages.map(m => {
+      const isMe = m.from_id === user.id;
+      const time = new Date(m.time);
+      const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+      return `<div style="margin-bottom:6px;text-align:${isMe?'right':'left'}"><div style="display:inline-block;max-width:80%;padding:6px 10px;border-radius:12px;background:${isMe?'var(--accent)':'rgba(0,0,0,0.08)'};color:${isMe?'#fff':'var(--ink)'};font-size:13px">${esc(m.text)}</div><div style="font-size:9px;color:var(--ink3);margin-top:1px">${ts}</div></div>`;
+    }).join('');
+    msgEl.scrollTop = msgEl.scrollHeight;
+  } catch {}
+};
+
+document.getElementById('dm-close')?.addEventListener('click', () => { $('dm-panel').hidden = true; _currentDmFriend = null; });
+document.getElementById('dm-send-btn')?.addEventListener('click', async () => {
+  const input = $('dm-input');
+  const text = input.value.trim();
+  if (!text || !_currentDmFriend) return;
+  input.value = '';
+  await fetch('/api/dm/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:_currentDmFriend,text}) });
+  openDM(_currentDmFriend, $('dm-title').textContent.replace('💬 ', ''));
+  playSound('click');
+});
+document.getElementById('dm-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('dm-send-btn')?.click(); });
+
+document.getElementById('friend-add-btn')?.addEventListener('click', async () => {
+  const input = $('friend-add-input');
+  const msg = $('friend-add-msg');
+  const username = input.value.trim(); msg.textContent = '';
+  if (!username) return;
+  try {
+    const res = await fetch('/api/friends/request', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username}) });
+    const data = await res.json();
+    msg.textContent = data.message || data.error;
+    msg.style.color = res.ok ? 'var(--success)' : 'var(--danger)';
+    if (res.ok) { input.value = ''; loadFriends(); playSound('achieve'); }
+  } catch { msg.textContent = 'Error'; }
+});
+
+// DM socket notification
+function initFriendListeners() {
+  if (!window._socket) return;
+  window._socket.on('friend:request', (data) => {
+    showToast(`${data.from} sent you a friend request!`, '📬', 5000);
+    playSound('achieve');
+  });
+  window._socket.on('dm:message', (data) => {
+    showToast(`${data.from}: ${data.text.slice(0, 40)}`, '💬', 4000);
+    playSound('chat');
+    if (_currentDmFriend === data.fromId) openDM(data.fromId, data.from);
+  });
+}
+
+// ============================================================
+//   8. CHAT REACTIONS
+// ============================================================
+const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🔥'];
+
+function addReactionBar(msgEl, msgId) {
+  if (!msgId || msgEl.querySelector('.reaction-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'reaction-bar';
+  bar.style.cssText = 'display:none;gap:2px;margin-top:3px;flex-wrap:wrap;align-items:center';
+  // Reaction counts (populated later)
+  const counts = document.createElement('span');
+  counts.className = 'reaction-counts';
+  counts.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap';
+  bar.appendChild(counts);
+  // Add reaction button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'reaction-add-btn';
+  addBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;border-radius:6px;opacity:0.5;transition:opacity .15s';
+  addBtn.textContent = '+';
+  addBtn.title = 'React';
+  addBtn.addEventListener('mouseenter', () => { addBtn.style.opacity = '1'; });
+  addBtn.addEventListener('mouseleave', () => { addBtn.style.opacity = '0.5'; });
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showReactionPicker(msgEl, msgId);
+  });
+  bar.appendChild(addBtn);
+  msgEl.appendChild(bar);
+}
+
+function showReactionPicker(msgEl, msgId) {
+  // Remove any existing picker
+  document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.style.cssText = 'position:absolute;bottom:100%;right:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);border-radius:10px;padding:4px 6px;display:flex;gap:2px;z-index:50;animation:toastSlideIn .15s ease';
+  REACTION_EMOJIS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;padding:2px 4px;border-radius:4px;transition:transform .1s';
+    btn.textContent = emoji;
+    btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.3)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
+    btn.addEventListener('click', async () => {
+      picker.remove();
+      await fetch('/api/chat/react', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messageId:msgId,emoji}) });
+    });
+    picker.appendChild(btn);
+  });
+  msgEl.style.position = 'relative';
+  msgEl.appendChild(picker);
+  setTimeout(() => { document.addEventListener('click', () => picker.remove(), { once: true }); }, 50);
+}
+
+function updateReactions(messageId, reactions) {
+  const msgEl = gchatMessages?.querySelector(`[data-msg-id="${messageId}"]`);
+  if (!msgEl) return;
+  let bar = msgEl.querySelector('.reaction-bar');
+  if (!bar) { addReactionBar(msgEl, messageId); bar = msgEl.querySelector('.reaction-bar'); }
+  const counts = bar.querySelector('.reaction-counts');
+  if (reactions && reactions.length > 0) {
+    bar.style.display = 'flex';
+    counts.innerHTML = reactions.map(r => `<span style="background:rgba(0,0,0,0.06);border-radius:8px;padding:1px 5px;font-size:11px;cursor:default" title="${r.count}">${r.emoji} ${r.count > 1 ? r.count : ''}</span>`).join('');
+  } else {
+    counts.innerHTML = '';
+  }
+}
+
+// ============================================================
+//   10. MOBILE RESPONSIVE
+// ============================================================
+const navHamburger = document.getElementById('nav-hamburger');
+const navLinksWrap = document.getElementById('nav-links-wrap');
+if (navHamburger && navLinksWrap) {
+  navHamburger.addEventListener('click', () => {
+    navLinksWrap.classList.toggle('open');
+    playSound('click');
+  });
+  navLinksWrap.querySelectorAll('.nav-link').forEach(l => {
+    l.addEventListener('click', () => navLinksWrap.classList.remove('open'));
+  });
+}
+const gchatMobileToggle = document.getElementById('gchat-mobile-toggle');
+const gchatCloseMobile = document.getElementById('gchat-close-mobile');
+if (gchatMobileToggle) gchatMobileToggle.addEventListener('click', () => {
+  const sidebar = $('gchat-sidebar');
+  if (sidebar) { sidebar.hidden = false; document.body.classList.add('gchat-open'); }
+});
+if (gchatCloseMobile) gchatCloseMobile.addEventListener('click', () => {
+  const sidebar = $('gchat-sidebar');
+  if (sidebar && window.innerWidth <= 768) { sidebar.hidden = true; document.body.classList.remove('gchat-open'); }
+});
+
+// ============================================================
+//   12. DAILY CHALLENGES
+// ============================================================
+async function loadDailyChallenges() {
+  const list = $('daily-challenges-list');
+  const timer = $('daily-reset-timer');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/daily');
+    const data = await res.json();
+    if (!data.challenges) return;
+    if (timer && data.resetIn) {
+      const hrs = Math.floor(data.resetIn / 3600000);
+      const mins = Math.floor((data.resetIn % 3600000) / 60000);
+      timer.textContent = `Resets in ${hrs}h ${mins}m`;
+    }
+    list.innerHTML = data.challenges.map(c => {
+      const pct = Math.min(100, Math.round((c.progress / c.goal) * 100));
+      const done = c.progress >= c.goal;
+      return `<div style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.05)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:22px">${c.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--ink)">${c.name}</div>
+            <div style="font-size:11px;color:var(--ink3)">${c.desc}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            ${c.claimed ? '<span style="color:var(--success);font-size:11px;font-weight:700">✓ Claimed</span>'
+             : done ? `<button class="btn btn-primary btn-sm" style="font-size:11px;padding:4px 10px" onclick="claimDailyChallenge('${c.key}',${c.reward})">Claim 💰${c.reward}</button>`
+             : `<span style="font-size:11px;color:var(--ink3)">${c.progress}/${c.goal}</span>`}
+          </div>
+        </div>
+        <div class="daily-bar"><div class="daily-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    }).join('');
+  } catch { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">Could not load challenges</p>'; }
+}
+window.claimDailyChallenge = async (key, reward) => {
+  try {
+    const res = await fetch('/api/daily/claim', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({challengeKey:key}) });
+    if (res.ok) {
+      showToast(`Challenge complete! +${reward} coins`, '🎯', 3000);
+      playSound('win');
+      spawnParticles(window.innerWidth / 2, window.innerHeight / 3, 'confetti');
+      await refreshUser();
+      loadDailyChallenges();
+    }
+  } catch {}
+};
+
+// ============================================================
+//   11. SPECTATOR MODE (Arcade)
+// ============================================================
+async function loadLiveGames() {
+  const list = $('arcade-live-list');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/arcade/live');
+    const data = await res.json();
+    if (!data.games?.length) { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">No one is playing right now</p>'; return; }
+    list.innerHTML = data.games.map(g => {
+      const gameNames = {memory:'Memory Match',minesweeper:'Minesweeper',clickspeed:'Firing Range',mathrush:'Math Rush',snake:'Snake'};
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.05)">
+        <span style="font-size:10px;color:var(--success);font-weight:700">● LIVE</span>
+        <div style="flex:1"><strong>${esc(g.username)}</strong> <span style="color:var(--ink3);font-size:12px">playing ${gameNames[g.game]||g.game}</span></div>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="startSpectating(${g.id},'${esc(g.username)}','${g.game}')">👁️ Watch</button>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+window.startSpectating = (playerId, username, game) => {
+  $('arcade-play-area').hidden = true;
+  $('arcade-live-card').hidden = true;
+  document.querySelector('.arcade-grid').hidden = true;
+  $('arcade-spectate-area').hidden = false;
+  $('spectate-title').textContent = `👁️ Watching ${username} play ${game}`;
+  $('spectate-container').innerHTML = '<p style="color:var(--ink3);text-align:center;padding:20px">Connecting to live game...</p>';
+  socket.emit('spectate:join', { playerId });
+  showToast(`Watching ${username}`, '👁️', 2000);
+  const frameHandler = ({ score, state }) => {
+    const container = $('spectate-container');
+    if (!container) return;
+    container.innerHTML = `<div style="text-align:center;padding:16px"><div style="font-size:32px;font-weight:800;color:var(--accent);margin-bottom:4px">${score||0}</div><div style="font-size:12px;color:var(--ink3)">Score</div><div style="margin-top:12px;padding:12px;background:var(--neo);border-radius:var(--rs);font-size:13px;color:var(--ink2)">${state||'Game in progress...'}</div></div>`;
+  };
+  const endHandler = () => {
+    $('spectate-container').innerHTML = '<p style="color:var(--ink3);text-align:center;padding:20px;font-weight:700">Game ended!</p>';
+    socket.off('spectate:frame', frameHandler);
+    socket.off('spectate:ended', endHandler);
+    setTimeout(() => stopSpectating(playerId), 2000);
+  };
+  socket.on('spectate:frame', frameHandler);
+  socket.on('spectate:ended', endHandler);
+  window._spectateCleanup = () => { socket.off('spectate:frame', frameHandler); socket.off('spectate:ended', endHandler); };
+};
+window.stopSpectating = (playerId) => {
+  if (window._spectateCleanup) { window._spectateCleanup(); window._spectateCleanup = null; }
+  if (playerId) socket.emit('spectate:leave', { playerId });
+  $('arcade-spectate-area').hidden = true;
+  $('arcade-live-card').hidden = false;
+  document.querySelector('.arcade-grid').hidden = false;
+  loadLiveGames();
+};
+document.getElementById('spectate-back')?.addEventListener('click', () => stopSpectating());
+socket.on('arcade:liveUpdate', loadLiveGames);
+
+// ============================================================
 //   VERSION CHECK — prompt reload on update
 // ============================================================
 let _siteVersion = null;
@@ -1771,3 +2335,9 @@ setInterval(checkSiteVersion, 30000); // Check every 30 seconds
 checkSession();
 checkStaff();
 loadFakeNews();
+
+// Dismiss loading screen
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls) { ls.classList.add('fade-out'); setTimeout(() => ls.remove(), 600); }
+}, 1200);

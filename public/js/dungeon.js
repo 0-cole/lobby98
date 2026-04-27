@@ -1083,13 +1083,16 @@ window.DungeonGame={
     g=newGame();_particles=[];_tooltip=null;
     const loaded=loadGame();
     if(!loaded){recalc();g.player.hp=g.player.mhp;}
-    container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)"></canvas>`;
+    container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:100%;height:auto"></canvas>`;
     const cv=document.getElementById("dg-canvas"),ctx=cv.getContext("2d");
     const xy=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height)];};
     const onClick=e=>{const[mx,my]=xy(e);handleClick(mx,my,onFinish);};
     const onCtx=e=>{e.preventDefault();const[mx,my]=xy(e);handleRightClick(mx,my);};
     const onMove=e=>{const[mx,my]=xy(e);handleHover(mx,my);};
     cv.addEventListener("click",onClick);cv.addEventListener("contextmenu",onCtx);cv.addEventListener("mousemove",onMove);
+    // Touch support for mobile
+    cv.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];const[mx,my]=xy(t);handleHover(mx,my);},{passive:false});
+    cv.addEventListener("touchend",e=>{e.preventDefault();if(e.changedTouches.length){const t=e.changedTouches[0];const[mx,my]=xy(t);handleClick(mx,my,onFinish);}},{passive:false});
     let last=Date.now();
     const loop=()=>{const now=Date.now();const dt=Math.min((now-last)/16.67,3);last=now;
       updateBattle(dt);render(ctx);_raf=requestAnimationFrame(loop);};

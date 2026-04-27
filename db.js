@@ -62,6 +62,7 @@ try { db.exec("ALTER TABLE users ADD COLUMN is_mod INTEGER DEFAULT 0"); } catch 
 try { db.exec("ALTER TABLE users ADD COLUMN muted_until INTEGER DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN is_staff INTEGER DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN staff_perms TEXT DEFAULT '{}'"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '{}'"); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS portfolios (
@@ -85,6 +86,28 @@ db.exec(`
     achievement_id TEXT NOT NULL,
     earned_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, achievement_id)
+  );
+  CREATE TABLE IF NOT EXISTS friends (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_id INTEGER NOT NULL,
+    to_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    UNIQUE(from_id, to_id)
+  );
+  CREATE TABLE IF NOT EXISTS direct_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_id INTEGER NOT NULL,
+    to_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    time INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS chat_reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    emoji TEXT NOT NULL,
+    UNIQUE(message_id, user_id, emoji)
   );
 
   CREATE TABLE IF NOT EXISTS global_chat (
@@ -190,7 +213,7 @@ export function getAllUsers() { return s.allUsers.all(); }
 export function wipeUserProgress(userId, what) {
   if (what === "all" || what === "coins") db.prepare("UPDATE users SET coins = 0 WHERE id = ?").run(userId);
   if (what === "all" || what === "games") db.prepare("UPDATE users SET games_played = 0, games_won = 0, total_points = 0 WHERE id = ?").run(userId);
-  if (what === "all" || what === "achievements") db.prepare("DELETE FROM user_achievements WHERE user_id = ?").run(userId);
+  if (what === "all" || what === "achievements") db.prepare("DELETE FROM achievements WHERE user_id = ?").run(userId);
   if (what === "all" || what === "shop") db.prepare("UPDATE users SET owned_items = '[\"default\",\"none\"]', name_color = 'default', title = 'none', pfp_emoji = '😎', custom_title = NULL, pfp_border = 'none' WHERE id = ?").run(userId);
   if (what === "all" || what === "stocks") db.prepare("UPDATE users SET stock_cash = 1000 WHERE id = ?").run(userId);
   // Delete stock portfolio
@@ -276,7 +299,8 @@ export function safeUserData(u) {
     customTitle: u.custom_title || null,
     stockCash: u.stock_cash ?? 1000,
     pfpBorder: u.pfp_border || 'none',
-    createdAt: u.created_at || 0
+    createdAt: u.created_at || 0,
+    avatar: (() => { try { return JSON.parse(u.avatar || "{}"); } catch { return {}; } })()
   };
 }
 
@@ -285,10 +309,94 @@ export function deleteAllUsersExcept(keepUsernames) {
   const delUsers = db.prepare(`DELETE FROM users WHERE username NOT IN (${placeholders})`);
   const delSessions = db.prepare(`DELETE FROM sessions WHERE user_id NOT IN (SELECT id FROM users)`);
   const delBugs = db.prepare(`DELETE FROM bug_reports WHERE user_id NOT IN (SELECT id FROM users)`);
-  const delAch = db.prepare(`DELETE FROM user_achievements WHERE user_id NOT IN (SELECT id FROM users)`);
+  const delAch = db.prepare(`DELETE FROM achievements WHERE user_id NOT IN (SELECT id FROM users)`);
   const count = delUsers.run(...keepUsernames).changes;
   delSessions.run();
   delBugs.run();
   delAch.run();
+  try { db.prepare("DELETE FROM friends WHERE from_id NOT IN (SELECT id FROM users) OR to_id NOT IN (SELECT id FROM users)").run(); } catch {}
+  try { db.prepare("DELETE FROM direct_messages WHERE from_id NOT IN (SELECT id FROM users) OR to_id NOT IN (SELECT id FROM users)").run(); } catch {}
+  try { db.prepare("DELETE FROM chat_reactions WHERE user_id NOT IN (SELECT id FROM users)").run(); } catch {}
   return count;
+}
+
+// ── Avatar ──
+export function setAvatar(userId, avatar) {
+  db.prepare("UPDATE users SET avatar = ? WHERE id = ?").run(JSON.stringify(avatar), userId);
+}
+
+// ── Friends ──
+export function sendFriendRequest(fromId, toId) {
+  // Check if already exists in either direction
+  const existing = db.prepare("SELECT * FROM friends WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)").get(fromId, toId, toId, fromId);
+  if (existing) return existing;
+  db.prepare("INSERT INTO friends (from_id, to_id, status, created_at) VALUES (?, ?, 'pending', ?)").run(fromId, toId, Date.now());
+  return { status: 'sent' };
+}
+export function acceptFriend(fromId, toId) {
+  db.prepare("UPDATE friends SET status='accepted' WHERE from_id=? AND to_id=? AND status='pending'").run(fromId, toId);
+}
+export function removeFriend(userId, friendId) {
+  db.prepare("DELETE FROM friends WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)").run(userId, friendId, friendId, userId);
+}
+export function getFriends(userId) {
+  return db.prepare(`
+    SELECT f.*, u.username, u.pfp_emoji, u.avatar FROM friends f
+    JOIN users u ON (CASE WHEN f.from_id=? THEN f.to_id ELSE f.from_id END) = u.id
+    WHERE (f.from_id=? OR f.to_id=?) AND f.status='accepted'
+  `).all(userId, userId, userId);
+}
+export function getPendingRequests(userId) {
+  return db.prepare("SELECT f.*, u.username, u.pfp_emoji FROM friends f JOIN users u ON f.from_id = u.id WHERE f.to_id=? AND f.status='pending'").all(userId);
+}
+
+// ── Direct Messages ──
+export function sendDM(fromId, toId, text) {
+  return db.prepare("INSERT INTO direct_messages (from_id, to_id, text, time) VALUES (?, ?, ?, ?)").run(fromId, toId, text, Date.now());
+}
+export function getDMs(userId1, userId2, limit = 50) {
+  return db.prepare("SELECT d.*, u.username FROM direct_messages d JOIN users u ON d.from_id = u.id WHERE (d.from_id=? AND d.to_id=?) OR (d.from_id=? AND d.to_id=?) ORDER BY d.id DESC LIMIT ?").all(userId1, userId2, userId2, userId1, limit).reverse();
+}
+
+// ── Chat Reactions ──
+export function addReaction(messageId, userId, emoji) {
+  try { db.prepare("INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)").run(messageId, userId, emoji); return true; }
+  catch { db.prepare("DELETE FROM chat_reactions WHERE message_id=? AND user_id=? AND emoji=?").run(messageId, userId, emoji); return false; }
+}
+export function getReactions(messageId) {
+  return db.prepare("SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as users FROM chat_reactions WHERE message_id=? GROUP BY emoji").all(messageId);
+}
+export function getReactionsBulk(messageIds) {
+  if (!messageIds.length) return {};
+  const placeholders = messageIds.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT message_id, emoji, COUNT(*) as count FROM chat_reactions WHERE message_id IN (${placeholders}) GROUP BY message_id, emoji`).all(...messageIds);
+  const result = {};
+  for (const r of rows) { if (!result[r.message_id]) result[r.message_id] = []; result[r.message_id].push({ emoji: r.emoji, count: r.count }); }
+  return result;
+}
+
+// ── Daily Challenges ──
+db.exec(`
+  CREATE TABLE IF NOT EXISTS daily_progress (
+    user_id INTEGER NOT NULL,
+    challenge_key TEXT NOT NULL,
+    day TEXT NOT NULL,
+    progress INTEGER DEFAULT 0,
+    claimed INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, challenge_key, day)
+  )
+`);
+export function getDailyProgress(userId, day) {
+  return db.prepare("SELECT * FROM daily_progress WHERE user_id = ? AND day = ?").all(userId, day);
+}
+export function incrementDaily(userId, challengeKey, day, amount = 1) {
+  const existing = db.prepare("SELECT * FROM daily_progress WHERE user_id = ? AND challenge_key = ? AND day = ?").get(userId, challengeKey, day);
+  if (!existing) {
+    db.prepare("INSERT INTO daily_progress (user_id, challenge_key, day, progress) VALUES (?, ?, ?, ?)").run(userId, challengeKey, day, amount);
+  } else {
+    db.prepare("UPDATE daily_progress SET progress = progress + ? WHERE user_id = ? AND challenge_key = ? AND day = ?").run(amount, userId, challengeKey, day);
+  }
+}
+export function claimDaily(userId, challengeKey, day) {
+  db.prepare("UPDATE daily_progress SET claimed = 1 WHERE user_id = ? AND challenge_key = ? AND day = ?").run(userId, challengeKey, day);
 }
