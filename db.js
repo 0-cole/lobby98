@@ -227,7 +227,7 @@ export function hasAchievement(userId, achId) { return !!achStmts.has.get(userId
 export function awardAchievement(userId, achId) { achStmts.add.run(userId, achId, Date.now()); }
 
 const leaderboardStmt = db.prepare(
-  "SELECT id, username, coins, games_played, games_won, total_points FROM users ORDER BY total_points DESC LIMIT 20"
+  "SELECT id, username, coins, games_played, games_won, total_points FROM users WHERE is_banned = 0 ORDER BY total_points DESC LIMIT 20"
 );
 export function leaderboardQuery() {
   return leaderboardStmt.all().map(u => ({

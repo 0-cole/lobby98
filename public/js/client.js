@@ -1691,6 +1691,40 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
   });
 });
 
+// ============================================================
+//   COLOR THEMES
+// ============================================================
+const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+function applyTheme(theme) {
+  THEME_CLASSES.forEach(c => document.body.classList.remove(c));
+  if (theme) document.body.classList.add(theme);
+  localStorage.setItem('lobby98_theme', theme || '');
+  // Update active swatch
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', (s.dataset.theme || '') === (theme || ''));
+  });
+}
+// Init theme from localStorage
+const savedTheme = localStorage.getItem('lobby98_theme') || '';
+if (savedTheme) applyTheme(savedTheme);
+// Theme swatch clicks
+document.getElementById('theme-grid')?.addEventListener('click', e => {
+  const swatch = e.target.closest('.theme-swatch');
+  if (!swatch) return;
+  applyTheme(swatch.dataset.theme || '');
+});
+// Mark active swatch on page load
+setTimeout(() => applyTheme(savedTheme), 50);
+
+// Dashboard changelog toggle
+const dashChangelogToggle = document.getElementById('dash-changelog-toggle');
+if (dashChangelogToggle) dashChangelogToggle.addEventListener('click', () => {
+  const extra = $('dash-changelog-extra');
+  if (!extra) return;
+  extra.hidden = !extra.hidden;
+  dashChangelogToggle.textContent = extra.hidden ? 'Show older updates' : 'Hide older updates';
+});
+
 checkSession();
 checkStaff();
 loadFakeNews();

@@ -504,3 +504,150 @@ body.gchat-open .stage{margin:0 auto}
 .announce-bar .announce-x:hover{color:#fff}
 @keyframes announceIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
 body.gchat-open #announcements{right:280px}
+
+/* ══════════════════════════════════════════════════════
+   COLOR THEMES
+   ══════════════════════════════════════════════════════ */
+
+/* Theme picker grid */
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px}
+.theme-swatch{height:56px;border-radius:12px;cursor:pointer;border:3px solid transparent;transition:all .2s;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px}
+.theme-swatch:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+.theme-swatch.active{border-color:#fff;box-shadow:0 0 0 2px var(--accent),0 4px 16px rgba(0,0,0,0.25)}
+.theme-swatch span{font-size:9px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);letter-spacing:.3px}
+
+/* ── Midnight (purple/black) ── */
+body.theme-midnight{--sky1:#2a1050;--sky2:#1a0a30;--sky3:#0d0520;--deep:#e0d0ff;--mid:#9b59b6;--accent:#bb86fc;--accent-lt:#d4b0ff;--ink:#e0d0ff;--ink2:#b090d0;--ink3:#8060a0;--glass:rgba(40,20,80,0.55);--glass-hi:rgba(60,30,100,0.7);--glass-edge:rgba(140,80,200,0.3);--glass-sh:rgba(20,10,40,0.4);--neo:rgba(30,15,60,0.6);--neo-hi:rgba(60,30,100,0.5);--neo-lo:rgba(10,5,20,0.5)}
+body.theme-midnight .sky-bg{background:linear-gradient(170deg,#1a0530 0%,#2a1050 25%,#1a0a30 55%,#0d0520 80%,#050210 100%)}
+body.theme-midnight .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(130,60,220,0.2),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(80,20,160,0.15),transparent)}
+body.theme-midnight .orb1{background:radial-gradient(circle,rgba(130,60,220,.4),transparent 70%)}
+body.theme-midnight .orb2{background:radial-gradient(circle,rgba(80,20,160,.4),transparent 70%)}
+body.theme-midnight .orb3{background:radial-gradient(circle,rgba(200,140,255,.15),transparent 70%)}
+body.theme-midnight .bubble{background:radial-gradient(circle at 30% 25%,rgba(200,160,255,.6)0%,rgba(140,80,200,.2)25%,rgba(80,40,140,.08)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(100,50,180,.12),inset 4px 4px 10px rgba(200,160,255,.3),0 0 16px rgba(140,80,200,.15)}
+body.theme-midnight .xmb-1{fill:rgba(130,60,220,0.5)}
+body.theme-midnight .xmb-2{fill:rgba(100,40,180,0.4)}
+body.theme-midnight .xmb-3{fill:rgba(180,120,255,0.3)}
+body.theme-midnight .top-nav{background:rgba(20,10,40,.6)}
+body.theme-midnight .nav-link{color:var(--ink3)}
+body.theme-midnight .nav-link:hover{background:rgba(100,50,180,.3)}
+body.theme-midnight .nav-link.active{background:rgba(80,30,140,.5);color:#e0d0ff}
+body.theme-midnight .glass-card{background:linear-gradient(180deg,rgba(40,20,80,.5)0%,rgba(30,15,60,.4)40%,rgba(25,12,50,.45)100%);border-color:rgba(120,60,200,.2)}
+body.theme-midnight .glass-card::before{background:linear-gradient(180deg,rgba(100,50,180,.15)0%,transparent 100%)}
+body.theme-midnight .news-ticker{background:rgba(15,8,30,.92)}
+body.theme-midnight .gchat-sidebar{background:linear-gradient(180deg,rgba(40,20,80,.72)0%,rgba(30,15,60,.6)40%,rgba(25,12,50,.65)100%);border-color:rgba(120,60,200,.2)}
+
+/* ── Sunset (red/orange/pink) ── */
+body.theme-sunset{--sky1:#e05050;--sky2:#e88030;--sky3:#f0b040;--deep:#4a1a1a;--mid:#c04020;--accent:#e06040;--accent-lt:#f0a080;--ink:#4a1a1a;--ink2:#8a4a3a;--ink3:#a07060;--glass:rgba(255,255,255,0.48);--glass-edge:rgba(255,220,200,0.7);--glass-sh:rgba(100,30,20,0.12);--neo:#f0e0d8;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(100,30,20,0.12)}
+body.theme-sunset .sky-bg{background:linear-gradient(170deg,#c04040 0%,#e05050 25%,#e88030 55%,#f0b040 80%,#fff0d0 100%)}
+body.theme-sunset .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(255,120,80,0.3),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(255,180,60,0.25),transparent)}
+body.theme-sunset .orb1{background:radial-gradient(circle,rgba(255,100,60,.5),transparent 70%)}
+body.theme-sunset .orb2{background:radial-gradient(circle,rgba(255,180,40,.5),transparent 70%)}
+body.theme-sunset .orb3{background:radial-gradient(circle,rgba(255,220,140,.2),transparent 70%)}
+body.theme-sunset .bubble{background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.8)0%,rgba(255,200,180,.3)25%,rgba(255,140,80,.1)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(200,80,40,.1),inset 4px 4px 10px rgba(255,255,255,.5),0 0 16px rgba(255,180,100,.2)}
+body.theme-sunset .xmb-1{fill:rgba(255,100,60,0.5)}
+body.theme-sunset .xmb-2{fill:rgba(255,160,40,0.4)}
+body.theme-sunset .xmb-3{fill:rgba(255,220,100,0.35)}
+
+/* ── Golden Hour (yellow/amber/warm) ── */
+body.theme-golden{--sky1:#d4a020;--sky2:#c08818;--sky3:#e8c060;--deep:#4a3010;--mid:#b08020;--accent:#d4a020;--accent-lt:#e8c868;--ink:#3a2810;--ink2:#7a6040;--ink3:#a09060;--glass:rgba(255,255,255,0.50);--glass-edge:rgba(255,240,200,0.75);--glass-sh:rgba(80,50,10,0.12);--neo:#f0e8d0;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(80,50,10,0.12)}
+body.theme-golden .sky-bg{background:linear-gradient(170deg,#c09020 0%,#d4a020 25%,#c08818 55%,#e8c060 80%,#fff8e0 100%)}
+body.theme-golden .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(255,200,60,0.3),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(255,230,140,0.25),transparent)}
+body.theme-golden .orb1{background:radial-gradient(circle,rgba(255,200,50,.5),transparent 70%)}
+body.theme-golden .orb2{background:radial-gradient(circle,rgba(220,160,30,.5),transparent 70%)}
+body.theme-golden .orb3{background:radial-gradient(circle,rgba(255,240,180,.2),transparent 70%)}
+body.theme-golden .xmb-1{fill:rgba(255,200,50,0.5)}
+body.theme-golden .xmb-2{fill:rgba(220,170,40,0.4)}
+body.theme-golden .xmb-3{fill:rgba(255,230,130,0.35)}
+
+/* ── Forest (emerald/green) ── */
+body.theme-forest{--sky1:#1a6030;--sky2:#2a8040;--sky3:#60b060;--deep:#0a2a10;--mid:#1a7030;--accent:#30a050;--accent-lt:#70d080;--ink:#0a2a10;--ink2:#3a6a40;--ink3:#5a8a60;--glass:rgba(255,255,255,0.48);--glass-edge:rgba(200,240,200,0.7);--glass-sh:rgba(10,50,20,0.15);--neo:#d8f0d8;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(10,50,20,0.12)}
+body.theme-forest .sky-bg{background:linear-gradient(170deg,#0a4020 0%,#1a6030 25%,#2a8040 55%,#60b060 80%,#d0f0d0 100%)}
+body.theme-forest .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(60,180,80,0.25),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(100,200,120,0.2),transparent)}
+body.theme-forest .orb1{background:radial-gradient(circle,rgba(60,180,80,.4),transparent 70%)}
+body.theme-forest .orb2{background:radial-gradient(circle,rgba(100,200,120,.4),transparent 70%)}
+body.theme-forest .orb3{background:radial-gradient(circle,rgba(180,240,180,.15),transparent 70%)}
+body.theme-forest .xmb-1{fill:rgba(60,180,80,0.5)}
+body.theme-forest .xmb-2{fill:rgba(80,200,100,0.4)}
+body.theme-forest .xmb-3{fill:rgba(140,220,140,0.3)}
+
+/* ── Sakura (pink/lavender) ── */
+body.theme-sakura{--sky1:#e08090;--sky2:#c080b0;--sky3:#e0b0c0;--deep:#4a1a2a;--mid:#c06080;--accent:#e080a0;--accent-lt:#f0b0c0;--ink:#4a1a2a;--ink2:#8a4a60;--ink3:#a07080;--glass:rgba(255,255,255,0.50);--glass-edge:rgba(255,210,220,0.75);--glass-sh:rgba(100,20,50,0.10);--neo:#f8e0e8;--neo-hi:rgba(255,255,255,0.85);--neo-lo:rgba(100,20,50,0.10)}
+body.theme-sakura .sky-bg{background:linear-gradient(170deg,#d06080 0%,#e08090 25%,#c080b0 55%,#e0b0c0 80%,#fff0f4 100%)}
+body.theme-sakura .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(255,140,180,0.25),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(200,120,180,0.2),transparent)}
+body.theme-sakura .orb1{background:radial-gradient(circle,rgba(255,140,180,.4),transparent 70%)}
+body.theme-sakura .orb2{background:radial-gradient(circle,rgba(200,120,180,.4),transparent 70%)}
+body.theme-sakura .orb3{background:radial-gradient(circle,rgba(255,200,220,.15),transparent 70%)}
+body.theme-sakura .xmb-1{fill:rgba(255,140,180,0.5)}
+body.theme-sakura .xmb-2{fill:rgba(220,120,160,0.4)}
+body.theme-sakura .xmb-3{fill:rgba(255,180,200,0.3)}
+
+/* ── Neon (cyan/magenta cyberpunk) ── */
+body.theme-neon{--sky1:#0a0a20;--sky2:#0d0d30;--sky3:#0a0a18;--deep:#e0f0ff;--mid:#00e5ff;--accent:#ff00ff;--accent-lt:#ff80ff;--ink:#e0f0ff;--ink2:#80c0e0;--ink3:#5090b0;--glass:rgba(10,10,30,0.6);--glass-hi:rgba(20,20,50,0.7);--glass-edge:rgba(0,200,255,0.2);--glass-sh:rgba(0,0,0,0.4);--neo:rgba(15,15,35,0.6);--neo-hi:rgba(30,30,60,0.5);--neo-lo:rgba(0,0,0,0.5)}
+body.theme-neon .sky-bg{background:linear-gradient(170deg,#050515 0%,#0a0a20 25%,#0d0d30 55%,#0a0a18 80%,#030310 100%)}
+body.theme-neon .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(0,229,255,0.15),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(255,0,255,0.12),transparent)}
+body.theme-neon .orb1{background:radial-gradient(circle,rgba(0,229,255,.4),transparent 70%)}
+body.theme-neon .orb2{background:radial-gradient(circle,rgba(255,0,255,.3),transparent 70%)}
+body.theme-neon .orb3{background:radial-gradient(circle,rgba(0,255,200,.1),transparent 70%)}
+body.theme-neon .bubble{background:radial-gradient(circle at 30% 25%,rgba(0,229,255,.4)0%,rgba(255,0,255,.15)25%,rgba(0,200,255,.05)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(0,100,200,.1),inset 4px 4px 10px rgba(0,229,255,.2),0 0 16px rgba(255,0,255,.1)}
+body.theme-neon .xmb-1{fill:rgba(0,229,255,0.4)}
+body.theme-neon .xmb-2{fill:rgba(255,0,255,0.3)}
+body.theme-neon .xmb-3{fill:rgba(0,255,200,0.2)}
+body.theme-neon .top-nav{background:rgba(8,8,20,.7)}
+body.theme-neon .nav-link{color:var(--ink3)}
+body.theme-neon .nav-link:hover{background:rgba(0,200,255,.15)}
+body.theme-neon .nav-link.active{background:rgba(0,200,255,.25);color:#e0f0ff}
+body.theme-neon .glass-card{background:linear-gradient(180deg,rgba(15,15,40,.55)0%,rgba(10,10,30,.45)40%,rgba(12,12,35,.50)100%);border-color:rgba(0,200,255,.15)}
+body.theme-neon .glass-card::before{background:linear-gradient(180deg,rgba(0,200,255,.08)0%,transparent 100%)}
+body.theme-neon .news-ticker{background:rgba(5,5,15,.92)}
+body.theme-neon .gchat-sidebar{background:linear-gradient(180deg,rgba(15,15,40,.75)0%,rgba(10,10,30,.6)40%,rgba(12,12,35,.65)100%);border-color:rgba(0,200,255,.15)}
+
+/* ── Ocean (deep blue/teal) ── */
+body.theme-ocean{--sky1:#0a3060;--sky2:#0a4060;--sky3:#1a6080;--deep:#c0e0f0;--mid:#1a80a0;--accent:#20a0c0;--accent-lt:#60c0e0;--ink:#c0e0f0;--ink2:#80b0c0;--ink3:#5090a0;--glass:rgba(10,30,60,0.5);--glass-hi:rgba(15,40,70,0.6);--glass-edge:rgba(40,140,180,0.25);--glass-sh:rgba(0,10,30,0.4);--neo:rgba(10,30,50,0.5);--neo-hi:rgba(20,50,80,0.4);--neo-lo:rgba(0,10,20,0.5)}
+body.theme-ocean .sky-bg{background:linear-gradient(170deg,#041828 0%,#0a3060 25%,#0a4060 55%,#1a6080 80%,#2080a0 100%)}
+body.theme-ocean .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(30,120,180,0.2),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(20,160,180,0.15),transparent)}
+body.theme-ocean .orb1{background:radial-gradient(circle,rgba(30,120,180,.4),transparent 70%)}
+body.theme-ocean .orb2{background:radial-gradient(circle,rgba(20,160,180,.4),transparent 70%)}
+body.theme-ocean .orb3{background:radial-gradient(circle,rgba(80,200,220,.12),transparent 70%)}
+body.theme-ocean .bubble{background:radial-gradient(circle at 30% 25%,rgba(100,200,240,.5)0%,rgba(40,140,180,.2)25%,rgba(20,100,140,.08)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(10,60,100,.1),inset 4px 4px 10px rgba(80,180,220,.2),0 0 16px rgba(40,140,180,.12)}
+body.theme-ocean .xmb-1{fill:rgba(30,120,180,0.5)}
+body.theme-ocean .xmb-2{fill:rgba(20,160,180,0.4)}
+body.theme-ocean .xmb-3{fill:rgba(60,180,200,0.3)}
+body.theme-ocean .top-nav{background:rgba(5,20,40,.6)}
+body.theme-ocean .nav-link{color:var(--ink3)}
+body.theme-ocean .nav-link:hover{background:rgba(30,120,180,.25)}
+body.theme-ocean .nav-link.active{background:rgba(20,100,160,.45);color:#c0e0f0}
+body.theme-ocean .glass-card{background:linear-gradient(180deg,rgba(10,35,65,.5)0%,rgba(8,28,55,.4)40%,rgba(10,30,60,.45)100%);border-color:rgba(40,140,180,.2)}
+body.theme-ocean .glass-card::before{background:linear-gradient(180deg,rgba(30,120,180,.1)0%,transparent 100%)}
+body.theme-ocean .news-ticker{background:rgba(5,15,30,.92)}
+body.theme-ocean .gchat-sidebar{background:linear-gradient(180deg,rgba(10,35,65,.72)0%,rgba(8,28,55,.6)40%,rgba(10,30,60,.65)100%);border-color:rgba(40,140,180,.2)}
+
+/* ── Lava (red/black volcanic) ── */
+body.theme-lava{--sky1:#3a0a0a;--sky2:#200505;--sky3:#1a0404;--deep:#ffd0c0;--mid:#e03020;--accent:#ff4030;--accent-lt:#ff8060;--ink:#ffd0c0;--ink2:#c08070;--ink3:#905040;--glass:rgba(40,10,10,0.55);--glass-hi:rgba(60,15,15,0.7);--glass-edge:rgba(200,60,40,0.25);--glass-sh:rgba(20,5,5,0.4);--neo:rgba(35,10,10,0.5);--neo-hi:rgba(60,15,15,0.4);--neo-lo:rgba(10,2,2,0.5)}
+body.theme-lava .sky-bg{background:linear-gradient(170deg,#1a0505 0%,#3a0a0a 25%,#200505 55%,#1a0404 80%,#0a0202 100%)}
+body.theme-lava .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(255,60,30,0.15),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(200,40,20,0.1),transparent)}
+body.theme-lava .orb1{background:radial-gradient(circle,rgba(255,60,30,.35),transparent 70%)}
+body.theme-lava .orb2{background:radial-gradient(circle,rgba(200,40,20,.3),transparent 70%)}
+body.theme-lava .orb3{background:radial-gradient(circle,rgba(255,120,60,.1),transparent 70%)}
+body.theme-lava .bubble{background:radial-gradient(circle at 30% 25%,rgba(255,120,60,.4)0%,rgba(200,40,20,.15)25%,rgba(150,30,15,.06)60%,transparent 100%);box-shadow:inset -6px -6px 14px rgba(100,20,10,.1),inset 4px 4px 10px rgba(255,100,50,.15),0 0 16px rgba(255,60,30,.08)}
+body.theme-lava .xmb-1{fill:rgba(255,60,30,0.4)}
+body.theme-lava .xmb-2{fill:rgba(200,40,20,0.3)}
+body.theme-lava .xmb-3{fill:rgba(255,140,60,0.2)}
+body.theme-lava .top-nav{background:rgba(15,5,5,.65)}
+body.theme-lava .nav-link{color:var(--ink3)}
+body.theme-lava .nav-link:hover{background:rgba(200,40,20,.25)}
+body.theme-lava .nav-link.active{background:rgba(180,30,20,.45);color:#ffd0c0}
+body.theme-lava .glass-card{background:linear-gradient(180deg,rgba(45,12,12,.5)0%,rgba(30,8,8,.4)40%,rgba(35,10,10,.45)100%);border-color:rgba(200,50,30,.2)}
+body.theme-lava .glass-card::before{background:linear-gradient(180deg,rgba(255,60,30,.08)0%,transparent 100%)}
+body.theme-lava .news-ticker{background:rgba(10,3,3,.92)}
+body.theme-lava .gchat-sidebar{background:linear-gradient(180deg,rgba(45,12,12,.72)0%,rgba(30,8,8,.6)40%,rgba(35,10,10,.65)100%);border-color:rgba(200,50,30,.2)}
+
+/* ── Arctic (icy white/light blue) ── */
+body.theme-arctic{--sky1:#c0e8ff;--sky2:#e0f0ff;--sky3:#f0f8ff;--deep:#1a4060;--mid:#4090c0;--accent:#60b0e0;--accent-lt:#a0d0f0;--glass-sh:rgba(20,60,100,0.08);--neo:#e8f4ff;--neo-lo:rgba(20,60,100,0.08)}
+body.theme-arctic .sky-bg{background:linear-gradient(170deg,#90c8e8 0%,#c0e8ff 25%,#e0f0ff 55%,#f0f8ff 80%,#ffffff 100%)}
+body.theme-arctic .sky-bg::after{background:radial-gradient(ellipse 60% 40% at 25% 20%,rgba(160,220,255,0.3),transparent),radial-gradient(ellipse 50% 50% at 75% 60%,rgba(200,240,255,0.25),transparent)}
+body.theme-arctic .orb1{background:radial-gradient(circle,rgba(160,220,255,.4),transparent 70%)}
+body.theme-arctic .orb2{background:radial-gradient(circle,rgba(200,240,255,.4),transparent 70%)}
+body.theme-arctic .orb3{background:radial-gradient(circle,rgba(230,245,255,.2),transparent 70%)}
+body.theme-arctic .xmb-1{fill:rgba(120,200,240,0.5)}
+body.theme-arctic .xmb-2{fill:rgba(160,220,255,0.4)}
+body.theme-arctic .xmb-3{fill:rgba(200,235,255,0.35)}
