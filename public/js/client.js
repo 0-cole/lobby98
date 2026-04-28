@@ -1462,8 +1462,16 @@ $("custom-title-btn").addEventListener("click", async () => {
 let _gradientSearch = "";
 
 // Inject (or update) a <style> tag that overrides .sky-bg with the chosen gradient.
-// Uses !important so it wins over theme-class rules in style.css.
+// Uses !important so it wins over theme-class rules in style.css. Also clears any
+// curated theme class — only one theme is ever active at a time.
 function applyGradientBackground(css) {
+  // Remove any curated theme class and clear its localStorage entry.
+  const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+  THEME_CLASSES.forEach(c => document.body.classList.remove(c));
+  localStorage.setItem('lobby98_theme', '');
+  // De-highlight any active theme swatch in the Settings grid.
+  document.querySelectorAll('.theme-swatch.active').forEach(s => s.classList.remove('active'));
+
   let tag = document.getElementById('custom-gradient-bg-style');
   if (!tag) {
     tag = document.createElement('style');
@@ -1485,6 +1493,10 @@ function clearGradientBackground() {
   localStorage.removeItem('lobby98_gradient_bg');
   localStorage.removeItem('lobby98_gradient_bg_id');
   _currentGradientId = null;
+  // De-highlight any "equipped" gradient swatches in the modal (if it's open).
+  document.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+  // Refresh the chip in Settings (now hidden since nothing's active).
+  if (typeof renderGradientCurrentPreview === 'function') renderGradientCurrentPreview();
 }
 
 let _currentGradientId = localStorage.getItem('lobby98_gradient_bg_id') || null;
@@ -1493,19 +1505,21 @@ function renderGradientCurrentPreview() {
   const wrap = $("gradient-current-preview");
   if (!wrap) return;
   wrap.innerHTML = "";
+  // Only show the chip when a custom gradient is actually active. If no custom
+  // gradient is set, the active curated theme is already visualized by the
+  // .active class on the theme grid swatch — no need for a redundant chip.
+  if (!_currentGradientId && !localStorage.getItem('lobby98_gradient_bg')) return;
   const chip = document.createElement("div");
+  chip.className = "gradient-current-chip";
   if (_currentGradientId && GRADIENTS_LIST.length) {
     const g = GRADIENTS_LIST.find(x => x.id === _currentGradientId);
     if (g) {
-      chip.className = "gradient-current-chip";
-      chip.innerHTML = `<span class="swatch-mini" style="background:${g.css}"></span><span>Active: ${esc(g.name)}</span>`;
+      chip.innerHTML = `<span class="swatch-mini" style="background:${g.css}"></span><span>Active gradient: ${esc(g.name)}</span>`;
     } else {
-      chip.className = "gradient-current-chip";
       chip.innerHTML = `<span class="swatch-mini" style="background:${localStorage.getItem('lobby98_gradient_bg') || '#888'}"></span><span>Custom gradient active</span>`;
     }
   } else {
-    chip.className = "gradient-current-chip empty";
-    chip.textContent = "Using base theme background";
+    chip.innerHTML = `<span class="swatch-mini" style="background:${localStorage.getItem('lobby98_gradient_bg') || '#888'}"></span><span>Custom gradient active</span>`;
   }
   wrap.appendChild(chip);
 }
@@ -1522,7 +1536,7 @@ function renderGradientGrid() {
     if (meta) meta.textContent = `0 of ${GRADIENTS_LIST.length} gradients`;
     return;
   }
-  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to apply as background`;
+  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to apply as your theme`;
   // DocumentFragment for one-shot append (380+ nodes is non-trivial).
   const frag = document.createDocumentFragment();
   for (const g of filtered) {
@@ -1585,9 +1599,9 @@ document.addEventListener("click", (e) => {
     // Click on backdrop itself (not its children) closes.
     closeGradientPicker();
   } else if (e.target?.id === "gradient-clear-btn") {
-    clearGradientBackground();
-    renderGradientCurrentPreview();
-    document.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+    // Reset to default Aqua theme — applyTheme('') clears any theme class AND
+    // calls clearGradientBackground internally, so this single call resets everything.
+    applyTheme('');
     playSound('click');
   }
 });
@@ -2205,10 +2219,16 @@ function applyTheme(theme) {
   THEME_CLASSES.forEach(c => document.body.classList.remove(c));
   if (theme) document.body.classList.add(theme);
   localStorage.setItem('lobby98_theme', theme || '');
+  // Picking a curated theme clears any custom gradient — only one active at a time.
+  // Use the internal helper so we don't ping-pong (clearGradientBackground itself
+  // does NOT call applyTheme, so this is safe and won't recurse).
+  if (typeof clearGradientBackground === 'function') clearGradientBackground();
   // Update active swatch
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', (s.dataset.theme || '') === (theme || ''));
   });
+  // Refresh the gradient-active chip in Settings (now blank since we just cleared it).
+  if (typeof renderGradientCurrentPreview === 'function') renderGradientCurrentPreview();
 }
 // Init theme from localStorage
 const savedTheme = localStorage.getItem('lobby98_theme') || '';

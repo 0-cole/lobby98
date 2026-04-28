@@ -11,13 +11,15 @@
 </head>
 <body>
   <script>
-    // Apply theme BEFORE anything renders so loading screen matches
-    const _t = localStorage.getItem('lobby98_theme');
+    // Apply theme/gradient BEFORE anything renders so loading screen matches.
+    // Only one is ever active at a time — if both are set (legacy state from an
+    // earlier version that layered them), prefer the curated theme and clear
+    // the gradient so the user lands in a clean, consistent state.
+    let _t = localStorage.getItem('lobby98_theme');
+    let _g = localStorage.getItem('lobby98_gradient_bg');
+    if (_t && _g) { localStorage.removeItem('lobby98_gradient_bg'); localStorage.removeItem('lobby98_gradient_bg_id'); _g = null; }
     if (_t) document.body.classList.add(_t);
-    // Apply saved gradient background (separate from theme — layers on top)
-    const _g = localStorage.getItem('lobby98_gradient_bg');
-    if (_g) {
-      // _g is the raw CSS value, e.g. "linear-gradient(170deg,#091E3A,#2F80ED,#2D9EE0)"
+    else if (_g) {
       const s = document.createElement('style');
       s.id = 'custom-gradient-bg-style';
       s.textContent = `body .sky-bg{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
@@ -424,6 +426,7 @@
         <h2 class="card-title">⚙️ Settings</h2>
         <div class="settings-section">
           <h3 class="settings-label">🎨 Color Theme</h3>
+          <p class="card-desc" style="margin-top:-4px">Curated themes change the full palette (glass, accents, text). Or browse 380+ gradient-only themes below.</p>
           <div class="theme-grid" id="theme-grid">
             <div class="theme-swatch" data-theme="" style="background:linear-gradient(135deg,#4aa0c8,#8dd4b8,#d0ecc0)"><span>Aqua</span></div>
             <div class="theme-swatch" data-theme="theme-midnight" style="background:linear-gradient(135deg,#1a0530,#2a1050,#0d0520)"><span>Midnight</span></div>
@@ -436,12 +439,8 @@
             <div class="theme-swatch" data-theme="theme-lava" style="background:linear-gradient(135deg,#1a0505,#3a0a0a,#200505);border:1px solid rgba(255,60,30,0.2)"><span style="color:#ff8060">Lava</span></div>
             <div class="theme-swatch" data-theme="theme-arctic" style="background:linear-gradient(135deg,#90c8e8,#c0e8ff,#f0f8ff)"><span style="color:#1a4060">Arctic</span></div>
           </div>
-        </div>
-        <div class="settings-section">
-          <h3 class="settings-label">🌈 Gradient Background</h3>
-          <p class="card-desc" style="margin-top:-4px">Pick from 380+ gradients to use as your page background. Layers over your chosen theme — the theme controls glass cards & text, the gradient is the wallpaper.</p>
-          <div id="gradient-current-preview" style="margin-bottom:10px"></div>
-          <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse All Gradients</button>
+          <div id="gradient-current-preview" style="margin:14px 0 8px"></div>
+          <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse 380+ More Gradients</button>
         </div>
         <div class="settings-section">
           <h3 class="settings-label">Change Password</h3>
@@ -873,7 +872,7 @@
       </div>
       <div class="gradient-modal-controls">
         <input type="text" class="inp" id="gradient-search" placeholder="Search gradients (e.g. ocean, sunset, neon)..." autocomplete="off" />
-        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Revert to your base theme background">Reset to base theme</button>
+        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Switch back to the default Aqua theme">Reset to default</button>
       </div>
       <div class="gradient-modal-meta" id="gradient-meta"></div>
       <div class="gradient-modal-grid" id="gradient-grid"></div>
