@@ -966,3 +966,24 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
   .gradient-modal-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
   .gradient-swatch{height:56px}
 }
+
+/* ============================================================
+   READABILITY HALO
+   - Subtle dark text-shadow on muted/colored text so labels and
+     descriptions stay legible across any gradient background.
+   - Curated themes already tune their palette for contrast, but
+     the 380 custom gradient themes inherit the default light
+     palette which can wash out on darker/busier gradients.
+   - Shadow is faint enough (~0.2 alpha) to not affect crisp text;
+     on dark themes it just adds a pleasing depth.
+   ============================================================ */
+.card-desc, .card-sub, .lbl, .gc-desc, .ds-label, .dc-desc,
+.room-code-label, .player-you-tag, .start-note, .chat-system,
+.ph-inst, .wait-txt, .offkey-label, .prompt-compare-label,
+.ws-word-label, .ws-cat, .ws-word-reveal-label, .ws-word-reveal-cat,
+.chain-role-label, .chain-count, .vote-card-clue, .chain-starter,
+.chain-word.skipped, .hero-tagline, .score-rating, .score-delta,
+.ds-value, .round-badge, .form-err, .form-ok,
+[style*="--ink2"], [style*="--ink3"], [style*="--success"], [style*="--danger"] {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
