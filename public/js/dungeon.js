@@ -81,6 +81,22 @@ const MONSTER_DB={
   nebula_king:{name:"Nebula King",emoji:"🔭",mhp:850,dmg:65,arm:42,spd:40,xp:260,rw:24,boss:1},
   infinity_eye:{name:"Infinity Eye",emoji:"♾️",mhp:180,dmg:62,arm:30,spd:28,xp:80,rw:6},
   the_end:{name:"THE END",emoji:"🕳️",mhp:1000,dmg:70,arm:50,spd:35,xp:500,rw:30,boss:1},
+  // ── Area 27-31 monsters (post-endgame) ──
+  chronos_seer:{name:"Chronos Seer",emoji:"⏳",mhp:200,dmg:75,arm:35,spd:32,xp:90,rw:6},
+  temporal_warrior:{name:"Temporal Warrior",emoji:"⚔️",mhp:230,dmg:80,arm:42,spd:38,xp:95,rw:7},
+  chronarch:{name:"The Chronarch",emoji:"🕰️",mhp:1200,dmg:80,arm:55,spd:36,xp:550,rw:32,boss:1},
+  forsaken_knight:{name:"Forsaken Knight",emoji:"🗡️",mhp:240,dmg:82,arm:45,spd:36,xp:100,rw:7},
+  vengeful_spirit:{name:"Vengeful Spirit",emoji:"😾",mhp:210,dmg:88,arm:32,spd:30,xp:105,rw:7},
+  the_forsworn:{name:"The Forsworn",emoji:"🩸",mhp:1300,dmg:88,arm:60,spd:40,xp:600,rw:35,boss:1},
+  veil_walker:{name:"Veil Walker",emoji:"🌫️",mhp:250,dmg:85,arm:48,spd:34,xp:110,rw:7},
+  echo_of_self:{name:"Echo of Self",emoji:"👥",mhp:220,dmg:92,arm:38,spd:28,xp:115,rw:8},
+  the_unseen:{name:"The Unseen",emoji:"👁️‍🗨️",mhp:1400,dmg:92,arm:62,spd:38,xp:650,rw:38,boss:1},
+  bastion_guardian:{name:"Bastion Guardian",emoji:"🏰",mhp:280,dmg:90,arm:55,spd:42,xp:120,rw:8},
+  final_paladin:{name:"Final Paladin",emoji:"⚜️",mhp:250,dmg:95,arm:50,spd:38,xp:125,rw:8},
+  warden_eternal:{name:"Warden Eternal",emoji:"🛡️",mhp:1500,dmg:98,arm:70,spd:42,xp:700,rw:42,boss:1},
+  void_godling:{name:"Void Godling",emoji:"🌑",mhp:300,dmg:100,arm:58,spd:32,xp:140,rw:9},
+  primordial:{name:"Primordial",emoji:"🌋",mhp:330,dmg:105,arm:62,spd:35,xp:150,rw:9},
+  the_origin:{name:"The Origin",emoji:"☯️",mhp:2000,dmg:125,arm:85,spd:38,xp:1000,rw:60,boss:1},
 };
 
 const AREAS=[
@@ -162,6 +178,22 @@ const AREAS=[
   {name:"Infinity Gate",color:"#1a1a3a",floors:[
     [{m:"infinity_eye",n:2}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"infinity_eye",n:2,mod:"poison"},{m:"infinity_eye",n:1,mod:"shielding"}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"infinity_eye",n:3,mod:"shielding"},{m:"infinity_eye",n:1,mod:"powerful"}],[{m:"infinity_eye",n:3,mod:"powerful"}],[{m:"the_end",n:1,boss:1}]
   ]},
+  // ── Post-endgame areas (27-31) — for players who breeze through to "THE END". ──
+  {name:"Realm of Sundered Time",color:"#2a2a4a",floors:[
+    [{m:"chronos_seer",n:2}],[{m:"temporal_warrior",n:2,mod:"powerful"}],[{m:"chronos_seer",n:3,mod:"poison"}],[{m:"temporal_warrior",n:2,mod:"shielding"},{m:"chronos_seer",n:1}],[{m:"chronos_seer",n:2,mod:"powerful"},{m:"temporal_warrior",n:2}],[{m:"temporal_warrior",n:3,mod:"powerful"}],[{m:"chronarch",n:1,boss:1}]
+  ]},
+  {name:"Throne of the Forsaken",color:"#3a1a1a",floors:[
+    [{m:"forsaken_knight",n:2}],[{m:"vengeful_spirit",n:3,mod:"poison"}],[{m:"forsaken_knight",n:2,mod:"powerful"},{m:"vengeful_spirit",n:1,mod:"shielding"}],[{m:"vengeful_spirit",n:3,mod:"powerful"}],[{m:"forsaken_knight",n:2,mod:"shielding"},{m:"vengeful_spirit",n:2,mod:"poison"}],[{m:"forsaken_knight",n:3,mod:"powerful"}],[{m:"the_forsworn",n:1,boss:1}]
+  ]},
+  {name:"Beyond the Veil",color:"#1a2a3a",floors:[
+    [{m:"veil_walker",n:2}],[{m:"echo_of_self",n:2,mod:"powerful"}],[{m:"veil_walker",n:3,mod:"shielding"}],[{m:"echo_of_self",n:2,mod:"poison"},{m:"veil_walker",n:1,mod:"powerful"}],[{m:"veil_walker",n:3,mod:"powerful"},{m:"echo_of_self",n:1,mod:"shielding"}],[{m:"echo_of_self",n:3,mod:"poison"}],[{m:"veil_walker",n:2,mod:"powerful"},{m:"echo_of_self",n:2,mod:"shielding"}],[{m:"the_unseen",n:1,boss:1}]
+  ]},
+  {name:"Final Bastion",color:"#3a2a4a",floors:[
+    [{m:"bastion_guardian",n:2}],[{m:"final_paladin",n:2,mod:"shielding"}],[{m:"bastion_guardian",n:3,mod:"powerful"}],[{m:"final_paladin",n:2,mod:"powerful"},{m:"bastion_guardian",n:2,mod:"poison"}],[{m:"bastion_guardian",n:2,mod:"shielding"},{m:"final_paladin",n:2,mod:"powerful"}],[{m:"final_paladin",n:3,mod:"powerful"}],[{m:"bastion_guardian",n:3,mod:"shielding"},{m:"final_paladin",n:1,mod:"powerful"}],[{m:"warden_eternal",n:1,boss:1}]
+  ]},
+  {name:"The Source",color:"#0a0a1a",floors:[
+    [{m:"void_godling",n:2}],[{m:"primordial",n:2,mod:"powerful"}],[{m:"void_godling",n:3,mod:"poison"}],[{m:"primordial",n:2,mod:"shielding"},{m:"void_godling",n:2,mod:"powerful"}],[{m:"void_godling",n:3,mod:"powerful"},{m:"primordial",n:1,mod:"poison"}],[{m:"primordial",n:2,mod:"powerful"},{m:"void_godling",n:2,mod:"shielding"}],[{m:"primordial",n:3,mod:"powerful"}],[{m:"void_godling",n:2,mod:"shielding"},{m:"primordial",n:2,mod:"powerful"}],[{m:"the_origin",n:1,boss:1}]
+  ]},
 ];
 
 const ITEM_TYPES=[
@@ -222,6 +254,18 @@ const PASSIVES=[
   {name:"Jackpot",desc:"10% chance double XP",icon:"💰",e:{dblXp:10},branch:"lck",tier:2,req:16},
   {name:"Treasure",desc:"+50% forge progress",icon:"⛏️",e:{forgeBonus:50},branch:"lck",tier:3,req:17},
   {name:"Golden Touch",desc:"10% chance bonus item",icon:"👑",e:{bonusItem:10},branch:"lck",tier:4,req:18},
+  // ── MYSTIC branch (purple) ── idx 20-24 — situational damage burst
+  {name:"Apex Predator",desc:"+30% dmg to bosses",icon:"🎯",e:{bossDmg:30},branch:"mys",tier:0,req:-1},
+  {name:"Last Bastion",desc:"+50% dmg below 30% HP",icon:"🩸",e:{lowHpDmg:50},branch:"mys",tier:1,req:20},
+  {name:"First Strike",desc:"First hit each floor: 3x dmg",icon:"⚡",e:{firstHit:3},branch:"mys",tier:2,req:21},
+  {name:"Predatory Frenzy",desc:"+5% atk speed per kill (max 30%)",icon:"😈",e:{frenzy:5},branch:"mys",tier:3,req:22},
+  {name:"Execute",desc:"+50% dmg vs enemies <25% HP",icon:"💀",e:{execute:50},branch:"mys",tier:4,req:23},
+  // ── TACTICS branch (silver) ── idx 25-29 — defensive utility
+  {name:"Evasion",desc:"12% chance to dodge attacks",icon:"💨",e:{dodge:12},branch:"tac",tier:0,req:-1},
+  {name:"Counterstrike",desc:"Reflect 25% of dmg taken",icon:"↩️",e:{refl:25},branch:"tac",tier:1,req:25},
+  {name:"Adrenaline",desc:"+30% atk speed below 50% HP",icon:"❤️‍🔥",e:{lowHpSpd:30},branch:"tac",tier:2,req:26},
+  {name:"Bounty",desc:"+1 bonus stat point per kill",icon:"💎",e:{bonusStat:1},branch:"tac",tier:3,req:27},
+  {name:"Strategist",desc:"Boss kills restore 50% HP",icon:"🎖️",e:{bossHeal:50},branch:"tac",tier:4,req:28},
 ];
 const FORGE_MS=[
   {at:3,r:"stat",n:1,d:"1 Stat Point"},{at:8,r:"stat",n:1,d:"1 Stat Point"},
@@ -239,7 +283,15 @@ function newGame(){
   return{
     tab:TAB.MAP,
     player:{hp:30,mhp:30,dmg:6,arm:2,spd:80,hpr:0,cri:0,lfl:0,spl:0,swp:0,res:0,rev:0,irn:0,ods:0,mes:0,
-      es:0,atkTimer:80,atkCount:0,target:0,resUsed:false,revUsed:false},
+      // New effect stats from Mystic/Tactics trees:
+      // refl=reflect%, dodge=dodge%, bossDmg=+%vs bosses, lowHpDmg=+%dmg<30%hp,
+      // lowHpSpd=atk speed bonus<50%hp (0..1, applied as multiplier),
+      // execute=+%dmg vs enemies <25%hp, bonusStat=extra stat pts/kill,
+      // bossHeal=heal %mhp on boss kill, frenzy=+atk speed % per kill (this floor),
+      // firstHit=multiplier on first hit each floor (0 = unset).
+      refl:0,dodge:0,bossDmg:0,lowHpDmg:0,lowHpSpd:0,execute:0,bonusStat:0,bossHeal:0,frenzy:0,firstHit:0,
+      es:0,atkTimer:80,atkCount:0,target:0,resUsed:false,revUsed:false,
+      _frenzyKills:0,_firstHitDone:false},
     baseStats:{mhp:30,dmg:6,arm:2,spd:80},
     statPts:0,passivePts:0,spentStats:{mhp:0,dmg:0,arm:0,spd:0},
     activePassives:new Set(),
@@ -259,6 +311,8 @@ function recalc(){
   let mhp=b.mhp+g.spentStats.mhp*5,dmg=b.dmg+g.spentStats.dmg*2,arm=b.arm+g.spentStats.arm*2,spd=b.spd-g.spentStats.spd*3;
   let hpr=0,cri=0,lfl=0,spl=0,swp=0,res=0,rev=0,irn=0,ods=0,mes=0;
   let dropBonus=0,rarBonus=0,dblXp=0,forgeBonus=0,bonusItem=0;
+  // New effect accumulators (Mystic/Tactics trees).
+  let refl=0,dodge=0,bossDmg=0,lowHpDmg=0,lowHpSpd=0,execute=0,bonusStat=0,bossHeal=0,frenzy=0,firstHit=0;
   let dm=1,am=1,hm=1,sm=1;
   for(let i=0;i<6;i++){const it=g.equips[i];if(!it)continue;for(const[s,v]of Object.entries(it.stats||{})){
     if(s==="dmg")dmg+=v;else if(s==="arm")arm+=v;else if(s==="mhp")mhp+=v;else if(s==="spd")spd-=v;
@@ -268,10 +322,18 @@ function recalc(){
     if(e.hprPct)hpr+=mhp*e.hprPct;if(e.cri)cri=e.cri;if(e.lfl)lfl+=e.lfl;if(e.spl)spl=e.spl;
     if(e.swp)swp=e.swp;if(e.res)res=e.res;if(e.rev)rev=e.rev;if(e.irn)irn=e.irn;if(e.ods)ods=e.ods;if(e.mes)mes=e.mes;
     if(e.dropBonus)dropBonus+=e.dropBonus;if(e.rarBonus)rarBonus+=e.rarBonus;if(e.dblXp)dblXp+=e.dblXp;
-    if(e.forgeBonus)forgeBonus+=e.forgeBonus;if(e.bonusItem)bonusItem+=e.bonusItem;}
+    if(e.forgeBonus)forgeBonus+=e.forgeBonus;if(e.bonusItem)bonusItem+=e.bonusItem;
+    // New effects:
+    if(e.refl)refl+=e.refl;if(e.dodge)dodge+=e.dodge;if(e.bossDmg)bossDmg+=e.bossDmg;
+    if(e.lowHpDmg)lowHpDmg+=e.lowHpDmg;if(e.lowHpSpd)lowHpSpd+=e.lowHpSpd;if(e.execute)execute+=e.execute;
+    if(e.bonusStat)bonusStat+=e.bonusStat;if(e.bossHeal)bossHeal+=e.bossHeal;
+    if(e.frenzy)frenzy+=e.frenzy;if(e.firstHit&&e.firstHit>firstHit)firstHit=e.firstHit;
+  }
   p.mhp=Math.round(mhp*hm);p.dmg=Math.round(dmg*dm);p.arm=Math.round(arm*am);p.spd=Math.max(15,Math.round(spd*sm));
   p.hpr=hpr;p.cri=cri;p.lfl=lfl;p.spl=spl;p.swp=swp;p.res=res;p.rev=rev;p.irn=irn;p.ods=ods;p.mes=mes;
   p.dropBonus=dropBonus;p.rarBonus=rarBonus;p.dblXp=dblXp;p.forgeBonus=forgeBonus;p.bonusItem=bonusItem;
+  p.refl=refl;p.dodge=dodge;p.bossDmg=bossDmg;p.lowHpDmg=lowHpDmg;p.lowHpSpd=lowHpSpd;
+  p.execute=execute;p.bonusStat=bonusStat;p.bossHeal=bossHeal;p.frenzy=frenzy;p.firstHit=firstHit;
   p.hp=Math.min(p.hp,p.mhp);p.es=Math.round(p.mhp*p.mes/100);
 }
 
@@ -309,7 +371,9 @@ function startArea(idx){
 }
 function startFloor(){
   const area=AREAS[g.areaIdx],fd=area.floors[g.floor];g.enemies=[];
-  for(const gr of fd){const t=MONSTER_DB[gr.m];if(!t)continue;const sc=1+g.areaIdx*.5+g.floor*.12;
+  // Scaling: linear early + quadratic late so post-area-10 actually ramps.
+  // Old: 1 + areaIdx*0.5 (area 13 = 7.5x). New: ~14x at area 13, ~36x at area 25.
+  for(const gr of fd){const t=MONSTER_DB[gr.m];if(!t)continue;const sc=1+g.areaIdx*0.55+g.areaIdx*g.areaIdx*0.035+g.floor*0.12;
     for(let i=0;i<(gr.n||1);i++){const m={...t};m.mhp=Math.ceil(m.mhp*sc);m.hp=m.mhp;
       m.dmg=Math.ceil(m.dmg*sc);m.arm=Math.ceil(m.arm*sc);m.atkTimer=m.spd+Math.random()*20;
       m.dmgFlash=0;m.deathTimer=0;m.mod=gr.mod||null;m.boss=!!gr.boss;
@@ -319,6 +383,8 @@ function startFloor(){
       g.enemies.push(m);}}
   g.player.atkTimer=AREAS[g.areaIdx]?.tutorial?120:g.player.spd;g.player.target=0;g.player.atkCount=0;
   g.player.resUsed=false;g.player.revUsed=false;
+  // Reset per-floor passive state (Mystic First Strike + Predatory Frenzy stack).
+  g.player._firstHitDone=false;g.player._frenzyKills=0;
   log(`Floor ${g.floor+1}/${area.floors.length}`);
   // Tutorial messages
   if(area.tutorial){
@@ -341,33 +407,77 @@ function updateBattle(dt){
   p.atkTimer-=dt;
   if(p.atkTimer<=0){
     if(!g.autoAtk){g.manualReady=true;p.atkTimer=0;}
-    else{p.atkTimer=p.spd;p.atkCount++;
+    else{
+      // Atk-speed modifiers from new passives:
+      //   - lowHpSpd: faster timer when player.hp < 50% of mhp
+      //   - frenzy: stacks per kill this floor (capped at 30%)
+      // Both shorten p.spd; floor still applies (via the 15 cap in recalc).
+      let spdMul=1;
+      if(p.lowHpSpd>0&&p.hp<p.mhp*0.5)spdMul*=(1-p.lowHpSpd/100);
+      if(p.frenzy>0&&p._frenzyKills>0){const stack=Math.min(p.frenzy*p._frenzyKills,30);spdMul*=(1-stack/100);}
+      p.atkTimer=Math.max(15,Math.round(p.spd*spdMul));p.atkCount++;
       let mul=1,hitAll=false;
       if(p.cri>0&&p.atkCount%p.cri===0)mul=2;
       if(p.swp>0&&p.atkCount%p.swp===0)hitAll=true;
+      // Mystic: First Strike (3x dmg on first hit each floor)
+      if(p.firstHit>0&&!p._firstHitDone){mul*=p.firstHit;p._firstHitDone=true;}
       const tgt=alive[Math.min(p.target,alive.length-1)];
       const targets=hitAll?alive:[tgt];
-      for(const t of targets){const raw=Math.round(eDmg*mul);const d=calcDmg(raw,t.shielding&&alive.length>1?t.arm*2:t.arm);
-        t.hp=Math.max(0,t.hp-d);t.dmgFlash=15;addP(t,`-${d}`,mul>1?"#ffd700":"#ff6b6b");
+      for(const t of targets){
+        // Per-target damage modifiers (bossDmg, lowHpDmg, execute) compound on top of the base mul.
+        let tMul=mul;
+        if(p.bossDmg>0&&t.boss)tMul*=(1+p.bossDmg/100);
+        if(p.lowHpDmg>0&&p.hp<p.mhp*0.3)tMul*=(1+p.lowHpDmg/100);
+        if(p.execute>0&&t.hp<t.mhp*0.25)tMul*=(1+p.execute/100);
+        const raw=Math.round(eDmg*tMul);const d=calcDmg(raw,t.shielding&&alive.length>1?t.arm*2:t.arm);
+        t.hp=Math.max(0,t.hp-d);t.dmgFlash=15;addP(t,`-${d}`,mul>1||tMul>mul?"#ffd700":"#ff6b6b");
         if(p.lfl>0)p.hp=Math.min(p.mhp,p.hp+d*p.lfl/100);
         if(p.spl>0&&!hitAll){for(const nb of alive.filter(x=>x!==t)){const sd=Math.max(1,Math.round(d*p.spl/100));nb.hp=Math.max(0,nb.hp-sd);nb.dmgFlash=8;}}}
     }
   }
   // Process deaths (always runs, not just on attack)
-  for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;
+  for(const m of alive){if(m.hp<=0&&m.deathTimer===0){m.deathTimer=20;g.totalKills++;g.statPts++;
+      // Tactics: Bounty — extra stat points per kill.
+      if(p.bonusStat>0)g.statPts+=p.bonusStat;
+      // Tactics: Strategist — boss kills restore % of max HP.
+      if(p.bossHeal>0&&m.boss){const heal=Math.round(p.mhp*p.bossHeal/100);p.hp=Math.min(p.mhp,p.hp+heal);log(`🎖️ Strategist heals +${heal} HP`);}
+      // Mystic: Predatory Frenzy — count kills this floor for the speed stack.
+      if(p.frenzy>0)p._frenzyKills++;
       let xpGain=(m.xp||5)*2;
       if(p.dblXp>0&&Math.random()*100<p.dblXp){xpGain*=2;log("💰 Double XP!");}
       g.player.xp=(g.player.xp||0)+xpGain;
       while(g.player.xp>=xpNeed(g.lvl)){g.player.xp-=xpNeed(g.lvl);g.lvl++;g.statPts+=2;if(g.lvl%2===0)g.passivePts++;
         log(`⬆ Level ${g.lvl}! +2 stat, ${g.lvl%2===0?'+1 skill':''}`);recalc();g.player.hp=g.player.mhp;
         if(g.autoLevelOn)autoLevelStats();}
-      const dropChance=(m.boss?.98:AREAS[g.areaIdx]?.tutorial?.80:.55)+(p.dropBonus||0)/100;
+      // Drop rates: bosses still nearly guaranteed (boss kills are special),
+      // normal mobs slightly reduced so inventory doesn't fill up so fast.
+      const dropChance=(m.boss?.95:AREAS[g.areaIdx]?.tutorial?.70:.45)+(p.dropBonus||0)/100;
       if(Math.random()<dropChance&&g.inv.length<20){
         // Chance for unique item from bosses in area 4+
         let it;
         if(m.boss&&g.areaIdx>=4&&Math.random()<0.25){
           const eligible=UNIQUE_ITEMS.filter(u=>u.lvl<=g.areaIdx+1);
-          if(eligible.length>0){it={...eligible[Math.floor(Math.random()*eligible.length)]};it.typeIdx=it.slot;}
+          if(eligible.length>0){
+            const tpl=eligible[Math.floor(Math.random()*eligible.length)];
+            // Scale unique flat-magnitude stats with the area where it dropped.
+            // Without this, a lvl-5 Flame Blade (dmg:15) found at area 20 stays at
+            // 15 dmg while a regular Legendary sword scales to ~50+, making
+            // uniques feel like a downgrade. Frequency stats (cri = "every Nth hit")
+            // aren't scaled — keeping them flat preserves the weapon's identity.
+            const SCALABLE=new Set(['dmg','arm','mhp','hpr','spd','lfl']);
+            const STAT_LABELS={dmg:'DMG',arm:'Armor',mhp:'HP',spd:'Speed',hpr:'Regen',lfl:'Leech',cri:'Crit/'};
+            const mul=1+g.areaIdx*0.18;
+            it={...tpl,stats:{}};
+            for(const[k,v]of Object.entries(tpl.stats||{})){
+              it.stats[k]=SCALABLE.has(k)?Math.max(1,Math.round(v*mul)):v;
+            }
+            // Rebuild affix labels so the displayed numbers reflect the scaled values.
+            it.aNames=Object.entries(it.stats).map(([k,v])=>{
+              const lbl=STAT_LABELS[k]||k.toUpperCase();
+              return lbl.endsWith('/')?`${lbl}${v}`:`${lbl}+${v}`;
+            });
+            it.typeIdx=it.slot;
+          }
           else it=genItem(g.areaIdx+1);
         }else it=genItem(g.areaIdx+1);g.inv.push(it);log(`${it.icon} ${it.rarName} ${it.name}!`);
         // Luck: bonus item chance
@@ -376,9 +486,17 @@ function updateBattle(dt){
         if(g.autoEquipOn)autoEquipBest();}
       const na=g.enemies.filter(e=>e.hp>0);if(na.length>0)g.player.target=Math.min(g.player.target,na.length-1);}}
   for(const e of alive){if(e.hp<=0)continue;e.atkTimer-=dt;e.dmgFlash=Math.max(0,e.dmgFlash-dt*.8);
-    if(e.atkTimer<=0){e.atkTimer=e.spd;const d=calcDmg(e.dmg,eArm);
+    if(e.atkTimer<=0){e.atkTimer=e.spd;
+      // Tactics: Evasion — chance to dodge incoming hit entirely.
+      if(p.dodge>0&&Math.random()*100<p.dodge){
+        addP({_px:W/2,_py:MID-40},"DODGE","#88e0ff");
+        continue;
+      }
+      const d=calcDmg(e.dmg,eArm);
       if(p.es>0)p.es=Math.max(0,p.es-d);else p.hp=Math.max(0,p.hp-d);
       addP({_px:W/2,_py:MID-40},`-${d}`,"#ffd700");
+      // Tactics: Counterstrike — reflect a portion of damage taken back to the attacker.
+      if(p.refl>0){const rd=Math.max(1,Math.round(d*p.refl/100));e.hp=Math.max(0,e.hp-rd);e.dmgFlash=15;addP(e,`-${rd}`,"#88e0ff");}
       if(e.poisonDmg&&p.es<=0){p.hp=Math.max(0,p.hp-e.poisonDmg);addP({_px:W/2+20,_py:MID-50},`☠${e.poisonDmg}`,"#9c27b0");}
       if(p.hp>0&&p.hp<p.mhp*.4&&p.res>0&&!p.resUsed){p.resUsed=true;p.hp+=p.mhp*p.res/100;log("🔥 Last Stand!");}
       if(p.hp<=0){if(p.rev>0&&!p.revUsed){p.revUsed=true;p.hp=p.mhp*p.rev/100;log("💀 Revived!");
@@ -390,7 +508,8 @@ function floorCleared(){
   const a=AREAS[g.areaIdx];g.floor++;
   g.player.hp=Math.min(g.player.mhp,Math.ceil(g.player.hp+g.player.mhp*.15));
   g.player.es=Math.round(g.player.mhp*g.player.mes/100);
-  if(g.floor>=a.floors.length){g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
+  if(g.floor>=a.floors.length){const isNewClear=g.areaIdx+1>g.areasCleared;g.areasCleared=Math.max(g.areasCleared,g.areaIdx+1);g._mapViewArea=g.areasCleared;g.totalCoins+=(g.areaIdx+1)*15;
+    if(isNewClear){g.passivePts++;log("✦ +1 skill point for clearing a new world!");}
     g.tab=TAB.VICTORY;log(`🏆 ${a.name} cleared!`);
     if(a.tutorial){
       log("📖 Tutorial complete! You now know the basics:");
@@ -626,12 +745,18 @@ function renderStats(ctx){
     ctx.fillStyle="#ddd";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="left";
     ctx.fillText(r.label,24,y+20);
     ctx.textAlign="right";ctx.fillText(r.val,W-80,y+20);
-    if(g.statPts>0){
+    // Atk Speed has a hard floor of 15 (recalc clamps with Math.max(15,...)).
+    // Once at the floor, more points are wasted — show "MAX" instead of a +.
+    const atFloor = (r.key === "spd" && g.player.spd <= 15);
+    if(g.statPts>0 && !atFloor){
       const bx=W-60,by=y+4;
       ctx.fillStyle="#1a3a1a";ctx.strokeStyle="#4caf50";ctx.lineWidth=2;
       rr(ctx,bx,by,28,28,4);ctx.fill();rr(ctx,bx,by,28,28,4);ctx.stroke();
       ctx.fillStyle="#4caf50";ctx.font="bold 18px Nunito,sans-serif";ctx.textAlign="center";ctx.fillText("+",bx+14,by+21);
       g._statBtns.push({x:bx,y:by,w:28,h:28,key:r.key});
+    } else if(atFloor){
+      ctx.fillStyle="#888";ctx.font="bold 12px Nunito,sans-serif";ctx.textAlign="right";
+      ctx.fillText("MAX",W-32,y+22);
     }
   });
   ctx.fillStyle="#aaa";ctx.font="13px Nunito,sans-serif";ctx.textAlign="left";
@@ -674,12 +799,24 @@ function renderForge(ctx){
 function renderSkills(ctx){
   ctx.fillStyle="#e040fb";ctx.font="bold 16px Nunito,sans-serif";ctx.textAlign="center";
   ctx.fillText(`✦ Skill Tree (${g.passivePts} points)`,W/2,24);
+  // Respec button — refunds all spent skill points so the player can redistribute.
+  // Useful especially when new branches (Mystic, Tactics) are added; players who
+  // dumped points into older trees can rebuild without wiping their whole save.
+  const rbX=W-90,rbY=8,rbW=80,rbH=22;
+  const canRespec=g.activePassives.size>0;
+  ctx.fillStyle=canRespec?"#3a1a2a":"#1a1a1a";ctx.strokeStyle=canRespec?"#e040fb":"#333";ctx.lineWidth=1;
+  rr(ctx,rbX,rbY,rbW,rbH,5);ctx.fill();rr(ctx,rbX,rbY,rbW,rbH,5);ctx.stroke();
+  ctx.fillStyle=canRespec?"#e040fb":"#555";ctx.font="bold 11px Nunito,sans-serif";ctx.textAlign="center";
+  ctx.fillText("↻ Respec",rbX+rbW/2,rbY+15);
+  g._respecBtn=canRespec?{x:rbX,y:rbY,w:rbW,h:rbH}:null;
   // Branch tab definitions
   const branches=[
     {key:"hp",label:"❤️ Vitality",color:"#4caf50",hoverCol:"#2a4a2a",startIdx:0},
     {key:"atk",label:"⚔️ Power",color:"#e04858",hoverCol:"#4a2a2a",startIdx:5},
     {key:"def",label:"🛡️ Defense",color:"#2196f3",hoverCol:"#2a2a4a",startIdx:10},
     {key:"lck",label:"🍀 Luck",color:"#ffd700",hoverCol:"#3a3a1a",startIdx:15},
+    {key:"mys",label:"🔮 Mystic",color:"#bb44ff",hoverCol:"#3a1a4a",startIdx:20},
+    {key:"tac",label:"⚙️ Tactics",color:"#c0c0c0",hoverCol:"#3a3a3a",startIdx:25},
   ];
   if(!g._skillBranch)g._skillBranch="hp";
   // Draw tab buttons
@@ -921,9 +1058,14 @@ function autoEquipBest(){
 
 function autoLevelStats(){
   if(g.statPts<=0){log("No stat points to spend!");return;}
-  const priority=["mhp","dmg","arm","spd"];
+  const fullPriority=["mhp","dmg","arm","spd"];
   while(g.statPts>0){
-    // Find least-spent stat (priority order for ties)
+    // Recalc each iteration so we know if spd just hit the 15 floor — once it
+    // does, drop spd from the priority list so we don't dump points into a
+    // capped stat and waste them. mhp/dmg/arm have no cap.
+    recalc();
+    const priority = fullPriority.filter(k => k !== "spd" || g.player.spd > 15);
+    if(priority.length===0)break;
     let minKey=priority[0],minVal=g.spentStats[priority[0]];
     for(const k of priority){if(g.spentStats[k]<minVal){minVal=g.spentStats[k];minKey=k;}}
     g.spentStats[minKey]++;g.statPts--;
@@ -953,6 +1095,16 @@ function handleClick(mx,my,onFinish){
     for(const a of(g._areas||[])){if(hit(mx,my,a)&&a.unlocked)startArea(a.idx);}}
   if(g.tab===TAB.STATS){for(const b of(g._statBtns||[])){if(hit(mx,my,b)&&g.statPts>0){g.spentStats[b.key]++;g.statPts--;recalc();}}}
   if(g.tab===TAB.SKILLS){
+    // Respec — refunds every spent skill point so player can redistribute.
+    if(g._respecBtn&&hit(mx,my,g._respecBtn)){
+      if(confirm(`Respec ${g.activePassives.size} learned skill${g.activePassives.size!==1?'s':''}? You'll get all the points back to spend again.`)){
+        g.passivePts+=g.activePassives.size;
+        g.activePassives.clear();
+        recalc();
+        log(`↻ Respec! ${g.passivePts} points to spend.`);
+      }
+      return;
+    }
     // Tab switching
     for(const tb of(g._skillTabs||[])){if(hit(mx,my,tb)){g._skillBranch=tb.branch;return;}}
     for(const b of(g._skillBtns||[])){if(hit(mx,my,b)){
@@ -1082,13 +1234,16 @@ window.DungeonGame={
     g=newGame();_particles=[];_tooltip=null;
     const loaded=loadGame();
     if(!loaded){recalc();g.player.hp=g.player.mhp;}
-    container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4)"></canvas>`;
+    container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:100%;height:auto"></canvas>`;
     const cv=document.getElementById("dg-canvas"),ctx=cv.getContext("2d");
     const xy=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height)];};
     const onClick=e=>{const[mx,my]=xy(e);handleClick(mx,my,onFinish);};
     const onCtx=e=>{e.preventDefault();const[mx,my]=xy(e);handleRightClick(mx,my);};
     const onMove=e=>{const[mx,my]=xy(e);handleHover(mx,my);};
     cv.addEventListener("click",onClick);cv.addEventListener("contextmenu",onCtx);cv.addEventListener("mousemove",onMove);
+    // Touch support for mobile
+    cv.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];const[mx,my]=xy(t);handleHover(mx,my);},{passive:false});
+    cv.addEventListener("touchend",e=>{e.preventDefault();if(e.changedTouches.length){const t=e.changedTouches[0];const[mx,my]=xy(t);handleClick(mx,my,onFinish);}},{passive:false});
     let last=Date.now();
     const loop=()=>{const now=Date.now();const dt=Math.min((now-last)/16.67,3);last=now;
       updateBattle(dt);render(ctx);_raf=requestAnimationFrame(loop);};

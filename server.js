@@ -1,5 +1,6 @@
 // server.js — Lobby 98 (scribbl-style)
 // ============================================================
+const SITE_VERSION = Date.now().toString(36); // Changes on every server restart/deploy
 // No accounts, no database. Just rooms with join codes.
 //
 // Flow:
@@ -22,7 +23,8 @@ import { pickPrompts } from "./prompts.js";
 import { pickWords } from "./words.js";
 import { pickChainContent } from "./chains.js";
 import { pickEchoPrompts } from "./echoprompts.js";
-import { containsProfanity, cleanText } from "./filter.js";
+import { containsProfanity, cleanText, checkMessage } from "./filter.js";
+import { GRADIENTS } from "./gradients.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
   deleteSession, addCoins, setColor, setTitle, getOwnedItems,
@@ -32,7 +34,12 @@ import {
   submitBugReport, getBugReports, resolveBugReport, deleteBugReport, countUserOpenBugs,
   getUserAchievements, hasAchievement, awardAchievement,
   saveChatMsg, getChatHistory, trimChat, deleteChatMsg, clearAllChat,
-  setMod, setMutedUntil, getAllUsers
+  setMod, setMutedUntil, getAllUsers,
+  deleteAllUsersExcept,
+  setStaffUser, setStaffPerms, getStaffPerms, wipeUserProgress,
+  setAvatar, sendFriendRequest, acceptFriend, removeFriend, getFriends, getPendingRequests,
+  sendDM, getDMs, addReaction, getReactions, getReactionsBulk,
+  getDailyProgress, incrementDaily, claimDaily
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -62,14 +69,41 @@ function clearCookie(res) {
 // ============================================================
 //   AUTH ENDPOINTS
 // ============================================================
+// Registration rate limit: max 2 accounts per IP per hour
+const regRateMap = new Map(); // ip -> [timestamp, timestamp, ...]
+function checkRegRate(ip) {
+  const now = Date.now(), window = 3600000; // 1 hour
+  const times = (regRateMap.get(ip) || []).filter(t => now - t < window);
+  regRateMap.set(ip, times);
+  return times.length < 2;
+}
+function recordReg(ip) {
+  const times = regRateMap.get(ip) || [];
+  times.push(Date.now());
+  regRateMap.set(ip, times);
+}
+// Clean up rate map every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, times] of regRateMap) {
+    const valid = times.filter(t => now - t < 3600000);
+    if (valid.length === 0) regRateMap.delete(ip);
+    else regRateMap.set(ip, valid);
+  }
+}, 600000);
+
 app.post("/api/register", async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: "Missing fields" });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: "Username: 3-16 chars, letters/numbers/underscore" });
   if (password.length < 4) return res.status(400).json({ error: "Password must be 4+ chars" });
+  // Rate limit by IP
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  if (!checkRegRate(ip)) return res.status(429).json({ error: "Too many accounts created. Try again later." });
   if (getUserByName(username)) return res.status(409).json({ error: "Username taken" });
   const hash = await bcrypt.hash(password, 10);
   const user = createUser(username, hash);
+  recordReg(ip);
   const token = makeToken();
   createSession(token, user.id);
   setCookie(res, token);
@@ -97,6 +131,8 @@ app.post("/api/logout", (req, res) => {
   clearCookie(res);
   res.json({ ok: true });
 });
+
+app.get("/api/version", (req, res) => { res.json({ version: SITE_VERSION }); });
 
 app.get("/api/me", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");
@@ -166,6 +202,12 @@ app.get("/api/shop", (req, res) => {
   const sess = cookies.session ? getSession(cookies.session) : null;
   const user = sess ? getUserById(sess.user_id) : null;
   res.json({ items: SHOP_ITEMS, user: user ? safeUserData(user) : null });
+});
+
+// All ~380 gradients are free cosmetics — exposed here so the client can
+// render the picker modal and resolve gradient IDs back to CSS for chat/leaderboard.
+app.get("/api/gradients", (_req, res) => {
+  res.json({ gradients: GRADIENTS });
 });
 
 app.post("/api/shop/buy", (req, res) => {
@@ -247,6 +289,13 @@ app.post("/api/arcade/score", (req, res) => {
     const updatedUser = getUserById(user.id);
     if (updatedUser.coins >= 500) checkAchievement(user.id, "arcade_500");
     if (updatedUser.coins >= 2000) checkAchievement(user.id, "arcade_2000");
+    // Daily challenge tracking
+    trackDaily(user.id, 'arcade_3');
+    trackDaily(user.id, 'arcade_5');
+    trackDaily(user.id, 'coins_100', finalCoins);
+    trackDaily(user.id, 'coins_200', finalCoins);
+    if (game === 'snake' && coins >= 25) trackDaily(user.id, 'snake_50');
+    if (game === 'memory') { const rawScore = Number(req.body.rawScore) || 99; if (rawScore <= 20) trackDaily(user.id, 'memory_low'); }
   }
   res.json({ ok: true, coinsEarned: coins, user: safeUserData(getUserById(user.id)) });
 });
@@ -312,18 +361,22 @@ app.get("/api/fakenews", (req, res) => {
 // ============================================================
 //   STAFF ENDPOINTS
 // ============================================================
-const STAFF_USERS = ["cole"]; // hardcoded staff
+const OWNER_USERS = ["cole"]; // hardcoded owner — cannot be demoted
 
+function isOwner(username) { return OWNER_USERS.includes(username?.toLowerCase()); }
 function isStaff(username) {
-  return STAFF_USERS.includes(username?.toLowerCase());
+  if (isOwner(username)) return true;
+  const u = getUserByName(username);
+  return !!(u && u.is_staff);
 }
 
 app.get("/api/staff/check", (req, res) => {
   const cookies = cookie.parse(req.headers.cookie || "");
   const sess = cookies.session ? getSession(cookies.session) : null;
-  if (!sess) return res.json({ isStaff: false, isMod: false });
+  if (!sess) return res.json({ isOwner: false, isStaff: false, isMod: false });
   const user = getUserById(sess.user_id);
-  res.json({ isStaff: isStaff(user?.username), isMod: !!(user && user.is_mod) });
+  const perms = isOwner(user?.username) ? "all" : (() => { try { return JSON.parse(user?.staff_perms || "{}"); } catch { return {}; } })();
+  res.json({ isOwner: isOwner(user?.username), isStaff: isStaff(user?.username), isMod: !!(user && user.is_mod), staffPerms: perms });
 });
 
 app.post("/api/staff/givecoins", (req, res) => {
@@ -433,7 +486,14 @@ app.post("/api/staff/confetti", (req, res) => {
 // Check if user is staff OR mod (for actions mods can perform)
 function isStaffOrMod(user) {
   if (!user) return false;
-  return isStaff(user.username) || !!user.is_mod;
+  return isOwner(user.username) || !!user.is_staff || !!user.is_mod;
+}
+// Check if a staff user has a specific permission (owner has all)
+function hasPerm(user, perm) {
+  if (!user) return false;
+  if (isOwner(user.username)) return true;
+  if (!user.is_staff) return false;
+  try { const perms = JSON.parse(user.staff_perms || "{}"); return !!perms[perm]; } catch { return false; }
 }
 
 app.post("/api/staff/makemod", (req, res) => {
@@ -553,6 +613,88 @@ app.get("/api/staff/users", (req, res) => {
 
 app.get("/api/staff/onlinecount", (req, res) => {
   res.json({ count: io.sockets.sockets.size });
+});
+
+app.post("/api/staff/deleteallaccounts", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!isOwner(staff?.username)) return res.status(403).json({ error: "Owner only" });
+  const { confirm } = req.body || {};
+  if (confirm !== "DELETE_ALL") return res.status(400).json({ error: "Must confirm with DELETE_ALL" });
+  // Disconnect all non-staff sockets
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user && !isStaff(s.data.user.username)) {
+      s.emit("kicked", { reason: "All accounts purged by staff" });
+      s.disconnect(true);
+    }
+  }
+  const count = deleteAllUsersExcept(OWNER_USERS);
+  res.json({ ok: true, message: `Deleted ${count} accounts. Staff accounts preserved.` });
+});
+
+// ── Owner-only: Make/Remove Staff with permissions ──
+app.post("/api/staff/makestaff", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const owner = getUserById(sess.user_id);
+  if (!isOwner(owner?.username)) return res.status(403).json({ error: "Owner only" });
+  const { username, makeStaff, perms } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isOwner(target.username)) return res.status(400).json({ error: "Can't modify owner" });
+  setStaffUser(target.id, !!makeStaff);
+  if (makeStaff && perms) setStaffPerms(target.id, perms);
+  if (!makeStaff) { setStaffPerms(target.id, {}); setMod(target.id, false); }
+  res.json({ ok: true, message: makeStaff ? `${target.username} is now staff` : `${target.username} is no longer staff` });
+});
+
+app.post("/api/staff/setperms", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const owner = getUserById(sess.user_id);
+  if (!isOwner(owner?.username)) return res.status(403).json({ error: "Owner only" });
+  const { username, perms } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (!target.is_staff) return res.status(400).json({ error: "User is not staff" });
+  setStaffPerms(target.id, perms || {});
+  res.json({ ok: true, message: `Updated permissions for ${target.username}` });
+});
+
+// ── Staff: Wipe user progress (requires wipe permission) ──
+app.post("/api/staff/wipeprogress", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const staff = getUserById(sess.user_id);
+  if (!hasPerm(staff, "wipe")) return res.status(403).json({ error: "No wipe permission" });
+  const { username, what } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (isOwner(target.username)) return res.status(400).json({ error: "Can't wipe owner" });
+  const valid = ["all", "coins", "games", "achievements", "shop", "stocks"];
+  if (!valid.includes(what)) return res.status(400).json({ error: "Invalid wipe type. Use: " + valid.join(", ") });
+  wipeUserProgress(target.id, what);
+  res.json({ ok: true, message: `Wiped ${what} for ${target.username}` });
+});
+
+// ── Self-wipe: User erases their own progress ──
+app.post("/api/profile/wipe", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  const { confirmation } = req.body || {};
+  const expected = "I want to erase all the progress I have in everything I own.";
+  if (confirmation !== expected) return res.status(400).json({ error: "Confirmation text doesn't match" });
+  // Wipe everything but keep username/password/staff/mod status
+  wipeUserProgress(user.id, "all");
+  res.json({ ok: true, message: "All progress has been erased." });
 });
 
 // Profile endpoints
@@ -747,6 +889,121 @@ app.post("/api/profile/border", (req, res) => {
 });
 
 // ============================================================
+//   AVATAR
+// ============================================================
+app.post("/api/profile/avatar", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { avatar } = req.body || {};
+  if (!avatar || typeof avatar !== 'object') return res.status(400).json({ error: "Invalid avatar" });
+  setAvatar(sess.user_id, avatar);
+  res.json({ ok: true, user: safeUserData(getUserById(sess.user_id)) });
+});
+
+// ============================================================
+//   FRIENDS
+// ============================================================
+app.post("/api/friends/request", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { username } = req.body || {};
+  const target = getUserByName(username);
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.id === sess.user_id) return res.status(400).json({ error: "Can't friend yourself" });
+  const result = sendFriendRequest(sess.user_id, target.id);
+  if (result.status === 'accepted') return res.json({ ok: true, message: "Already friends!" });
+  if (result.status === 'pending') return res.json({ ok: true, message: "Request already pending" });
+  // Notify target via socket
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === target.id) {
+      const from = getUserById(sess.user_id);
+      s.emit("friend:request", { from: from.username, fromId: from.id });
+    }
+  }
+  res.json({ ok: true, message: `Friend request sent to ${target.username}` });
+});
+
+app.post("/api/friends/accept", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { fromId } = req.body || {};
+  acceptFriend(fromId, sess.user_id);
+  res.json({ ok: true });
+});
+
+app.post("/api/friends/remove", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { friendId } = req.body || {};
+  removeFriend(sess.user_id, friendId);
+  res.json({ ok: true });
+});
+
+app.get("/api/friends", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const friends = getFriends(sess.user_id);
+  const pending = getPendingRequests(sess.user_id);
+  // Attach online status
+  const onlineIds = new Set();
+  for (const [, s] of io.sockets.sockets) if (s.data?.user?.id) onlineIds.add(s.data.user.id);
+  const friendList = friends.map(f => {
+    const fId = f.from_id === sess.user_id ? f.to_id : f.from_id;
+    return { id: fId, username: f.username, pfpEmoji: f.pfp_emoji, avatar: (() => { try { return JSON.parse(f.avatar||"{}"); } catch { return {}; } })(), online: onlineIds.has(fId) };
+  });
+  res.json({ friends: friendList, pending: pending.map(p => ({ id: p.from_id, username: p.username, pfpEmoji: p.pfp_emoji })) });
+});
+
+// ============================================================
+//   DIRECT MESSAGES
+// ============================================================
+app.get("/api/dm/:friendId", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const messages = getDMs(sess.user_id, Number(req.params.friendId));
+  res.json({ messages });
+});
+
+app.post("/api/dm/send", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { friendId, text } = req.body || {};
+  if (!text?.trim()) return res.status(400).json({ error: "Empty message" });
+  const fromUser = getUserById(sess.user_id);
+  sendDM(sess.user_id, friendId, text.trim().slice(0, 300));
+  // Notify friend via socket
+  for (const [, s] of io.sockets.sockets) {
+    if (s.data?.user?.id === friendId) {
+      s.emit("dm:message", { from: fromUser.username, fromId: fromUser.id, text: text.trim().slice(0, 300), time: Date.now() });
+    }
+  }
+  res.json({ ok: true });
+});
+
+// ============================================================
+//   CHAT REACTIONS
+// ============================================================
+app.post("/api/chat/react", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { messageId, emoji } = req.body || {};
+  const validEmojis = ['👍','❤️','😂','😮','😢','🔥'];
+  if (!validEmojis.includes(emoji)) return res.status(400).json({ error: "Invalid reaction" });
+  const added = addReaction(messageId, sess.user_id, emoji);
+  const reactions = getReactions(messageId);
+  io.emit("gchat:reactions", { messageId, reactions });
+  res.json({ ok: true, added, reactions });
+});
+
+// ============================================================
 //   GAME COMPLETION — award coins to logged-in players
 // ============================================================
 
@@ -772,12 +1029,18 @@ function awardGameCoins(room) {
   for (const [pid, score] of g.scores) {
     const sock = io.sockets.sockets.get(pid);
     if (sock?.data?.user?.id && score > 0) {
+      const uid = sock.data.user.id;
       const allScores = [...g.scores.values()];
       const maxScore = Math.max(...allScores);
       const won = score === maxScore;
-      recordGame(sock.data.user.id, won, score);
+      recordGame(uid, won, score);
+      // Daily challenge tracking
+      trackDaily(uid, 'party_1');
+      trackDaily(uid, 'party_3');
+      trackDaily(uid, 'coins_100', score);
+      trackDaily(uid, 'coins_200', score);
       // Notify the client their coins updated
-      const updated = getUserById(sock.data.user.id);
+      const updated = getUserById(uid);
       if (updated) sock.emit("user:updated", safeUserData(updated));
     }
   }
@@ -798,7 +1061,22 @@ const MAX_CHAT = 50;
 const MIN_PLAYERS_FREQUENCY = 3;
 const MIN_PLAYERS_WORDSPY = 3;
 const MIN_PLAYERS_CHAIN = 3;
+const MIN_PLAYERS_C4 = 2; // Connect Four — strictly 2-player
 const DEFAULT_ROUNDS = 5;
+
+// ── Bot System ──
+// Bots are virtual players with fake IDs that live server-side. They don't have
+// real sockets — io.to(botId).emit() silently no-ops, which is exactly what we
+// want. The host adds/removes bots via room:addBot / room:removeBot events.
+const BOT_NAMES = ["Ada","Bolt","Chip","Dart","Echo","Flux","Gizmo","Hex","Iris","Jolt","Kit","Lux","Max","Nyx","Opi","Pix","Rex","Spark","Tux","Vex","Wren","Zap"];
+let _botCounter = 0;
+function isBot(id) { return typeof id === "string" && id.startsWith("bot_"); }
+function makeBotId() { return `bot_${++_botCounter}_${Date.now().toString(36)}`; }
+function pickBotName(room) {
+  const taken = new Set([...room.players.values()].map(p => p.name));
+  const available = BOT_NAMES.filter(n => !taken.has(n));
+  return available.length > 0 ? available[Math.floor(Math.random() * available.length)] : `Bot-${_botCounter}`;
+}
 
 // Phase timers (in ms)
 const TIMER_SUBMIT = 30_000;    // 30 seconds to rate (Frequency)
@@ -810,6 +1088,7 @@ const TIMER_WS_DISCUSS = 45_000; // 45 seconds Word Spy discussion
 const TIMER_SPY_GUESS = 20_000;  // 20 seconds for spy to guess the word
 const MAX_CLUE_LENGTH = 40;
 const TIMER_CHAIN_TURN = 10_000;  // 10 seconds per word (Chain)
+const TIMER_C4_TURN = 25_000;     // 25 seconds per move (Connect Four)
 const CHAIN_MAX_WORDS = 20;       // sentence ends after this many words
 const MAX_CHAIN_WORD_LENGTH = 25;
 
@@ -851,7 +1130,8 @@ function roomSnapshot(room) {
     players: [...room.players.values()].map(p => ({
       id: p.id,
       name: p.name,
-      isHost: p.id === room.hostId
+      isHost: p.id === room.hostId,
+      isBot: !!p.isBot
     })),
     spectators: [...room.spectators.values()].map(s => ({
       id: s.id,
@@ -950,11 +1230,53 @@ function gameSnapshot(room) {
     }
   }
 
+  // === Connect Four-specific fields ===
+  if (g.type === "c4") {
+    snap.board = g.board;            // 2-D array, fully visible to both players
+    snap.currentTurn = g.currentTurn;
+    snap.lastMove = g.lastMove;      // {col, row, piece} for highlight
+    snap.winLine = g.winLine;        // null until round ends
+    snap.roundResult = g.roundResult; // 'p1' | 'p2' | 'draw' | null
+    snap.playerIds = g.playerIds;
+    // Map names by player slot for clean display
+    snap.p1Name = room.players.get(g.playerIds[0])?.name || "Player 1";
+    snap.p2Name = room.players.get(g.playerIds[1])?.name || "Player 2";
+  }
+
+  // === Crazy Eights-specific fields ===
+  if (g.type === "crazy8") {
+    snap.playerIds = g.playerIds;
+    snap.currentTurn = g.playerIds[g.turnIdx];
+    snap.direction = g.direction;
+    snap.topCard = g.discardPile[g.discardPile.length - 1];
+    snap.activeSuit = g.activeSuit;
+    snap.drawPileCount = g.drawPile.length;
+    snap.drewThisTurn = g.drewThisTurn;
+    snap.lastPlay = g.lastPlay;
+    snap.handSizes = {};
+    for (const [pid, hand] of g.hands) snap.handSizes[pid] = hand.length;
+    if (g.phase === "crazy8-results" || g.phase === "gameover") {
+      snap.allHands = {};
+      for (const [pid, hand] of g.hands) snap.allHands[pid] = hand;
+    }
+    snap.playerNames = {};
+    for (const pid of g.playerIds) snap.playerNames[pid] = room.players.get(pid)?.name || "???";
+  }
+
   return snap;
 }
 
 function broadcastRoom(room) {
   io.to(room.code).emit("room:update", roomSnapshot(room));
+  // Crazy Eights: send each human player their private hand after every update.
+  // Bots don't need this (their hands live server-side).
+  if (room.game?.type === "crazy8" && room.game.hands) {
+    for (const [pid, hand] of room.game.hands) {
+      if (isBot(pid)) continue;
+      const sock = io.sockets.sockets.get(pid);
+      if (sock) sock.emit("game:c8Hand", { hand });
+    }
+  }
 }
 
 function addSystemMessage(room, text) {
@@ -2222,6 +2544,582 @@ function echoHandleDisconnect(room, socketId) {
 }
 
 // ============================================================
+//   CONNECT FOUR — 2-PLAYER LOGIC
+// ============================================================
+// Classic 7-wide × 6-tall Connect Four. Pieces drop top-down into a column and
+// land on the first empty row from the bottom. First to align 4 in a row in
+// any direction (horizontal, vertical, or either diagonal) wins the round.
+// Multi-round: players alternate who goes first each round to keep things fair.
+// Score = round wins; final winner gets the existing party-game coin reward.
+const C4_COLS = 7;
+const C4_ROWS = 6;
+
+function c4NewBoard() {
+  // 2-D array indexed [col][row] — col 0 is left, row 0 is bottom.
+  const b = [];
+  for (let c = 0; c < C4_COLS; c++) b.push(new Array(C4_ROWS).fill(0));
+  return b;
+}
+
+// Drop a piece (1 or 2) into a column. Returns the row it landed at, or -1 if full.
+function c4Drop(board, col, piece) {
+  if (col < 0 || col >= C4_COLS) return -1;
+  for (let r = 0; r < C4_ROWS; r++) {
+    if (board[col][r] === 0) { board[col][r] = piece; return r; }
+  }
+  return -1;
+}
+
+// Check whether placing at (col, row) created a 4-in-a-row for the given piece.
+// Returns the array of 4 winning cells [{c,r}, ...] or null. Used so the client
+// can highlight the winning line.
+function c4CheckWin(board, col, row, piece) {
+  const dirs = [[1,0],[0,1],[1,1],[1,-1]]; // horiz, vert, diag/, diag\
+  for (const [dc, dr] of dirs) {
+    const line = [{c:col,r:row}];
+    // walk forward along this direction
+    for (let i = 1; i < 4; i++) {
+      const c = col + dc*i, r = row + dr*i;
+      if (c < 0 || c >= C4_COLS || r < 0 || r >= C4_ROWS || board[c][r] !== piece) break;
+      line.push({c, r});
+    }
+    // walk backward
+    for (let i = 1; i < 4; i++) {
+      const c = col - dc*i, r = row - dr*i;
+      if (c < 0 || c >= C4_COLS || r < 0 || r >= C4_ROWS || board[c][r] !== piece) break;
+      line.unshift({c, r});
+    }
+    if (line.length >= 4) return line.slice(0, 4);
+  }
+  return null;
+}
+
+function c4IsBoardFull(board) {
+  for (let c = 0; c < C4_COLS; c++) if (board[c][C4_ROWS-1] === 0) return false;
+  return true;
+}
+
+function startC4Game(room, numRounds) {
+  const playerIds = [...room.players.keys()];
+  if (playerIds.length !== 2) return; // dispatcher should have caught this
+  const totalRounds = Math.min(Math.max(numRounds || 3, 1), 7);
+
+  room.game = {
+    type: "c4", phase: "c4-playing",
+    round: 1, totalRounds,
+    playerIds,                  // [p1, p2]; index 0 is "piece 1" (red)
+    firstMover: 0,              // alternates each round
+    currentTurn: playerIds[0],  // whose turn right now
+    board: c4NewBoard(),
+    lastMove: null,             // {col, row, piece} — for client animation
+    winLine: null,              // array of {c,r} when a round is won
+    roundResult: null,          // 'p1'|'p2'|'draw'
+    scores: new Map(playerIds.map(id => [id, 0])),
+    activePlayers: new Set(playerIds),
+    timerEnd: null
+  };
+
+  // Send role assignments — each player learns their piece number and opponent name.
+  const p1Sock = io.sockets.sockets.get(playerIds[0]);
+  const p2Sock = io.sockets.sockets.get(playerIds[1]);
+  const p1Name = room.players.get(playerIds[0])?.name || "Player 1";
+  const p2Name = room.players.get(playerIds[1])?.name || "Player 2";
+  if (p1Sock) p1Sock.emit("game:c4Role", { piece: 1, opponentName: p2Name });
+  if (p2Sock) p2Sock.emit("game:c4Role", { piece: 2, opponentName: p1Name });
+
+  addSystemMessage(room, `🔴🟡 Connect Four — Round 1 of ${totalRounds}. ${p1Name} (red) goes first.`);
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_C4_TURN, () => c4HandleTimeout(room));
+  c4MaybeBotTurn(room);
+}
+
+function c4HandleMove(room, socketId, col) {
+  const g = room.game;
+  if (!g || g.type !== "c4" || g.phase !== "c4-playing") return;
+  if (g.currentTurn !== socketId) return; // not your turn
+  const piece = g.playerIds.indexOf(socketId) + 1;
+  if (piece !== 1 && piece !== 2) return;
+  const row = c4Drop(g.board, col, piece);
+  if (row < 0) return; // column full or invalid
+  g.lastMove = { col, row, piece };
+  // Check for win
+  const winLine = c4CheckWin(g.board, col, row, piece);
+  if (winLine) {
+    g.winLine = winLine;
+    g.roundResult = piece === 1 ? "p1" : "p2";
+    c4EndRound(room);
+    return;
+  }
+  // Check for draw
+  if (c4IsBoardFull(g.board)) {
+    g.roundResult = "draw";
+    c4EndRound(room);
+    return;
+  }
+  // Hand off to opponent
+  g.currentTurn = g.playerIds[piece === 1 ? 1 : 0];
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_C4_TURN, () => c4HandleTimeout(room));
+  c4MaybeBotTurn(room);
+}
+
+// On timeout, the inactive player just forfeits their turn (opponent takes
+// over). This is gentler than auto-losing the round and keeps the game alive
+// if someone briefly tabs away.
+function c4HandleTimeout(room) {
+  const g = room.game;
+  if (!g || g.type !== "c4" || g.phase !== "c4-playing") return;
+  const idx = g.playerIds.indexOf(g.currentTurn);
+  if (idx < 0) return;
+  g.currentTurn = g.playerIds[idx === 0 ? 1 : 0];
+  addSystemMessage(room, `⏱️ Turn timed out — passed to opponent.`);
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_C4_TURN, () => c4HandleTimeout(room));
+  c4MaybeBotTurn(room);
+}
+
+function c4EndRound(room) {
+  const g = room.game;
+  clearRoomTimer(room);
+  // Award round points
+  if (g.roundResult === "p1") g.scores.set(g.playerIds[0], (g.scores.get(g.playerIds[0])||0) + 1);
+  else if (g.roundResult === "p2") g.scores.set(g.playerIds[1], (g.scores.get(g.playerIds[1])||0) + 1);
+  // (draws give no points)
+  g.phase = "c4-results";
+  const p1Name = room.players.get(g.playerIds[0])?.name || "Player 1";
+  const p2Name = room.players.get(g.playerIds[1])?.name || "Player 2";
+  if (g.roundResult === "draw") addSystemMessage(room, `🤝 Round ${g.round} draw — board full.`);
+  else addSystemMessage(room, `🏆 Round ${g.round} winner: ${g.roundResult === "p1" ? p1Name : p2Name}`);
+  broadcastRoom(room);
+}
+
+function c4NextRound(room, socketId) {
+  const g = room.game;
+  if (!g || g.type !== "c4" || g.phase !== "c4-results") return;
+  // Either player can advance
+  if (!g.playerIds.includes(socketId)) return;
+  if (g.round >= g.totalRounds) {
+    c4FinishGame(room);
+    return;
+  }
+  g.round++;
+  g.firstMover = 1 - g.firstMover; // alternate first move
+  g.board = c4NewBoard();
+  g.lastMove = null;
+  g.winLine = null;
+  g.roundResult = null;
+  g.currentTurn = g.playerIds[g.firstMover];
+  g.phase = "c4-playing";
+  const firstName = room.players.get(g.currentTurn)?.name || "Player";
+  addSystemMessage(room, `Round ${g.round}/${g.totalRounds} — ${firstName} goes first.`);
+  broadcastRoom(room);
+  setRoomTimer(room, TIMER_C4_TURN, () => c4HandleTimeout(room));
+  c4MaybeBotTurn(room);
+}
+
+function c4FinishGame(room) {
+  const g = room.game;
+  g.phase = "gameover";
+  clearRoomTimer(room);
+  awardGameCoins(room);
+  // Bump games_played on the loser too — recordGame in awardGameCoins only
+  // touches players whose score>0, so a 3-0 sweep would never count for the
+  // shut-out player. Patch that up here.
+  for (const pid of g.playerIds) {
+    if ((g.scores.get(pid) || 0) === 0 && !isBot(pid)) {
+      const sock = io.sockets.sockets.get(pid);
+      if (sock?.data?.user?.id) recordGame(sock.data.user.id, false, 0);
+    }
+  }
+  broadcastRoom(room);
+}
+
+// ── C4 Bot (minimax with alpha-beta) ──
+// Evaluates board positions and plays at a ~medium-hard level.
+// Depth 5 is fast enough for 7-column boards (<50ms) and catches most traps.
+function c4BotMove(room) {
+  const g = room.game;
+  if (!g || g.type !== "c4" || g.phase !== "c4-playing") return;
+  if (!isBot(g.currentTurn)) return;
+  const piece = g.playerIds.indexOf(g.currentTurn) + 1;
+  const opp = piece === 1 ? 2 : 1;
+  // Score a board position for `piece`
+  function evalBoard(board) {
+    let score = 0;
+    const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+    for (let c = 0; c < C4_COLS; c++) for (let r = 0; r < C4_ROWS; r++) {
+      for (const [dc, dr] of dirs) {
+        const window = [];
+        for (let i = 0; i < 4; i++) {
+          const nc = c+dc*i, nr = r+dr*i;
+          if (nc < 0 || nc >= C4_COLS || nr < 0 || nr >= C4_ROWS) break;
+          window.push(board[nc][nr]);
+        }
+        if (window.length < 4) continue;
+        const me = window.filter(x => x === piece).length;
+        const them = window.filter(x => x === opp).length;
+        const empty = window.filter(x => x === 0).length;
+        if (me === 4) score += 10000;
+        else if (me === 3 && empty === 1) score += 50;
+        else if (me === 2 && empty === 2) score += 10;
+        if (them === 3 && empty === 1) score -= 80; // block threats
+      }
+    }
+    // Prefer center column
+    for (let r = 0; r < C4_ROWS; r++) if (board[3][r] === piece) score += 3;
+    return score;
+  }
+  function getValidCols(board) {
+    const cols = [];
+    for (let c = 0; c < C4_COLS; c++) if (board[c][C4_ROWS-1] === 0) cols.push(c);
+    return cols;
+  }
+  function dropRow(board, col) {
+    for (let r = 0; r < C4_ROWS; r++) if (board[col][r] === 0) return r;
+    return -1;
+  }
+  function minimax(board, depth, alpha, beta, maximizing) {
+    const valid = getValidCols(board);
+    // Check terminal states
+    for (let c = 0; c < C4_COLS; c++) for (let r = 0; r < C4_ROWS; r++) {
+      if (board[c][r] !== 0 && c4CheckWin(board, c, r, board[c][r])) {
+        return board[c][r] === piece ? 100000 + depth : -100000 - depth;
+      }
+    }
+    if (valid.length === 0) return 0; // draw
+    if (depth === 0) return evalBoard(board);
+    if (maximizing) {
+      let val = -Infinity;
+      for (const c of valid) {
+        const r = dropRow(board, c); board[c][r] = piece;
+        val = Math.max(val, minimax(board, depth-1, alpha, beta, false));
+        board[c][r] = 0; alpha = Math.max(alpha, val);
+        if (alpha >= beta) break;
+      }
+      return val;
+    } else {
+      let val = Infinity;
+      for (const c of valid) {
+        const r = dropRow(board, c); board[c][r] = opp;
+        val = Math.min(val, minimax(board, depth-1, alpha, beta, true));
+        board[c][r] = 0; beta = Math.min(beta, val);
+        if (alpha >= beta) break;
+      }
+      return val;
+    }
+  }
+  // Deep-copy board for minimax search
+  const boardCopy = g.board.map(col => [...col]);
+  const valid = getValidCols(boardCopy);
+  let bestCol = valid[0], bestScore = -Infinity;
+  for (const c of valid) {
+    const r = dropRow(boardCopy, c); boardCopy[c][r] = piece;
+    const score = minimax(boardCopy, 5, -Infinity, Infinity, false);
+    boardCopy[c][r] = 0;
+    if (score > bestScore) { bestScore = score; bestCol = c; }
+  }
+  // Play with a small delay to feel natural
+  setTimeout(() => c4HandleMove(room, g.currentTurn, bestCol), 600 + Math.random() * 800);
+}
+
+// Schedule bot move whenever it becomes a bot's turn.
+function c4MaybeBotTurn(room) {
+  const g = room.game;
+  if (!g || g.type !== "c4" || g.phase !== "c4-playing") return;
+  if (isBot(g.currentTurn)) c4BotMove(room);
+}
+
+// ============================================================
+//   CRAZY EIGHTS (UNO-style card game)
+// ============================================================
+// Classic Crazy Eights with a standard 52-card deck. Match suit or rank of
+// the discard pile top; 8s are wild (play anytime, pick a new suit).
+// Supports 2-6 players including bots. First to empty their hand wins the
+// round and earns points based on opponents' remaining cards.
+//
+// Card representation: { suit: 'H'|'D'|'C'|'S', rank: '2'..'A' }
+// Point values: 8 = 50, face cards (J/Q/K) = 10, A = 1, 2-7/9-10 = face value
+const C8_SUITS = ["H","D","C","S"];
+const C8_RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+
+function c8NewDeck() {
+  const deck = [];
+  for (const s of C8_SUITS) for (const r of C8_RANKS) deck.push({ suit: s, rank: r });
+  // Shuffle (Fisher-Yates)
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function c8CardPoints(card) {
+  if (card.rank === "8") return 50;
+  if (["J","Q","K"].includes(card.rank)) return 10;
+  if (card.rank === "A") return 1;
+  return parseInt(card.rank);
+}
+
+function c8HandPoints(hand) {
+  return hand.reduce((s, c) => s + c8CardPoints(c), 0);
+}
+
+function c8CanPlay(card, topCard, activeSuit) {
+  if (card.rank === "8") return true; // 8s are always playable (wild)
+  if (card.suit === (activeSuit || topCard.suit)) return true;
+  if (card.rank === topCard.rank) return true;
+  return false;
+}
+
+function startCrazy8Game(room, numRounds) {
+  const playerIds = [...room.players.keys()];
+  const totalRounds = Math.min(Math.max(numRounds || 3, 1), 7);
+  // Deal: 7 cards each for 2-3 players, 5 for 4+
+  const cardsPerHand = playerIds.length <= 3 ? 7 : 5;
+  const deck = c8NewDeck();
+  const hands = new Map();
+  for (const pid of playerIds) {
+    hands.set(pid, deck.splice(0, cardsPerHand));
+  }
+  // Flip first card to discard — if it's an 8, bury it and try again
+  let firstCard;
+  do {
+    firstCard = deck.shift();
+    if (firstCard.rank === "8") { deck.push(firstCard); firstCard = null; }
+  } while (!firstCard);
+
+  room.game = {
+    type: "crazy8", phase: "crazy8-playing",
+    round: 1, totalRounds,
+    playerIds,
+    turnIdx: 0, // index into playerIds
+    direction: 1, // 1 = forward, -1 = backward
+    hands,
+    drawPile: deck,
+    discardPile: [firstCard],
+    activeSuit: firstCard.suit, // current suit to match
+    lastPlay: null,
+    drewThisTurn: false,
+    scores: new Map(playerIds.map(id => [id, 0])),
+    activePlayers: new Set(playerIds),
+    roundScoreDeltas: {},
+    timerEnd: null
+  };
+  const firstName = room.players.get(playerIds[0])?.name || "Player";
+  addSystemMessage(room, `🃏 Crazy Eights — Round 1 of ${totalRounds}. ${firstName} goes first.`);
+  broadcastRoom(room);
+  c8MaybeBotTurn(room);
+}
+
+function c8TopCard(g) { return g.discardPile[g.discardPile.length - 1]; }
+function c8CurrentPlayer(g) { return g.playerIds[g.turnIdx]; }
+
+function c8AdvanceTurn(room) {
+  const g = room.game;
+  g.turnIdx = (g.turnIdx + g.direction + g.playerIds.length) % g.playerIds.length;
+  g.drewThisTurn = false;
+  broadcastRoom(room);
+  c8MaybeBotTurn(room);
+}
+
+function c8HandlePlay(room, socketId, cardIdx, chosenSuit) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
+  if (c8CurrentPlayer(g) !== socketId) return;
+  const hand = g.hands.get(socketId);
+  if (!hand || cardIdx < 0 || cardIdx >= hand.length) return;
+  const card = hand[cardIdx];
+  if (!c8CanPlay(card, c8TopCard(g), g.activeSuit)) return;
+  // Play the card
+  hand.splice(cardIdx, 1);
+  g.discardPile.push(card);
+  g.lastPlay = { playerId: socketId, card, playerName: room.players.get(socketId)?.name || "???" };
+  // Handle 8 (wild) — set the chosen suit
+  if (card.rank === "8") {
+    g.activeSuit = (chosenSuit && C8_SUITS.includes(chosenSuit)) ? chosenSuit : card.suit;
+  } else {
+    g.activeSuit = card.suit;
+  }
+  // Check if this player won the round
+  if (hand.length === 0) {
+    c8EndRound(room, socketId);
+    return;
+  }
+  c8AdvanceTurn(room);
+}
+
+function c8HandleDraw(room, socketId) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
+  if (c8CurrentPlayer(g) !== socketId) return;
+  if (g.drewThisTurn) return; // already drew — must pass
+  // If draw pile is empty, shuffle discard pile back in (keep top card)
+  if (g.drawPile.length === 0) {
+    const top = g.discardPile.pop();
+    g.drawPile = g.discardPile;
+    g.discardPile = [top];
+    // Shuffle draw pile
+    for (let i = g.drawPile.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [g.drawPile[i], g.drawPile[j]] = [g.drawPile[j], g.drawPile[i]];
+    }
+  }
+  if (g.drawPile.length === 0) {
+    // Extremely rare: no cards left at all. Force pass.
+    g.drewThisTurn = true;
+    broadcastRoom(room);
+    return;
+  }
+  const drawn = g.drawPile.pop();
+  g.hands.get(socketId).push(drawn);
+  g.drewThisTurn = true;
+  // Notify only the drawing player what they got (bots don't need this)
+  if (!isBot(socketId)) {
+    const sock = io.sockets.sockets.get(socketId);
+    if (sock) sock.emit("game:c8Drew", { card: drawn });
+  }
+  broadcastRoom(room);
+  // If bot drew, let the bot AI decide whether to play the drawn card
+  if (isBot(socketId)) {
+    setTimeout(() => c8BotAfterDraw(room, socketId, drawn), 500 + Math.random() * 500);
+  }
+}
+
+function c8HandlePass(room, socketId) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
+  if (c8CurrentPlayer(g) !== socketId) return;
+  if (!g.drewThisTurn) return; // must draw first before passing
+  c8AdvanceTurn(room);
+}
+
+function c8EndRound(room, winnerId) {
+  const g = room.game;
+  clearRoomTimer(room);
+  // Score: winner gets sum of all opponents' remaining card points
+  let points = 0;
+  for (const [pid, hand] of g.hands) {
+    if (pid !== winnerId) points += c8HandPoints(hand);
+  }
+  g.scores.set(winnerId, (g.scores.get(winnerId) || 0) + points);
+  g.roundScoreDeltas = { [winnerId]: points };
+  g.lastPlay = { playerId: winnerId, playerName: room.players.get(winnerId)?.name || "???", wonRound: true };
+  const winnerName = room.players.get(winnerId)?.name || "Player";
+  addSystemMessage(room, `🏆 ${winnerName} wins round ${g.round}! (+${points} pts)`);
+  g.phase = "crazy8-results";
+  broadcastRoom(room);
+  // If bots are present, auto-advance after a delay
+  c8MaybeAutoAdvance(room);
+}
+
+function c8NextRound(room, socketId) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-results") return;
+  if (g.round >= g.totalRounds) {
+    c8FinishGame(room);
+    return;
+  }
+  g.round++;
+  const cardsPerHand = g.playerIds.length <= 3 ? 7 : 5;
+  const deck = c8NewDeck();
+  g.hands = new Map();
+  for (const pid of g.playerIds) g.hands.set(pid, deck.splice(0, cardsPerHand));
+  let firstCard;
+  do { firstCard = deck.shift(); if (firstCard.rank === "8") { deck.push(firstCard); firstCard = null; } } while (!firstCard);
+  g.drawPile = deck;
+  g.discardPile = [firstCard];
+  g.activeSuit = firstCard.suit;
+  g.lastPlay = null;
+  g.drewThisTurn = false;
+  // Rotate starting player each round
+  g.turnIdx = (g.round - 1) % g.playerIds.length;
+  g.phase = "crazy8-playing";
+  const firstName = room.players.get(g.playerIds[g.turnIdx])?.name || "Player";
+  addSystemMessage(room, `Round ${g.round}/${g.totalRounds} — ${firstName} goes first.`);
+  broadcastRoom(room);
+  c8MaybeBotTurn(room);
+}
+
+function c8FinishGame(room) {
+  const g = room.game;
+  g.phase = "gameover";
+  clearRoomTimer(room);
+  awardGameCoins(room);
+  broadcastRoom(room);
+}
+
+// ── Crazy Eights Bot AI ──
+function c8BotPickSuit(hand) {
+  // Pick the suit we hold the most of (excluding 8s)
+  const counts = { H: 0, D: 0, C: 0, S: 0 };
+  for (const c of hand) if (c.rank !== "8") counts[c.suit]++;
+  let best = "H", bestN = -1;
+  for (const [s, n] of Object.entries(counts)) if (n > bestN) { bestN = n; best = s; }
+  return best;
+}
+
+function c8BotChooseCard(hand, topCard, activeSuit) {
+  const playable = [];
+  for (let i = 0; i < hand.length; i++) {
+    if (c8CanPlay(hand[i], topCard, activeSuit)) playable.push(i);
+  }
+  if (playable.length === 0) return -1;
+  // Prefer non-8s first (save wilds), then prefer matching the suit we have most of
+  const nonWild = playable.filter(i => hand[i].rank !== "8");
+  const pool = nonWild.length > 0 ? nonWild : playable;
+  // Among candidates, prefer high-value cards to dump points early
+  pool.sort((a, b) => c8CardPoints(hand[b]) - c8CardPoints(hand[a]));
+  return pool[0];
+}
+
+function c8MaybeBotTurn(room) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
+  const pid = c8CurrentPlayer(g);
+  if (!isBot(pid)) return;
+  const hand = g.hands.get(pid);
+  const top = c8TopCard(g);
+  const cardIdx = c8BotChooseCard(hand, top, g.activeSuit);
+  setTimeout(() => {
+    if (cardIdx >= 0) {
+      const card = hand[cardIdx];
+      const suit = card.rank === "8" ? c8BotPickSuit(hand) : undefined;
+      c8HandlePlay(room, pid, cardIdx, suit);
+    } else {
+      c8HandleDraw(room, pid);
+    }
+  }, 800 + Math.random() * 1200);
+}
+
+function c8BotAfterDraw(room, botId, drawnCard) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
+  if (c8CurrentPlayer(g) !== botId) return;
+  const hand = g.hands.get(botId);
+  // Check if the drawn card (now last in hand) is playable
+  const top = c8TopCard(g);
+  if (c8CanPlay(drawnCard, top, g.activeSuit)) {
+    const idx = hand.indexOf(drawnCard);
+    const suit = drawnCard.rank === "8" ? c8BotPickSuit(hand) : undefined;
+    c8HandlePlay(room, botId, idx, suit);
+  } else {
+    c8HandlePass(room, botId);
+  }
+}
+
+// If all remaining players after a round-end are bots, auto-advance.
+// Otherwise the human clicks "Next Round".
+function c8MaybeAutoAdvance(room) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-results") return;
+  const hasHuman = g.playerIds.some(pid => !isBot(pid));
+  if (!hasHuman) {
+    // All bots — just finish immediately (shouldn't really happen but be safe)
+    setTimeout(() => c8NextRound(room), 1000);
+  }
+}
+
+// ============================================================
 //   SOCKET.IO EVENTS
 // ============================================================
 
@@ -2260,7 +3158,7 @@ const ACHIEVEMENTS = [
   {id:"dungeon_10",name:"Dungeon Crawler",desc:"Clear 10 dungeon areas",icon:"🗡️",coins:200},
   {id:"dungeon_20",name:"Deep Diver",desc:"Clear 20 dungeon areas",icon:"🌊",coins:400},
   {id:"dungeon_all",name:"The Finisher",desc:"Clear all dungeon areas",icon:"♾️",coins:1000},
-  {id:"coins_1000",name:"Thousandaire",desc:"Own 1,000 coins",icon:"🪙",coins:0},
+  {id:"coins_1000",name:"Thousandaire",desc:"Own 1,000 coins",icon:"💰",coins:0},
   {id:"coins_10000",name:"Rich",desc:"Own 10,000 coins",icon:"💰",coins:0},
   {id:"shop_5",name:"Fashionista",desc:"Buy 5 shop items",icon:"🛍️",coins:50},
   {id:"bug_report",name:"Bug Hunter",desc:"Submit a bug report",icon:"🐛",coins:25},
@@ -2320,6 +3218,158 @@ app.post("/api/achievements/dungeon", (req, res) => {
   res.json({ ok: true });
 });
 
+// ═══════════════════════════════════════════════════
+// CHAT MODERATION SYSTEM
+// ═══════════════════════════════════════════════════
+// Rate limiting: max 3 messages per 5 seconds per user
+const chatRateMap = new Map(); // userId -> [timestamp, ...]
+function checkChatRate(userId) {
+  const now = Date.now(), window = 5000;
+  const times = (chatRateMap.get(userId) || []).filter(t => now - t < window);
+  chatRateMap.set(userId, times);
+  if (times.length >= 3) return false;
+  times.push(now);
+  chatRateMap.set(userId, times);
+  return true;
+}
+
+// Duplicate detection: block same message twice in a row
+const lastMsgMap = new Map(); // userId -> { text, time }
+function isDuplicate(userId, text) {
+  const last = lastMsgMap.get(userId);
+  if (last && last.text === text && Date.now() - last.time < 30000) return true;
+  lastMsgMap.set(userId, { text, time: Date.now() });
+  return false;
+}
+
+// Auto-escalation: track filter violations per user
+const violationMap = new Map(); // userId -> { count, lastTime }
+function recordViolation(userId) {
+  const now = Date.now();
+  const v = violationMap.get(userId) || { count: 0, lastTime: 0 };
+  // Reset if last violation was over 1 hour ago
+  if (now - v.lastTime > 3600000) v.count = 0;
+  v.count++;
+  v.lastTime = now;
+  violationMap.set(userId, v);
+  // Auto-mute escalation
+  if (v.count >= 6) {
+    setMutedUntil(userId, now + 3600000); // 1 hour
+    return { autoMuted: true, duration: 60 };
+  } else if (v.count >= 3) {
+    setMutedUntil(userId, now + 600000); // 10 minutes
+    return { autoMuted: true, duration: 10 };
+  }
+  return { autoMuted: false, remaining: (v.count >= 3 ? 0 : 3 - v.count) };
+}
+
+// Clean up rate maps every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, times] of chatRateMap) {
+    const valid = times.filter(t => now - t < 5000);
+    if (valid.length === 0) chatRateMap.delete(id); else chatRateMap.set(id, valid);
+  }
+  for (const [id, last] of lastMsgMap) {
+    if (now - last.time > 60000) lastMsgMap.delete(id);
+  }
+  for (const [id, v] of violationMap) {
+    if (now - v.lastTime > 3600000) violationMap.delete(id);
+  }
+}, 300000);
+
+// ============================================================
+//   DAILY CHALLENGES
+// ============================================================
+const CHALLENGE_POOL = [
+  { key: 'arcade_3', name: 'Arcade Grinder', desc: 'Play 3 arcade games', goal: 3, reward: 75, icon: '🕹️' },
+  { key: 'arcade_5', name: 'Arcade Marathon', desc: 'Play 5 arcade games', goal: 5, reward: 120, icon: '🎮' },
+  { key: 'coins_100', name: 'Coin Collector', desc: 'Earn 100 coins', goal: 100, reward: 50, icon: '💰' },
+  { key: 'coins_200', name: 'Big Earner', desc: 'Earn 200 coins', goal: 200, reward: 100, icon: '💰' },
+  { key: 'chat_10', name: 'Social Butterfly', desc: 'Send 10 chat messages', goal: 10, reward: 40, icon: '💬' },
+  { key: 'chat_25', name: 'Chatterbox', desc: 'Send 25 chat messages', goal: 25, reward: 80, icon: '💬' },
+  { key: 'party_1', name: 'Party Starter', desc: 'Play 1 party game', goal: 1, reward: 60, icon: '🎭' },
+  { key: 'party_3', name: 'Party Animal', desc: 'Play 3 party games', goal: 3, reward: 150, icon: '🎭' },
+  { key: 'dungeon_5', name: 'Monster Slayer', desc: 'Kill 5 dungeon monsters', goal: 5, reward: 80, icon: '⚔️' },
+  { key: 'dungeon_15', name: 'Dungeon Crawler', desc: 'Kill 15 dungeon monsters', goal: 15, reward: 150, icon: '⚔️' },
+  { key: 'snake_50', name: 'Sssnake', desc: 'Score 50+ in Snake', goal: 1, reward: 100, icon: '🐍' },
+  { key: 'memory_low', name: 'Sharp Mind', desc: 'Beat Memory Match in under 20 moves', goal: 1, reward: 100, icon: '🧠' },
+];
+
+function getTodayStr() { return new Date().toISOString().slice(0, 10); }
+
+// Deterministic daily challenge selection using date as seed
+function getDailyChallenges() {
+  const day = getTodayStr();
+  let seed = 0;
+  for (const ch of day) seed = ((seed << 5) - seed + ch.charCodeAt(0)) | 0;
+  seed = Math.abs(seed);
+  const shuffled = [...CHALLENGE_POOL].sort((a, b) => {
+    const ha = ((seed * 31 + a.key.charCodeAt(0)) | 0) % 1000;
+    const hb = ((seed * 31 + b.key.charCodeAt(0)) | 0) % 1000;
+    return ha - hb;
+  });
+  return shuffled.slice(0, 3);
+}
+
+app.get("/api/daily", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const challenges = getDailyChallenges();
+  const day = getTodayStr();
+  const progress = getDailyProgress(sess.user_id, day);
+  const result = challenges.map(c => {
+    const p = progress.find(x => x.challenge_key === c.key);
+    return { ...c, progress: p?.progress || 0, claimed: !!(p?.claimed) };
+  });
+  // Time until reset (midnight UTC)
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  tomorrow.setUTCHours(0, 0, 0, 0);
+  const resetIn = tomorrow - now;
+  res.json({ challenges: result, resetIn });
+});
+
+app.post("/api/daily/claim", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const { challengeKey } = req.body || {};
+  const day = getTodayStr();
+  const challenges = getDailyChallenges();
+  const challenge = challenges.find(c => c.key === challengeKey);
+  if (!challenge) return res.status(400).json({ error: "Invalid challenge" });
+  const progress = getDailyProgress(sess.user_id, day);
+  const p = progress.find(x => x.challenge_key === challengeKey);
+  if (!p || p.progress < challenge.goal) return res.status(400).json({ error: "Challenge not complete" });
+  if (p.claimed) return res.status(400).json({ error: "Already claimed" });
+  claimDaily(sess.user_id, challengeKey, day);
+  addCoins(sess.user_id, challenge.reward);
+  res.json({ ok: true, reward: challenge.reward });
+});
+
+// Helper: track daily challenge progress (called from game completion handlers)
+function trackDaily(userId, key, amount = 1) {
+  if (!userId) return;
+  const day = getTodayStr();
+  incrementDaily(userId, key, day, amount);
+}
+
+// ============================================================
+//   SPECTATOR MODE (Arcade)
+// ============================================================
+const liveArcadeGames = new Map(); // odataId -> { username, game, score, startedAt }
+
+app.get("/api/arcade/live", (req, res) => {
+  const list = [];
+  for (const [id, g] of liveArcadeGames) {
+    list.push({ id, username: g.username, game: g.game, score: g.score, startedAt: g.startedAt });
+  }
+  res.json({ games: list });
+});
+
 io.on("connection", (socket) => {
 
   // ----- Global Chat (persistent) -----
@@ -2327,23 +3377,40 @@ io.on("connection", (socket) => {
     if (!socket.data.user) return;
     const text = (msg || "").toString().trim().slice(0, 200);
     if (!text) return;
+    const uid = socket.data.user.id;
+    const isUserStaff = isStaff(socket.data.user.username);
+
     // Check mute
-    const freshUser = getUserById(socket.data.user.id);
+    const freshUser = getUserById(uid);
     if (freshUser && freshUser.muted_until && freshUser.muted_until > Date.now()) {
       const remaining = Math.ceil((freshUser.muted_until - Date.now()) / 60000);
       socket.emit("gchat:blocked", `You're muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
       return;
     }
-    // 24h account age requirement (staff/mods exempt)
-    if (freshUser && freshUser.created_at && Date.now() - freshUser.created_at < 86400000
-        && !isStaff(freshUser.username) && !freshUser.is_mod) {
-      const hrs = Math.ceil((86400000 - (Date.now() - freshUser.created_at)) / 3600000);
-      socket.emit("gchat:blocked", `Your account must be 24 hours old to chat. ${hrs}h remaining.`);
+    // Rate limiting: 3 messages per 5 seconds (staff exempt)
+    if (!isUserStaff && !checkChatRate(uid)) {
+      socket.emit("gchat:blocked", "Slow down! Max 3 messages per 5 seconds.");
       return;
     }
-    // Profanity filter
-    if (containsProfanity(text)) {
-      socket.emit("gchat:blocked", "Message blocked for inappropriate language");
+    // Duplicate detection (staff exempt)
+    if (!isUserStaff && isDuplicate(uid, text)) {
+      socket.emit("gchat:blocked", "Don't send the same message twice.");
+      return;
+    }
+    // Advanced profanity/slur filter
+    const filterResult = checkMessage(text);
+    if (filterResult) {
+      const esc = recordViolation(uid);
+      let feedback = "Message blocked for inappropriate language";
+      if (filterResult.severity === 'severe') feedback = "Message blocked — slurs and hate speech are not tolerated";
+      else if (filterResult.reason === 'evasion') feedback = "Message blocked — filter evasion detected";
+      else if (filterResult.reason === 'spam') feedback = "Message blocked — character spam";
+      if (esc.autoMuted) {
+        feedback += `. Auto-muted for ${esc.duration} minutes.`;
+        // Notify user about auto-mute
+        socket.emit("gchat:muted", { minutes: esc.duration });
+      }
+      socket.emit("gchat:blocked", feedback);
       return;
     }
     // Word Spy anti-cheat: block messages containing the active spy word
@@ -2368,19 +3435,24 @@ io.on("connection", (socket) => {
         }
       }
     }
-    const isUserStaff = isStaff(socket.data.user.username);
+    // AI Moderation (async, only for messages that passed keyword filter)
+    // Fire-and-forget style: send the message optimistically, delete if AI flags it
     const isUserMod = !!(freshUser && freshUser.is_mod);
+    const isUserOwner = isOwner(socket.data.user.username);
     const entry = {
       user: socket.data.user.username,
       color: socket.data.user.nameColor || "#22aed1",
       text,
       time: Date.now(),
+      isOwner: isUserOwner,
       isStaff: isUserStaff,
       isMod: isUserMod,
     };
     try { entry.id = saveChatMsg(entry.user, entry.color, entry.text, entry.time); } catch {}
     io.emit("gchat:msg", entry);
-    checkAchievement(socket.data.user.id, "chat_first");
+    checkAchievement(uid, "chat_first");
+    trackDaily(uid, 'chat_10');
+    trackDaily(uid, 'chat_25');
   });
 
   socket.on("gchat:history", (_, ack) => {
@@ -2390,7 +3462,7 @@ io.on("connection", (socket) => {
         // Attach role info to history messages
         const enriched = history.map(m => {
           const u = getUserByName(m.username);
-          return { ...m, user: m.username, isStaff: isStaff(m.username), isMod: !!(u && u.is_mod) };
+          return { ...m, user: m.username, isOwner: isOwner(m.username), isStaff: isStaff(m.username), isMod: !!(u && u.is_mod) };
         });
         ack(enriched);
       } catch { ack([]); }
@@ -2502,6 +3574,39 @@ io.on("connection", (socket) => {
     if (mode) addSystemMessage(room, `Host picked: ${mode}`);
   });
 
+  // ----- Host adds a bot to the room -----
+  socket.on("room:addBot", (_, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    if (room.hostId !== socket.id) return ack?.({ error: "Only the host can add bots" });
+    if (room.game) return ack?.({ error: "Can't add bots during a game" });
+    if (room.players.size >= MAX_PLAYERS) return ack?.({ error: "Room is full" });
+    const botId = makeBotId();
+    const botName = pickBotName(room);
+    room.players.set(botId, { id: botId, name: botName, isBot: true });
+    addSystemMessage(room, `🤖 ${botName} (bot) joined`);
+    broadcastRoom(room);
+    ack?.({ ok: true });
+  });
+
+  // ----- Host removes a bot from the room -----
+  socket.on("room:removeBot", ({ botId }, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    if (room.hostId !== socket.id) return ack?.({ error: "Only the host can remove bots" });
+    if (!isBot(botId)) return ack?.({ error: "Not a bot" });
+    const bot = room.players.get(botId);
+    if (!bot) return ack?.({ error: "Bot not found" });
+    room.players.delete(botId);
+    addSystemMessage(room, `🤖 ${bot.name} removed`);
+    broadcastRoom(room);
+    ack?.({ ok: true });
+  });
+
   // ----- Host starts the game -----
   socket.on("game:start", ({ rounds } = {}, ack) => {
     const code = socketToRoom.get(socket.id);
@@ -2534,6 +3639,21 @@ io.on("connection", (socket) => {
         return ack?.({ error: "Need at least 3 players to start Echo" });
       }
       startEchoGame(room, rounds || DEFAULT_ROUNDS);
+      ack?.({ ok: true });
+    } else if (room.mode === "c4") {
+      if (room.players.size !== MIN_PLAYERS_C4) {
+        return ack?.({ error: `Connect Four is exactly 2 players (room has ${room.players.size})` });
+      }
+      startC4Game(room, rounds || 3);
+      ack?.({ ok: true });
+    } else if (room.mode === "crazy8") {
+      if (room.players.size < 2) {
+        return ack?.({ error: "Need at least 2 players for Crazy Eights" });
+      }
+      if (room.players.size > 6) {
+        return ack?.({ error: "Crazy Eights supports 2-6 players" });
+      }
+      startCrazy8Game(room, rounds || 3);
       ack?.({ ok: true });
     } else if (room.mode === "blitz") {
       if (room.players.size < 2) {
@@ -2631,12 +3751,54 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   });
 
+  // ----- Connect Four moves -----
+  // Either player can play; c4HandleMove enforces turn order.
+  socket.on("game:c4Move", ({ col }, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    c4HandleMove(room, socket.id, Number(col));
+    ack?.({ ok: true });
+  });
+
+  // ----- Crazy Eights -----
+  socket.on("game:c8Play", ({ cardIdx, chosenSuit }, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    c8HandlePlay(room, socket.id, Number(cardIdx), chosenSuit);
+    ack?.({ ok: true });
+  });
+  socket.on("game:c8Draw", (_, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    c8HandleDraw(room, socket.id);
+    ack?.({ ok: true });
+  });
+  socket.on("game:c8Pass", (_, ack) => {
+    const code = socketToRoom.get(socket.id);
+    if (!code) return ack?.({ error: "Not in a room" });
+    const room = rooms.get(code);
+    if (!room) return ack?.({ error: "Room gone" });
+    c8HandlePass(room, socket.id);
+    ack?.({ ok: true });
+  });
+
   // ----- Host advances to next round -----
   socket.on("game:nextRound", () => {
     const code = socketToRoom.get(socket.id);
     if (!code) return;
     const room = rooms.get(code);
-    if (!room || room.hostId !== socket.id) return;
+    if (!room) return;
+    // Connect Four is 2-player turn-based — either player can advance, no host check.
+    if (room.game?.type === "c4") { c4NextRound(room, socket.id); return; }
+    // Crazy Eights — either player can advance
+    if (room.game?.type === "crazy8") { c8NextRound(room, socket.id); return; }
+    if (room.hostId !== socket.id) return;
     if (room.game?.type === "wordspy") {
       wsAdvanceToNextRound(room);
     } else if (room.game?.type === "chain") {
@@ -2675,8 +3837,50 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ----- Spectator Mode (Arcade) -----
+  socket.on("arcade:start", ({ game }) => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    liveArcadeGames.set(id, { username: socket.data.user.username, game, score: 0, startedAt: Date.now(), socketId: socket.id });
+    socket.join(`spectate:${id}`);
+    io.emit("arcade:liveUpdate");
+  });
+
+  socket.on("arcade:frame", ({ score, state }) => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    const g = liveArcadeGames.get(id);
+    if (g) { g.score = score || 0; }
+    socket.to(`spectate:${id}`).emit("spectate:frame", { score, state });
+  });
+
+  socket.on("arcade:end", () => {
+    if (!socket.data.user) return;
+    const id = socket.data.user.id;
+    liveArcadeGames.delete(id);
+    io.to(`spectate:${id}`).emit("spectate:ended");
+    socket.leave(`spectate:${id}`);
+    io.emit("arcade:liveUpdate");
+  });
+
+  socket.on("spectate:join", ({ playerId }) => {
+    socket.join(`spectate:${playerId}`);
+  });
+
+  socket.on("spectate:leave", ({ playerId }) => {
+    socket.leave(`spectate:${playerId}`);
+  });
+
   // ----- Disconnect handling -----
   socket.on("disconnect", () => {
+    // Clean up live arcade games
+    if (socket.data?.user?.id) {
+      const id = socket.data.user.id;
+      if (liveArcadeGames.has(id)) {
+        liveArcadeGames.delete(id);
+        io.emit("arcade:liveUpdate");
+      }
+    }
     handleLeave(socket);
   });
 
@@ -2698,8 +3902,9 @@ function handleLeave(socket, opts = {}) {
   room.spectators.delete(socket.id);
   socket.leave(code);
 
-  // Room empty? Delete it.
-  if (room.players.size === 0 && room.spectators.size === 0) {
+  // Room empty? Delete it. Only count real (non-bot) players.
+  const realPlayers = [...room.players.values()].filter(p => !p.isBot);
+  if (realPlayers.length === 0 && room.spectators.size === 0) {
     clearRoomTimer(room);
     rooms.delete(code);
     return;

@@ -17,16 +17,229 @@ window._socket = socket;
 let gchatInitialized = false;
 
 // ============================================================
+//   COLOR / GRADIENT REGISTRY
+// ============================================================
+// Unifies shop name colors (paid, ID-based) with the free gradient gallery.
+// Each entry: { css, gradient }. Used by applyNameColor() to render usernames
+// correctly in chat, leaderboards, and profile previews.
+const COLOR_REGISTRY = Object.create(null);
+let GRADIENTS_LIST = []; // populated from /api/gradients on init
+
+function registerColor(id, css, isGradient) {
+  if (!id) return;
+  COLOR_REGISTRY[id] = { css, gradient: !!isGradient };
+}
+
+// Apply a color or gradient to a DOM element's text. Falls back to default ink
+// color if the ID isn't recognized (e.g. legacy/deleted color, anonymous user).
+function applyNameColor(el, colorId) {
+  if (!el) return;
+  // Reset prior styles so toggling between solid and gradient cleans up.
+  el.style.background = '';
+  el.style.webkitBackgroundClip = '';
+  el.style.backgroundClip = '';
+  el.style.webkitTextFillColor = '';
+  const entry = colorId ? COLOR_REGISTRY[colorId] : null;
+  if (!entry) {
+    // Legacy fallback: if it looks like a hex/named color, just use it as-is.
+    if (typeof colorId === 'string' && /^#|^[a-z]+$/i.test(colorId)) el.style.color = colorId;
+    else el.style.color = '';
+    return;
+  }
+  if (entry.gradient) {
+    el.style.background = entry.css;
+    el.style.webkitBackgroundClip = 'text';
+    el.style.backgroundClip = 'text';
+    el.style.color = 'transparent';
+    el.style.webkitTextFillColor = 'transparent';
+  } else {
+    el.style.color = entry.css;
+  }
+}
+
+// ============================================================
+//   2. TOAST NOTIFICATIONS
+// ============================================================
+function showToast(text, icon = '✨', duration = 3000) {
+  const container = document.getElementById('toast-container') || (() => {
+    const d = document.createElement('div');
+    d.id = 'toast-container';
+    d.style.cssText = 'position:fixed;bottom:50px;right:16px;z-index:500;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none';
+    document.body.appendChild(d);
+    return d;
+  })();
+  const t = document.createElement('div');
+  t.style.cssText = 'background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);color:#fff;padding:10px 16px;border-radius:12px;font-family:Nunito,sans-serif;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);animation:toastSlideIn .3s ease;pointer-events:auto;max-width:280px';
+  t.innerHTML = `<span style="font-size:18px;flex-shrink:0">${icon}</span><span>${text}</span>`;
+  container.appendChild(t);
+  setTimeout(() => { t.style.animation = 'toastSlideOut .25s ease forwards'; setTimeout(() => t.remove(), 250); }, duration);
+}
+
+// ============================================================
+//   3. PARTICLE EFFECTS
+// ============================================================
+const _particleCanvas = (() => {
+  const c = document.createElement('canvas');
+  c.style.cssText = 'position:fixed;inset:0;z-index:999;pointer-events:none';
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  document.body.appendChild(c);
+  window.addEventListener('resize', () => { c.width = window.innerWidth; c.height = window.innerHeight; });
+  return c;
+})();
+const _pCtx = _particleCanvas.getContext('2d');
+let _particles = [];
+
+function spawnParticles(x, y, type = 'coins') {
+  const count = type === 'coins' ? 12 : type === 'sparkle' ? 15 : 25;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 4;
+    const p = {
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - (type === 'confetti' ? 2 : 1),
+      life: 1,
+      decay: 0.015 + Math.random() * 0.015,
+      size: type === 'sparkle' ? 2 + Math.random() * 3 : 3 + Math.random() * 5,
+      type,
+      color: type === 'coins' ? `hsl(${45 + Math.random() * 15},90%,${55 + Math.random() * 20}%)`
+           : type === 'sparkle' ? `hsl(${180 + Math.random() * 60},80%,${70 + Math.random() * 20}%)`
+           : `hsl(${Math.random() * 360},80%,65%)`,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.2,
+    };
+    _particles.push(p);
+  }
+}
+
+function _tickParticles() {
+  _pCtx.clearRect(0, 0, _particleCanvas.width, _particleCanvas.height);
+  _particles = _particles.filter(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life -= p.decay; p.rotation += p.rotSpeed;
+    if (p.life <= 0) return false;
+    _pCtx.save();
+    _pCtx.globalAlpha = p.life;
+    _pCtx.translate(p.x, p.y);
+    _pCtx.rotate(p.rotation);
+    if (p.type === 'sparkle') {
+      _pCtx.fillStyle = p.color;
+      // 4-point star
+      _pCtx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+        const r = i % 2 === 0 ? p.size : p.size * 0.3;
+        _pCtx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      _pCtx.closePath(); _pCtx.fill();
+    } else if (p.type === 'coins') {
+      _pCtx.fillStyle = p.color;
+      _pCtx.beginPath(); _pCtx.arc(0, 0, p.size, 0, Math.PI * 2); _pCtx.fill();
+      _pCtx.fillStyle = 'rgba(255,255,255,0.5)';
+      _pCtx.beginPath(); _pCtx.arc(-p.size * 0.2, -p.size * 0.2, p.size * 0.4, 0, Math.PI * 2); _pCtx.fill();
+    } else {
+      _pCtx.fillStyle = p.color;
+      _pCtx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+    }
+    _pCtx.restore();
+    return true;
+  });
+  requestAnimationFrame(_tickParticles);
+}
+_tickParticles();
+
+// ============================================================
+//   5. SOUND EFFECTS (Web Audio API — tiny bleeps)
+// ============================================================
+let _audioCtx = null;
+function _getAudio() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+function playSound(type) {
+  try {
+    const ctx = _getAudio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    gain.gain.value = 0.08;
+    const t = ctx.currentTime;
+    if (type === 'click') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(400, t + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08); osc.start(t); osc.stop(t + 0.08);
+    } else if (type === 'coin') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(880, t); osc.frequency.setValueAtTime(1100, t + 0.08);
+      gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2); osc.start(t); osc.stop(t + 0.2);
+    } else if (type === 'achieve') {
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(523, t); osc.frequency.setValueAtTime(659, t + 0.1); osc.frequency.setValueAtTime(784, t + 0.2);
+      gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4); osc.start(t); osc.stop(t + 0.4);
+    } else if (type === 'levelup') {
+      osc.type = 'square'; osc.frequency.setValueAtTime(440, t); osc.frequency.setValueAtTime(554, t + 0.08); osc.frequency.setValueAtTime(659, t + 0.16); osc.frequency.setValueAtTime(880, t + 0.24);
+      gain.gain.setValueAtTime(0.06, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4); osc.start(t); osc.stop(t + 0.4);
+    } else if (type === 'chat') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(600, t); osc.frequency.exponentialRampToValueAtTime(900, t + 0.05);
+      gain.gain.setValueAtTime(0.04, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08); osc.start(t); osc.stop(t + 0.08);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
+      gain.gain.setValueAtTime(0.06, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2); osc.start(t); osc.stop(t + 0.2);
+    } else if (type === 'win') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(523, t); osc.frequency.setValueAtTime(659, t + 0.1); osc.frequency.setValueAtTime(784, t + 0.2); osc.frequency.setValueAtTime(1047, t + 0.3);
+      gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5); osc.start(t); osc.stop(t + 0.5);
+    } else if (type === 'page') {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(500, t); osc.frequency.exponentialRampToValueAtTime(700, t + 0.04);
+      gain.gain.setValueAtTime(0.03, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06); osc.start(t); osc.stop(t + 0.06);
+    }
+  } catch {}
+}
+
+// ============================================================
+//   ANNOUNCEMENTS (stacking top bars)
+// ============================================================
+function showAnnouncement(text, type = 'info', autoClose = 0) {
+  const container = $('announcements');
+  if (!container) return;
+  const bar = document.createElement('div');
+  bar.className = `announce-bar ${type}`;
+  bar.innerHTML = `<span>${esc(text)}</span><button class="announce-x" title="Dismiss">✕</button>`;
+  const dismiss = () => { bar.style.animation = 'toastOut .2s ease forwards'; setTimeout(() => bar.remove(), 200); };
+  bar.querySelector('.announce-x').addEventListener('click', dismiss);
+  container.appendChild(bar);
+  if (autoClose > 0) setTimeout(dismiss, autoClose);
+}
+
+function checkNewUserNotice() {
+  if (!user || !user.createdAt) return;
+  const age = Date.now() - user.createdAt;
+  if (age < 86400000) {
+    const hrs = Math.ceil((86400000 - age) / 3600000);
+    showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn');
+  }
+}
+
+// ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market","page-achievements","page-friends"];
 
 function showPage(id) {
-  PAGES.forEach(p => { const el = $(p); if (el) el.hidden = p !== id; });
-  // Update nav
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market"};
+  const outgoing = PAGES.find(p => !$(p)?.hidden && p !== id);
+  PAGES.forEach(p => {
+    const el = $(p);
+    if (!el) return;
+    if (p === id) {
+      el.hidden = false;
+      el.style.animation = 'pageIn .25s ease forwards';
+      playSound('page');
+    } else if (p === outgoing) {
+      el.style.animation = 'pageOut .15s ease forwards';
+      setTimeout(() => { el.hidden = true; el.style.animation = ''; }, 150);
+    } else {
+      el.hidden = true;
+      el.style.animation = '';
+    }
+  });
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
-  // Show/hide global chat sidebar
   if (user && !GCHAT_HIDDEN_PAGES.has(id)) showGChat();
   else hideGChat();
 }
@@ -36,7 +249,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -49,6 +262,9 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "achievements") loadAchievements();
     if (l.dataset.page === "profile") loadProfile();
     if (l.dataset.page === "market") loadMarket();
+    if (l.dataset.page === "friends") loadFriends();
+    if (l.dataset.page === "arcade") loadLiveGames();
+    if (l.dataset.page === "dashboard") loadDailyChallenges();
   });
 });
 
@@ -63,7 +279,7 @@ document.querySelectorAll(".dash-card").forEach(c => {
 function updateUI() {
   if (!user) { $("top-nav").hidden = true; showPage("page-auth"); return; }
   $("top-nav").hidden = false;
-  $("nav-coins").textContent = "🪙 " + (user.coins || 0);
+  $("nav-coins").innerHTML = '<span class="coin-i"></span> ' + (user.coins || 0);
   $("nav-user").textContent = user.username;
   $("dash-greeting").textContent = `Welcome back, ${user.username}!`;
   $("ds-coins").textContent = user.coins || 0;
@@ -90,17 +306,56 @@ async function checkSession() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); }
+    if (data.loggedIn) { user = data.user; updateUI(); showPage("page-dashboard"); checkStaff(); loadFakeNews(); initGChatOnce(); checkNewUserNotice(); loadDailyChallenges(); }
     else { user = null; updateUI(); }
+    // Preload color/gradient registry so chat renders correctly from the first message.
+    loadGradients();
+    fetch("/api/shop").then(r => r.json()).then(d => {
+      if (d?.items?.colors) for (const c of d.items.colors) registerColor(c.id, c.color, !!c.gradient);
+    }).catch(() => {});
   } catch { user = null; updateUI(); }
 }
 
+// Fetch the full free-gradient gallery once and register every entry.
+// Called on session-check and again right before opening the picker (idempotent).
+async function loadGradients() {
+  if (GRADIENTS_LIST.length > 0) return GRADIENTS_LIST;
+  try {
+    const res = await fetch("/api/gradients");
+    const data = await res.json();
+    GRADIENTS_LIST = data.gradients || [];
+    for (const g of GRADIENTS_LIST) registerColor(g.id, g.css, true);
+    // Re-apply colors to any chat usernames that rendered before the registry was ready.
+    document.querySelectorAll('.chat-msg-user[data-color-id]').forEach(el => {
+      applyNameColor(el, el.dataset.colorId);
+    });
+  } catch {}
+  return GRADIENTS_LIST;
+}
+
 // Refresh user data WITHOUT navigating — use after profile/shop changes
+let _prevCoins = null;
 async function refreshUser() {
   try {
     const res = await fetch("/api/me");
     const data = await res.json();
-    if (data.loggedIn) { user = data.user; updateUI(); }
+    if (data.loggedIn) {
+      const oldCoins = _prevCoins;
+      user = data.user;
+      _prevCoins = user.coins;
+      updateUI();
+      // Coin gain toast + particles
+      if (oldCoins !== null && user.coins > oldCoins) {
+        const gained = user.coins - oldCoins;
+        showToast(`+${gained} coins`, '💰', 2500);
+        playSound('coin');
+        const coinEl = document.getElementById('nav-coins');
+        if (coinEl) {
+          const r = coinEl.getBoundingClientRect();
+          spawnParticles(r.left + r.width / 2, r.top + r.height / 2, 'coins');
+        }
+      }
+    }
   } catch {}
 }
 
@@ -117,6 +372,7 @@ async function authSubmit(endpoint, form, errorEl) {
     socket.disconnect(); socket.connect();
     // Init global chat after reconnect gives the middleware time to set socket.data.user
     setTimeout(initGChatOnce, 600);
+    checkNewUserNotice();
   } catch { errorEl.textContent = "Network error"; }
 }
 
@@ -187,9 +443,17 @@ function renderRoom(snap) {
   for (const p of snap.players) {
     const li = document.createElement("li"); li.className = "player-item";
     const isMe = me && p.id === me.id;
-    li.innerHTML = `<span class="player-dot"></span><span class="player-name">${esc(p.name)}</span>${isMe?'<span class="player-you-tag">(you)</span>':""}${p.isHost?'<span class="player-host-badge">Host</span>':""}${amHost&&!isMe?`<button class="player-kick-btn can-kick" data-kid="${p.id}">✕</button>`:""}`;
-    const kb = li.querySelector(".player-kick-btn");
+    const botBadge = p.isBot ? '<span class="player-bot-badge">🤖</span>' : '';
+    const kickOrRemove = amHost && !isMe
+      ? (p.isBot
+        ? `<button class="player-kick-btn can-kick" data-bot-remove="${p.id}">✕</button>`
+        : `<button class="player-kick-btn can-kick" data-kid="${p.id}">✕</button>`)
+      : '';
+    li.innerHTML = `<span class="player-dot"></span><span class="player-name">${esc(p.name)}</span>${botBadge}${isMe?'<span class="player-you-tag">(you)</span>':""}${p.isHost?'<span class="player-host-badge">Host</span>':""}${kickOrRemove}`;
+    const kb = li.querySelector("[data-kid]");
     if (kb) kb.addEventListener("click", () => { if (confirm(`Kick ${p.name}?`)) socket.emit("room:kick", { playerId: p.id }); });
+    const rb = li.querySelector("[data-bot-remove]");
+    if (rb) rb.addEventListener("click", () => socket.emit("room:removeBot", { botId: p.id }));
     list.appendChild(li);
   }
   if (snap.spectators?.length) {
@@ -197,6 +461,9 @@ function renderRoom(snap) {
     for (const s of snap.spectators) { const li = document.createElement("li"); li.className = "player-item"; li.innerHTML = `<span class="player-dot" style="opacity:.4"></span><span class="player-name">${esc(s.name)}</span>${me&&s.id===me.id?'<span class="player-you-tag">(you)</span>':""}`; list.appendChild(li); }
   }
   $("player-count").textContent = `${snap.players.length}/12`;
+  // Show "Add Bot" button only for host when no game is running
+  const bc = $("bot-controls");
+  if (bc) bc.hidden = !(amHost && !snap.game && snap.players.length < 12);
   renderGamePicker(snap);
 }
 
@@ -205,9 +472,17 @@ function renderGamePicker(snap) {
   const hn = $("host-note"), sa = $("start-game-area"), sn = $("start-game-note");
   if (snap.game) { hn.textContent = "Game in progress"; sa.hidden = true; return; }
   hn.textContent = amHost ? (snap.mode ? `You picked: ${snap.mode}` : "Pick a game") : (snap.mode ? `Host picked: ${snap.mode}` : "(waiting for host)");
-  if (amHost && ["frequency","wordspy","chain","echo","blitz"].includes(snap.mode)) {
+  if (amHost && ["frequency","wordspy","chain","echo","blitz","c4","crazy8"].includes(snap.mode)) {
     sa.hidden = false;
-    if (snap.players.length < 3) { sn.textContent = `Need 3+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
+    if (snap.mode === "c4") {
+      if (snap.players.length === 2) { sn.textContent = `2 players ready`; $("start-game-btn").disabled = false; }
+      else if (snap.players.length < 2) { sn.textContent = `Need 2 players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
+      else { sn.textContent = `Connect Four is 2-player only (${snap.players.length} in room)`; $("start-game-btn").disabled = true; }
+    } else if (snap.mode === "crazy8") {
+      if (snap.players.length < 2) { sn.textContent = `Need 2+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
+      else if (snap.players.length > 6) { sn.textContent = `Max 6 players for Crazy Eights (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
+      else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
+    } else if (snap.players.length < 3) { sn.textContent = `Need 3+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
     else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
   } else sa.hidden = true;
   document.querySelectorAll(".game-card").forEach(c => { c.classList.toggle("selected", c.dataset.mode === snap.mode); });
@@ -215,6 +490,7 @@ function renderGamePicker(snap) {
 
 document.querySelectorAll(".game-card").forEach(c => { c.addEventListener("click", () => { if (c.classList.contains("soon") || !currentRoom || !me || currentRoom.hostId !== me.id || currentRoom.game) return; socket.emit("room:setMode", { mode: c.dataset.mode }); }); });
 $("start-game-btn").addEventListener("click", () => { socket.emit("game:start", { rounds: Number($("rounds-select").value) || 5 }, r => { if (r?.error) $("start-game-note").textContent = r.error; }); });
+$("add-bot-btn").addEventListener("click", () => { socket.emit("room:addBot", {}, r => { if (r?.error) showAnnouncement(r.error, 'danger', 3000); }); });
 
 // ============================================================
 //   GAME VIEW
@@ -222,7 +498,7 @@ $("start-game-btn").addEventListener("click", () => { socket.emit("game:start", 
 function switchToGame(snap) {
   $("game-room-code").textContent = snap.code;
   const badge = $("game-mode-badge");
-  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : snap.game?.type === "echo" ? "🔊 Echo" : "🎵 Frequency";
+  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : snap.game?.type === "echo" ? "🔊 Echo" : snap.game?.type === "c4" ? "🔴 Connect Four" : snap.game?.type === "crazy8" ? "🃏 Crazy Eights" : "🎵 Frequency";
   updateRound(snap.game); syncChat(); renderPhase(snap); showPage("page-game");
 }
 
@@ -230,7 +506,7 @@ function updateRound(g) { if (g) $("game-round-badge").textContent = `Round ${g.
 
 function renderPhase(snap) {
   const g = snap.game; if (!g) return;
-  ["phase-prompting","phase-voting","phase-results","phase-gameover","phase-discuss","phase-intermission","phase-ws-clues","phase-ws-discuss","phase-ws-voting","phase-ws-spyguess","phase-ws-results","phase-chain-building","phase-chain-results","phase-echo-submit","phase-echo-discuss","phase-echo-voting","phase-echo-results"].forEach(id => { const el = $(id); if (el) el.hidden = true; });
+  ["phase-prompting","phase-voting","phase-results","phase-gameover","phase-discuss","phase-intermission","phase-ws-clues","phase-ws-discuss","phase-ws-voting","phase-ws-spyguess","phase-ws-results","phase-chain-building","phase-chain-results","phase-echo-submit","phase-echo-discuss","phase-echo-voting","phase-echo-results","phase-c4-playing","phase-c4-results","phase-crazy8-playing","phase-crazy8-results"].forEach(id => { const el = $(id); if (el) el.hidden = true; });
   updateRound(g); startTimer(g.timerEnd, g.phase);
   const ph = g.phase;
   if (ph === "prompting") renderPrompting(snap);
@@ -248,6 +524,10 @@ function renderPhase(snap) {
   else if (ph === "echo-discuss") renderEchoDiscuss(snap);
   else if (ph === "echo-voting") renderEchoVoting(snap);
   else if (ph === "echo-results") renderEchoResults(snap);
+  else if (ph === "c4-playing") renderC4Playing(snap);
+  else if (ph === "c4-results") renderC4Results(snap);
+  else if (ph === "crazy8-playing") renderC8Playing(snap);
+  else if (ph === "crazy8-results") renderC8Results(snap);
   else if (ph === "intermission") renderIntermission(snap);
   else if (ph === "gameover") renderGameOver(snap);
 }
@@ -256,7 +536,7 @@ function renderPhase(snap) {
 function clearTI() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
 function startTimer(end, phase) {
   clearTI(); const el = $("game-timer"); const wrap = document.querySelector(".timer-wrap");
-  if (!end || !el || ["results","gameover","ws-results","chain-results"].includes(phase)) { if (wrap) wrap.style.display = "none"; return; }
+  if (!end || !el || ["results","gameover","ws-results","chain-results","c4-results","crazy8-results"].includes(phase)) { if (wrap) wrap.style.display = "none"; return; }
   if (wrap) wrap.style.display = "flex";
   const upd = () => { const r = Math.max(0, Math.ceil((end - Date.now()) / 1000)); el.textContent = r + "s"; el.classList.toggle("timer-urgent", r <= 5); if (r <= 0) clearTI(); };
   upd(); timerInterval = setInterval(upd, 250);
@@ -472,8 +752,8 @@ socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter }) => { myCha
 socket.on("chat:message", msg => { addChat(msg); scrollChat(); });
 socket.on("room:kicked", ({ by }) => { $("kicked-by").textContent = by ? `(by ${by})` : ""; resetRoomState(); showPage("page-kicked"); });
 socket.on("disconnect", () => { if (me) { resetRoomState(); showPage("page-dashboard"); } });
-socket.on("kicked", ({ reason }) => { alert("You've been kicked: " + (reason || "No reason")); location.reload(); });
-socket.on("banned", ({ reason }) => { alert("You've been banned: " + (reason || "No reason")); location.reload(); });
+socket.on("kicked", ({ reason }) => { showAnnouncement("You've been kicked: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
+socket.on("banned", ({ reason }) => { showAnnouncement("You've been banned: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
 
 // ============================================================
 //   ARCADE
@@ -516,6 +796,10 @@ async function loadShop() {
   try {
     const res = await fetch("/api/shop");
     const data = await res.json();
+    // Populate the color registry from shop data so chat/leaderboard can render correctly.
+    if (data.items?.colors) {
+      for (const c of data.items.colors) registerColor(c.id, c.color, !!c.gradient);
+    }
     if (data.user) { user = data.user; updateUI(); }
     renderShop(data.items, data.user);
     // Restore scroll position after rebuild
@@ -523,7 +807,7 @@ async function loadShop() {
   } catch {}
 }
 function renderShop(items, u) {
-  $("shop-coins").textContent = "🪙 " + (u?.coins || 0);
+  $("shop-coins").innerHTML = '<span class="coin-i"></span> ' + (u?.coins || 0);
   const container = $("shop-content"); container.innerHTML = "";
   const owned = u?.ownedItems || ["default","none"];
   // Colors
@@ -578,6 +862,7 @@ function renderShop(items, u) {
         if (o) { await fetch("/api/profile/border",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({border:b.id})}); }
         else if (af) { await fetch("/api/shop/buy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({itemId:b.id})}); }
         else return;
+        await refreshUser();
         loadShop();
       });
       bg.appendChild(d);
@@ -673,18 +958,20 @@ const fnBtn = document.getElementById('fake-news-refresh');
 if (fnBtn) fnBtn.addEventListener('click', loadFakeNews);
 
 // Staff check
-let isStaffUser = false, isModUser = false;
+let isStaffUser = false, isModUser = false, isOwnerUser = false;
 async function checkStaff() {
   try {
     const res = await fetch('/api/staff/check');
     const data = await res.json();
+    isOwnerUser = data.isOwner;
     isStaffUser = data.isStaff;
     isModUser = data.isMod;
     const link = document.getElementById('nav-staff-link');
     if (link) link.hidden = !(data.isStaff || data.isMod);
-    // Staff/mod users get delete buttons on chat messages
     if (data.isStaff || data.isMod) document.body.classList.add('is-staff');
     else document.body.classList.remove('is-staff');
+    if (data.isOwner) document.body.classList.add('is-owner');
+    else document.body.classList.remove('is-owner');
   } catch {}
 }
 
@@ -702,7 +989,7 @@ async function loadLeaderboard() {
       const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`;
       const row = document.createElement('div');
       row.className = `lb-row ${i < 3 ? 'lb-top' : ''} ${isMe ? 'lb-me' : ''}`;
-      row.innerHTML = `<span class="lb-rank">${rank}</span><span class="lb-name">${esc(p.username)}${isMe ? ' (you)' : ''}</span><span class="lb-val">${p.totalPoints} pts</span><span class="lb-label">🪙 ${p.coins}</span>`;
+      row.innerHTML = `<span class="lb-rank">${rank}</span><span class="lb-name">${esc(p.username)}${isMe ? ' (you)' : ''}</span><span class="lb-val">${p.totalPoints} pts</span><span class="lb-label">💰 ${p.coins}</span>`;
       t.appendChild(row);
     });
     if (data.leaderboard.length === 0) c.innerHTML = '<p style="color:var(--ink3);text-align:center">No players yet. Be the first!</p>';
@@ -755,12 +1042,13 @@ if (staffLookupBtn) staffLookupBtn.addEventListener('click', async () => {
       const p = data.user;
       let statusBadges = '';
       if (p.isBanned) statusBadges += '<span class="staff-user-badge banned">Banned</span> ';
+      if (p.isStaff) statusBadges += '<span class="staff-user-badge" style="background:rgba(255,215,0,0.15);color:#ffd700">Staff</span> ';
       if (p.isMod) statusBadges += '<span class="staff-user-badge mod">Mod</span> ';
       if (p.mutedUntil && p.mutedUntil > Date.now()) {
         const mins = Math.ceil((p.mutedUntil - Date.now()) / 60000);
         statusBadges += `<span class="staff-user-badge muted">Muted ${mins}m</span> `;
       }
-      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong> ${statusBadges}<br>🪙 ${p.coins} coins · 🎮 ${p.gamesPlayed} games · 🏆 ${p.gamesWon} wins · ⭐ ${p.totalPoints} pts<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
+      r.innerHTML = `<div style="padding:10px;background:var(--neo);border-radius:10px;margin-top:8px"><strong>${esc(p.username)}</strong> ${statusBadges}<br>💰 ${p.coins} coins · 🎮 ${p.gamesPlayed} games · 🏆 ${p.gamesWon} wins · ⭐ ${p.totalPoints} pts<br>Color: ${p.nameColor} · Title: ${p.title}<br>Owned: ${p.ownedItems.join(', ')}</div>`;
     } else r.innerHTML = `<p style="color:var(--danger)">Not found</p>`;
   } catch { r.innerHTML = 'Error'; }
 });
@@ -771,7 +1059,7 @@ socket.on('site:event', ({ event }) => {
   const existing = document.querySelector('.event-banner');
   if (existing) existing.remove();
   if (!event) return;
-  const names = { 'double-coins': '🪙 DOUBLE COINS ACTIVE!', 'happy-hour': '🎉 HAPPY HOUR — 1.5x Coins!', 'chaos-mode': '🌀 CHAOS MODE' };
+  const names = { 'double-coins': '💰 DOUBLE COINS ACTIVE!', 'happy-hour': '🎉 HAPPY HOUR — 1.5x Coins!', 'chaos-mode': '🌀 CHAOS MODE' };
   const banner = document.createElement('div');
   banner.className = 'event-banner';
   banner.textContent = names[event] || event;
@@ -780,7 +1068,7 @@ socket.on('site:event', ({ event }) => {
 });
 
 socket.on('site:broadcast', ({ message, from }) => {
-  alert(`📢 ${from}: ${message}`);
+  showAnnouncement(`📢 ${from}: ${message}`, 'broadcast');
 });
 
 socket.on('site:userEvent', ({ event, user: who }) => {
@@ -924,6 +1212,273 @@ $("echo-answer-input").addEventListener("keydown", e => { if (e.key === "Enter")
 $("echo-next-btn").addEventListener("click", () => socket.emit("game:nextRound"));
 
 // ============================================================
+//   CONNECT FOUR (2-player)
+// ============================================================
+// Client renders the 7×6 board from snap.board (sent every move). Cells receive
+// click handlers that emit "game:c4Move" with the column index. Server is the
+// only source of truth — we never simulate moves locally; the board only
+// updates when the server broadcasts the next snapshot. This keeps timeout
+// handling and out-of-turn rejection consistent.
+
+let c4MyPiece = 0; // 1 or 2; assigned on game:c4Role
+let c4OpponentName = "Opponent";
+
+socket.on("game:c4Role", ({ piece, opponentName }) => {
+  c4MyPiece = piece;
+  c4OpponentName = opponentName || "Opponent";
+});
+
+// Build a board element with 7 columns × 6 rows. Returns the cell array
+// (indexed [col][row], row 0 is bottom) so we can apply piece classes.
+function buildC4Grid(boardEl, board, opts) {
+  boardEl.innerHTML = "";
+  const cells = [];
+  for (let c = 0; c < 7; c++) cells.push([]);
+  // Rendered top-down (row 5 first), but our data has row 0 = bottom.
+  for (let r = 5; r >= 0; r--) {
+    for (let c = 0; c < 7; c++) {
+      const cell = document.createElement("div");
+      cell.className = "c4-cell";
+      cell.dataset.col = c;
+      cell.dataset.row = r;
+      const piece = board[c][r];
+      if (piece) {
+        const fill = document.createElement("div");
+        fill.className = `c4-piece-fill p${piece}`;
+        // Highlight winning line
+        if (opts?.winLine && opts.winLine.some(p => p.c === c && p.r === r)) fill.classList.add("win");
+        // Suppress drop animation for old pieces (only animate the most recent)
+        if (!opts?.lastMove || opts.lastMove.col !== c || opts.lastMove.row !== r) fill.style.animation = "none";
+        cell.appendChild(fill);
+      }
+      // Mark column-full so we know not to highlight on hover
+      if (board[c][5] !== 0) cell.classList.add("full");
+      // Last-move ring on the just-placed cell
+      if (opts?.lastMove && opts.lastMove.col === c && opts.lastMove.row === r) cell.classList.add("last-move");
+      cells[c].push(cell);
+      boardEl.appendChild(cell);
+    }
+  }
+  return cells;
+}
+
+function renderC4Playing(snap) {
+  $("phase-c4-playing").hidden = false;
+  const g = snap.game;
+  const myTurn = me && g.currentTurn === me.id;
+  // Header
+  $("c4-p1-name").textContent = g.p1Name;
+  $("c4-p2-name").textContent = g.p2Name;
+  $("c4-p1-score").textContent = (g.scores?.[g.playerIds[0]] || 0);
+  $("c4-p2-score").textContent = (g.scores?.[g.playerIds[1]] || 0);
+  const p1Active = g.currentTurn === g.playerIds[0];
+  $("c4-p1-tag").classList.toggle("active", p1Active);
+  $("c4-p2-tag").classList.toggle("active", !p1Active);
+  // Status text
+  const status = $("c4-status");
+  status.classList.remove("your-turn","opp-turn","win","lose","draw");
+  if (isSpectator) {
+    const turnName = p1Active ? g.p1Name : g.p2Name;
+    status.textContent = `${turnName}'s turn`;
+  } else if (myTurn) {
+    status.textContent = "Your turn — drop a piece";
+    status.classList.add("your-turn");
+  } else {
+    status.textContent = `${c4OpponentName}'s turn`;
+    status.classList.add("opp-turn");
+  }
+  // Board
+  const boardEl = $("c4-board");
+  const cells = buildC4Grid(boardEl, g.board, { lastMove: g.lastMove });
+  // Wire column-click on every cell — clicking any cell in a column drops there.
+  // (Real C4 boards work the same way: you point at a column, not a cell.)
+  for (let c = 0; c < 7; c++) {
+    const colCells = cells[c];
+    const colFull = g.board[c][5] !== 0;
+    for (const cell of colCells) {
+      if (!myTurn || colFull || isSpectator) {
+        if (!myTurn && !colFull && !isSpectator) cell.classList.add("opp-turn");
+        continue;
+      }
+      cell.addEventListener("mouseenter", () => colCells.forEach(x => x.classList.add("col-hover")));
+      cell.addEventListener("mouseleave", () => colCells.forEach(x => x.classList.remove("col-hover")));
+      cell.addEventListener("click", () => {
+        socket.emit("game:c4Move", { col: c });
+        playSound('click');
+      });
+    }
+  }
+}
+
+function renderC4Results(snap) {
+  $("phase-c4-results").hidden = false;
+  const g = snap.game;
+  // Title reflects who won (or draw)
+  let title = "Round Result";
+  if (g.roundResult === "draw") title = "🤝 Draw — board full";
+  else if (g.roundResult === "p1") title = `🏆 ${g.p1Name} wins the round!`;
+  else if (g.roundResult === "p2") title = `🏆 ${g.p2Name} wins the round!`;
+  $("c4-result-title").textContent = title;
+  // Render the final board state, smaller, with the winning line highlighted
+  buildC4Grid($("c4-result-board"), g.board, { lastMove: g.lastMove, winLine: g.winLine });
+  // Scores
+  const sc = $("c4-round-scores");
+  sc.innerHTML = `<div style="display:flex;justify-content:center;gap:18px;font-weight:800;font-size:16px;margin:8px 0">
+    <span><span class="c4-piece c4-piece-1" style="vertical-align:middle"></span> ${esc(g.p1Name)}: ${g.scores?.[g.playerIds[0]] || 0}</span>
+    <span style="color:var(--ink3)">·</span>
+    <span><span class="c4-piece c4-piece-2" style="vertical-align:middle"></span> ${esc(g.p2Name)}: ${g.scores?.[g.playerIds[1]] || 0}</span>
+  </div>`;
+  // Either player can advance; just relabel for the final round
+  $("c4-next-round-btn").textContent = g.round >= g.totalRounds ? "🏆 See Final Scores" : "Next Round →";
+}
+
+$("c4-next-round-btn").addEventListener("click", () => socket.emit("game:nextRound"));
+
+// ============================================================
+//   CRAZY EIGHTS (card game)
+// ============================================================
+const C8_SUIT_SYMBOLS = { H: "♥", D: "♦", C: "♣", S: "♠" };
+const C8_SUIT_COLORS = { H: "#e04848", D: "#e04848", C: "#1a1a2e", S: "#1a1a2e" };
+let c8MyHand = []; // populated from game:c8Hand events
+let c8PendingWild = -1; // card index waiting for suit pick
+
+socket.on("game:c8Hand", ({ hand }) => { c8MyHand = hand || []; });
+socket.on("game:c8Drew", ({ card }) => {
+  if (card) c8MyHand.push(card);
+  // Re-render if we're on the playing phase
+  if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
+});
+
+function c8CardHTML(card, opts = {}) {
+  const color = C8_SUIT_COLORS[card.suit] || "#000";
+  const suit = C8_SUIT_SYMBOLS[card.suit] || "?";
+  const cls = `c8-card ${opts.playable ? "playable" : ""} ${opts.selected ? "selected" : ""} ${opts.small ? "c8-card-sm" : ""}`;
+  return `<div class="${cls}" style="--card-color:${color}" ${opts.idx !== undefined ? `data-idx="${opts.idx}"` : ""}>
+    <span class="c8-card-rank">${card.rank}</span>
+    <span class="c8-card-suit">${suit}</span>
+  </div>`;
+}
+
+function renderC8Playing(snap) {
+  $("phase-crazy8-playing").hidden = false;
+  const g = snap.game;
+  const myTurn = me && g.currentTurn === me.id;
+  // Opponents header
+  const opps = $("c8-opponents"); opps.innerHTML = "";
+  for (const pid of g.playerIds) {
+    if (me && pid === me.id) continue;
+    const name = g.playerNames?.[pid] || "???";
+    const isTurn = pid === g.currentTurn;
+    const isBot = snap.players.find(p => p.id === pid)?.isBot;
+    opps.innerHTML += `<div class="c8-opp ${isTurn ? "c8-opp-active" : ""}">
+      <span class="c8-opp-name">${esc(name)}${isBot ? " 🤖" : ""}</span>
+      <span class="c8-opp-count">${g.handSizes?.[pid] || 0} cards</span>
+    </div>`;
+  }
+  // Discard pile top card
+  const dc = $("c8-discard");
+  dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
+  // Active suit badge (only shown when different from card suit, i.e. after an 8)
+  const sb = $("c8-suit-badge");
+  if (g.activeSuit && g.topCard?.rank === "8") {
+    sb.innerHTML = `<span style="color:${C8_SUIT_COLORS[g.activeSuit]};font-size:24px">${C8_SUIT_SYMBOLS[g.activeSuit]}</span>`;
+    sb.hidden = false;
+  } else sb.hidden = true;
+  // Draw pile count
+  $("c8-draw-count").textContent = g.drawPileCount;
+  // Status
+  const st = $("c8-status");
+  st.classList.remove("your-turn","opp-turn");
+  if (myTurn) { st.textContent = g.drewThisTurn ? "Play the drawn card or pass" : "Your turn — play a card or draw"; st.classList.add("your-turn"); }
+  else { const turnName = g.playerNames?.[g.currentTurn] || "???"; st.textContent = `${turnName}'s turn`; st.classList.add("opp-turn"); }
+  // Actions
+  $("c8-draw-btn").disabled = !myTurn || g.drewThisTurn;
+  $("c8-pass-btn").disabled = !myTurn || !g.drewThisTurn;
+  // Hide suit picker
+  $("c8-suit-picker").hidden = true;
+  c8PendingWild = -1;
+  // Hand
+  renderC8Hand(snap);
+}
+
+function renderC8Hand(snap) {
+  const g = snap?.game || currentRoom?.game;
+  if (!g) return;
+  const hand = $("c8-hand"); hand.innerHTML = "";
+  const myTurn = me && g.currentTurn === me.id;
+  const top = g.topCard;
+  const activeSuit = g.activeSuit;
+  for (let i = 0; i < c8MyHand.length; i++) {
+    const card = c8MyHand[i];
+    const canPlay = myTurn && c8CanPlayClient(card, top, activeSuit);
+    const div = document.createElement("div");
+    div.innerHTML = c8CardHTML(card, { playable: canPlay, idx: i });
+    const cardEl = div.firstElementChild;
+    if (canPlay) {
+      cardEl.addEventListener("click", () => {
+        if (card.rank === "8") {
+          // Show suit picker
+          c8PendingWild = i;
+          $("c8-suit-picker").hidden = false;
+        } else {
+          socket.emit("game:c8Play", { cardIdx: i });
+          playSound('click');
+        }
+      });
+    }
+    hand.appendChild(cardEl);
+  }
+}
+
+function c8CanPlayClient(card, topCard, activeSuit) {
+  if (!topCard) return false;
+  if (card.rank === "8") return true;
+  if (card.suit === (activeSuit || topCard.suit)) return true;
+  if (card.rank === topCard.rank) return true;
+  return false;
+}
+
+// Suit picker for 8s (wild)
+document.querySelectorAll(".c8-suit-opt").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (c8PendingWild < 0) return;
+    socket.emit("game:c8Play", { cardIdx: c8PendingWild, chosenSuit: btn.dataset.suit });
+    playSound('click');
+    c8PendingWild = -1;
+    $("c8-suit-picker").hidden = true;
+  });
+});
+
+$("c8-draw-btn").addEventListener("click", () => { socket.emit("game:c8Draw"); playSound('click'); });
+$("c8-pass-btn").addEventListener("click", () => { socket.emit("game:c8Pass"); playSound('click'); });
+
+function renderC8Results(snap) {
+  $("phase-crazy8-results").hidden = false;
+  const g = snap.game;
+  const winnerName = g.lastPlay?.playerName || "???";
+  $("c8-result-title").textContent = `🏆 ${winnerName} wins the round!`;
+  // Show remaining hands
+  const rh = $("c8-result-hands"); rh.innerHTML = "";
+  if (g.allHands) {
+    for (const pid of g.playerIds) {
+      const name = g.playerNames?.[pid] || "???";
+      const hand = g.allHands[pid] || [];
+      const pts = hand.reduce((s, c) => { if (c.rank === "8") return s+50; if (["J","Q","K"].includes(c.rank)) return s+10; if (c.rank === "A") return s+1; return s+parseInt(c.rank); }, 0);
+      rh.innerHTML += `<div class="c8-result-player"><span class="c8-result-name">${esc(name)}</span><span class="c8-result-pts">${hand.length === 0 ? "Winner!" : `${hand.length} cards (${pts} pts)`}</span>
+        <div class="c8-result-cards">${hand.map(c => c8CardHTML(c, { small: true })).join("")}</div></div>`;
+    }
+  }
+  // Scores
+  const sc = $("c8-round-scores"); sc.innerHTML = "";
+  const sorted = g.playerIds.map(pid => ({ pid, name: g.playerNames?.[pid] || "???", score: g.scores?.[pid] || 0 })).sort((a,b) => b.score - a.score);
+  for (const p of sorted) {
+    sc.innerHTML += `<div class="scoreboard-entry"><span class="scoreboard-name">${esc(p.name)}</span><span class="scoreboard-score">${p.score} pts</span></div>`;
+  }
+  $("c8-next-round-btn").textContent = g.round >= g.totalRounds ? "🏆 See Final Scores" : "Next Round →";
+}
+$("c8-next-round-btn").addEventListener("click", () => socket.emit("game:nextRound"));
+
+// ============================================================
 //   ROOM BROWSER
 // ============================================================
 let roomFilter = "all";
@@ -956,7 +1511,7 @@ function renderRoomBrowser(roomList) {
       const nameInp = $("join-name-input");
       const name = nameInp?.value?.trim() || user?.username || "Player";
       socket.emit("room:join", { name, code: r.code }, resp => {
-        if (resp?.error) { alert(resp.error); return; }
+        if (resp?.error) { showAnnouncement(resp.error, 'danger', 5000); return; }
         me = resp.you; isSpectator = !!resp.spectator; enterRoom(resp.snapshot, resp.chat);
       });
     });
@@ -1027,11 +1582,68 @@ function getBorderStyle(id) { return BORDER_STYLES[id] || "none"; }
 
 function loadProfile() {
   if (!user) return;
+  // Avatar preview
+  const currentAvatar = user.avatar || {};
+  $("profile-avatar-preview").innerHTML = renderAvatarPreview(currentAvatar, 80);
   $("profile-pfp").innerHTML = `<span class="pfp-circle" style="box-shadow:${getBorderStyle(user.pfpBorder)}"><span class="pfp-emoji">${user.pfpEmoji || '😎'}</span></span>`;
   $("profile-username").textContent = user.username;
   const titleDisplay = $("profile-title-display");
   if (user.title === "custom" && user.customTitle) titleDisplay.textContent = user.customTitle;
   else { const t = SHOP_TITLES.find(x => x.id === user.title); titleDisplay.textContent = t && t.id !== "none" ? t.name : ""; }
+
+  // Avatar builder pickers
+  const _av = { face: currentAvatar.face || '😀', hat: currentAvatar.hat || 'none', bg: currentAvatar.bg || '#22aed1' };
+  function refreshAvatarPreview() { $("profile-avatar-preview").innerHTML = renderAvatarPreview(_av, 80); }
+
+  const facePicker = $("avatar-face-picker"); facePicker.innerHTML = "";
+  AVATAR_PARTS.face.forEach(f => {
+    const btn = document.createElement("span");
+    btn.textContent = f;
+    btn.style.cssText = `cursor:pointer;padding:4px;border-radius:8px;transition:all .15s;${_av.face===f?'background:var(--accent);':''}`;
+    btn.addEventListener("click", () => {
+      _av.face = f; facePicker.querySelectorAll('span').forEach(s => s.style.background = '');
+      btn.style.background = 'var(--accent)'; refreshAvatarPreview(); playSound('click');
+    });
+    facePicker.appendChild(btn);
+  });
+
+  const hatPicker = $("avatar-hat-picker"); hatPicker.innerHTML = "";
+  AVATAR_PARTS.hat.forEach(h => {
+    const btn = document.createElement("span");
+    btn.textContent = h === 'none' ? '🚫' : h;
+    btn.style.cssText = `cursor:pointer;padding:4px;border-radius:8px;transition:all .15s;${_av.hat===h?'background:var(--accent);':''}`;
+    btn.addEventListener("click", () => {
+      _av.hat = h; hatPicker.querySelectorAll('span').forEach(s => s.style.background = '');
+      btn.style.background = 'var(--accent)'; refreshAvatarPreview(); playSound('click');
+    });
+    hatPicker.appendChild(btn);
+  });
+
+  const bgPicker = $("avatar-bg-picker"); bgPicker.innerHTML = "";
+  AVATAR_PARTS.bg.forEach(bg => {
+    const swatch = document.createElement("div");
+    swatch.style.cssText = `width:32px;height:32px;border-radius:50%;background:${bg};cursor:pointer;border:3px solid ${_av.bg===bg?'var(--deep)':'transparent'};transition:all .15s;box-shadow:0 2px 6px rgba(0,0,0,0.15)`;
+    swatch.addEventListener("click", () => {
+      _av.bg = bg; bgPicker.querySelectorAll('div').forEach(s => s.style.borderColor = 'transparent');
+      swatch.style.borderColor = 'var(--deep)'; refreshAvatarPreview(); playSound('click');
+    });
+    bgPicker.appendChild(swatch);
+  });
+
+  const saveBtn = $("avatar-save-btn");
+  const saveMsg = $("avatar-save-msg");
+  // Remove old listeners by replacing
+  const newSaveBtn = saveBtn.cloneNode(true);
+  saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+  newSaveBtn.addEventListener("click", async () => {
+    saveMsg.textContent = "";
+    try {
+      const res = await fetch("/api/profile/avatar", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({avatar:_av}) });
+      const data = await res.json();
+      if (res.ok) { saveMsg.textContent = "Avatar saved!"; saveMsg.style.color = "var(--success)"; await refreshUser(); playSound('achieve'); spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle'); }
+      else { saveMsg.textContent = data.error; saveMsg.style.color = "var(--danger)"; }
+    } catch { saveMsg.textContent = "Error"; }
+  });
 
   // PFP picker
   const pfpPicker = $("pfp-picker"); pfpPicker.innerHTML = "";
@@ -1082,6 +1694,26 @@ function loadProfile() {
     titlePicker.appendChild(customBtn);
   }
 
+  // Border / Aura picker
+  const borderPicker = $("profile-border-picker");
+  if (borderPicker) {
+    borderPicker.innerHTML = "";
+    const borderItems = Object.keys(BORDER_STYLES);
+    for (const bId of borderItems) {
+      if (bId !== "none" && !owned.includes(bId)) continue; // only show owned + none
+      const style = BORDER_STYLES[bId];
+      const isEquipped = user.pfpBorder === bId;
+      const wrap = document.createElement("div");
+      wrap.style.cssText = `text-align:center;cursor:pointer;padding:6px;border-radius:12px;transition:all .15s;${isEquipped?'background:rgba(34,174,209,0.15);':''}`;
+      wrap.innerHTML = `<div style="width:48px;height:48px;border-radius:50%;background:var(--neo);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 4px;box-shadow:${style}">😎</div><div style="font-size:10px;font-weight:700;color:${isEquipped?'var(--accent)':'var(--ink3)'}">${bId==='none'?'None':bId.replace('glow-','').replace(/^\w/,c=>c.toUpperCase())}</div>`;
+      wrap.addEventListener("click", async () => {
+        await fetch("/api/profile/border", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({border:bId}) });
+        await refreshUser(); loadProfile(); playSound('click');
+      });
+      borderPicker.appendChild(wrap);
+    }
+  }
+
   // Inventory
   const inv = $("profile-inventory"); inv.innerHTML = "";
   for (const itemId of owned) {
@@ -1110,6 +1742,177 @@ $("custom-title-btn").addEventListener("click", async () => {
     inp.value = ""; loadProfile();
   } catch { $("custom-title-error").textContent = "Error"; }
 });
+
+// ============================================================
+//   GRADIENT BACKGROUND PICKER
+// ============================================================
+// Opens a modal (with a backdrop "shadow" overlay) showing all 380+ gradients.
+// Clicking one applies it as the page background — separate from the base theme.
+// The base theme still controls glass cards, ink, accent colors, etc.; the
+// gradient is purely the wallpaper. Saved to localStorage so it survives reloads.
+let _gradientSearch = "";
+
+// Inject (or update) a <style> tag that overrides .sky-bg with the chosen gradient.
+// Uses !important so it wins over theme-class rules in style.css. Also clears any
+// curated theme class — only one theme is ever active at a time.
+function applyGradientBackground(css) {
+  // Remove any curated theme class and clear its localStorage entry.
+  const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+  THEME_CLASSES.forEach(c => document.body.classList.remove(c));
+  localStorage.setItem('lobby98_theme', '');
+  // De-highlight any active theme swatch in the Settings grid.
+  document.querySelectorAll('.theme-swatch.active').forEach(s => s.classList.remove('active'));
+
+  let tag = document.getElementById('custom-gradient-bg-style');
+  if (!tag) {
+    tag = document.createElement('style');
+    tag.id = 'custom-gradient-bg-style';
+    document.head.appendChild(tag);
+  }
+  // The aurora ::after overlay gets dimmed slightly so it doesn't muddy bold gradients,
+  // but we keep it for the Frutiger Aero shimmer.
+  tag.textContent = `body .sky-bg{background:${css}!important}body .sky-bg::after{opacity:0.5}`;
+  document.body.classList.add('has-custom-bg');
+  localStorage.setItem('lobby98_gradient_bg', css);
+  localStorage.setItem('lobby98_gradient_bg_id', _currentGradientId || '');
+}
+
+function clearGradientBackground() {
+  const tag = document.getElementById('custom-gradient-bg-style');
+  if (tag) tag.remove();
+  document.body.classList.remove('has-custom-bg');
+  localStorage.removeItem('lobby98_gradient_bg');
+  localStorage.removeItem('lobby98_gradient_bg_id');
+  _currentGradientId = null;
+  // De-highlight any "equipped" gradient swatches in the modal (if it's open).
+  document.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+  // Refresh the chip in Settings (now hidden since nothing's active).
+  if (typeof renderGradientCurrentPreview === 'function') renderGradientCurrentPreview();
+}
+
+let _currentGradientId = localStorage.getItem('lobby98_gradient_bg_id') || null;
+
+function renderGradientCurrentPreview() {
+  const wrap = $("gradient-current-preview");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  // Only show the chip when a custom gradient is actually active. If no custom
+  // gradient is set, the active curated theme is already visualized by the
+  // .active class on the theme grid swatch — no need for a redundant chip.
+  if (!_currentGradientId && !localStorage.getItem('lobby98_gradient_bg')) return;
+  const chip = document.createElement("div");
+  chip.className = "gradient-current-chip";
+  if (_currentGradientId && GRADIENTS_LIST.length) {
+    const g = GRADIENTS_LIST.find(x => x.id === _currentGradientId);
+    if (g) {
+      chip.innerHTML = `<span class="swatch-mini" style="background:${g.css}"></span><span>Active gradient: ${esc(g.name)}</span>`;
+    } else {
+      chip.innerHTML = `<span class="swatch-mini" style="background:${localStorage.getItem('lobby98_gradient_bg') || '#888'}"></span><span>Custom gradient active</span>`;
+    }
+  } else {
+    chip.innerHTML = `<span class="swatch-mini" style="background:${localStorage.getItem('lobby98_gradient_bg') || '#888'}"></span><span>Custom gradient active</span>`;
+  }
+  wrap.appendChild(chip);
+}
+
+function renderGradientGrid() {
+  const grid = $("gradient-grid");
+  const meta = $("gradient-meta");
+  if (!grid) return;
+  const q = _gradientSearch.trim().toLowerCase();
+  const filtered = q ? GRADIENTS_LIST.filter(g => g.name.toLowerCase().includes(q)) : GRADIENTS_LIST;
+  grid.innerHTML = "";
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--ink3);padding:40px 0;font-weight:600">No gradients match "${esc(_gradientSearch)}"</div>`;
+    if (meta) meta.textContent = `0 of ${GRADIENTS_LIST.length} gradients`;
+    return;
+  }
+  if (meta) meta.textContent = q ? `${filtered.length} of ${GRADIENTS_LIST.length} gradients` : `${GRADIENTS_LIST.length} gradients · click any to apply as your theme`;
+  // DocumentFragment for one-shot append (380+ nodes is non-trivial).
+  const frag = document.createDocumentFragment();
+  for (const g of filtered) {
+    const sw = document.createElement("div");
+    sw.className = "gradient-swatch" + (_currentGradientId === g.id ? " equipped" : "");
+    sw.style.background = g.css;
+    sw.title = g.name;
+    sw.innerHTML = `<div class="gradient-swatch-label">${esc(g.name)}</div>`;
+    sw.addEventListener("click", () => {
+      _currentGradientId = g.id;
+      // Use a steeper angle for full-page background — 170deg matches the existing theme look.
+      const bgCss = g.css.replace(/^linear-gradient\(90deg,/, 'linear-gradient(170deg,');
+      applyGradientBackground(bgCss);
+      playSound('click');
+      spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle');
+      // Refresh equipped state without rebuilding the whole grid.
+      grid.querySelectorAll('.gradient-swatch.equipped').forEach(el => el.classList.remove('equipped'));
+      sw.classList.add('equipped');
+      renderGradientCurrentPreview();
+    });
+    frag.appendChild(sw);
+  }
+  grid.appendChild(frag);
+}
+
+async function openGradientPicker() {
+  await loadGradients(); // idempotent; cached after first call
+  const modal = $("gradient-modal");
+  if (!modal) return;
+  modal.hidden = false;
+  // Force a reflow so the .open transition actually animates instead of jumping.
+  modal.offsetHeight;
+  modal.classList.add("open");
+  // Lock body scroll while open
+  document.body.style.overflow = "hidden";
+  _gradientSearch = "";
+  const search = $("gradient-search");
+  if (search) { search.value = ""; setTimeout(() => search.focus(), 250); }
+  renderGradientGrid();
+  renderGradientCurrentPreview();
+}
+
+function closeGradientPicker() {
+  const modal = $("gradient-modal");
+  if (!modal) return;
+  modal.classList.remove("open");
+  document.body.style.overflow = "";
+  // Wait for fade-out before fully hiding (matches CSS transition duration).
+  setTimeout(() => { modal.hidden = true; }, 280);
+}
+
+// Wire up triggers — done with optional chaining since profile elements
+// might not exist on every page state.
+document.addEventListener("click", (e) => {
+  if (e.target?.id === "open-gradient-picker-btn") {
+    openGradientPicker();
+  } else if (e.target?.id === "gradient-modal-close") {
+    closeGradientPicker();
+  } else if (e.target?.id === "gradient-modal") {
+    // Click on backdrop itself (not its children) closes.
+    closeGradientPicker();
+  } else if (e.target?.id === "gradient-clear-btn") {
+    // Reset to default Aqua theme — applyTheme('') clears any theme class AND
+    // calls clearGradientBackground internally, so this single call resets everything.
+    applyTheme('');
+    playSound('click');
+  }
+});
+
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "gradient-search") {
+    _gradientSearch = e.target.value || "";
+    renderGradientGrid();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const modal = $("gradient-modal");
+    if (modal && !modal.hidden) closeGradientPicker();
+  }
+});
+
+// Pre-populate the "currently active" chip in Settings as soon as the gradient list loads.
+loadGradients().then(renderGradientCurrentPreview);
 
 // ============================================================
 //   EXPANDED STAFF HANDLERS
@@ -1167,6 +1970,20 @@ if (staffSelfCoinsBtn) staffSelfCoinsBtn.addEventListener("click", async () => {
   if (!user) return;
   await fetch("/api/staff/givecoins", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:user.username,amount:1000}) });
   await refreshUser();
+});
+
+// ── Delete All Accounts ──
+const staffDeleteAllBtn = document.getElementById("staff-deleteall-btn");
+if (staffDeleteAllBtn) staffDeleteAllBtn.addEventListener("click", async () => {
+  const msg = $("staff-deleteall-msg"); msg.textContent = "";
+  if (!confirm("⚠️ This will DELETE every account except staff. Are you sure?")) return;
+  if (!confirm("FINAL WARNING: This cannot be undone. Type OK to proceed.")) return;
+  try {
+    const res = await fetch("/api/staff/deleteallaccounts", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({confirm:"DELETE_ALL"}) });
+    const data = await res.json();
+    msg.textContent = data.message || data.error;
+    msg.style.color = res.ok ? "var(--success)" : "var(--danger)";
+  } catch { msg.textContent = "Error"; }
 });
 
 // ── Timeout / Mute ──
@@ -1274,9 +2091,10 @@ if (staffUsersRefresh) staffUsersRefresh.addEventListener("click", async () => {
       let badges = '';
       if (u.online) badges += '<span class="staff-user-badge online">Online</span>';
       if (u.is_banned) badges += '<span class="staff-user-badge banned">Banned</span>';
+      if (u.is_staff) badges += '<span class="staff-user-badge" style="background:rgba(255,215,0,0.15);color:#ffd700">Staff</span>';
       if (u.is_mod) badges += '<span class="staff-user-badge mod">Mod</span>';
       if (u.muted_until && u.muted_until > Date.now()) badges += '<span class="staff-user-badge muted">Muted</span>';
-      return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">🪙${u.coins}</span>${badges}</div>`;
+      return `<div class="staff-user-row"><span class="staff-user-name">${esc(u.username)}</span><span style="font-size:11px;color:var(--ink3)">💰${u.coins}</span>${badges}</div>`;
     }).join('');
   } catch { list.innerHTML = '<p style="color:var(--ink3)">Error loading</p>'; }
 });
@@ -1291,6 +2109,71 @@ setInterval(async () => {
     el.textContent = data.count || 0;
   } catch {}
 }, 5000);
+
+// ── Owner: Staff Management ──
+const staffPromoteBtn = document.getElementById("staff-promote-btn");
+if (staffPromoteBtn) staffPromoteBtn.addEventListener("click", async () => {
+  const u = $("staff-promote-user").value.trim();
+  const msg = $("staff-promote-msg"); msg.textContent = "";
+  if (!u) return;
+  const perms = {};
+  document.querySelectorAll("#staff-perms-grid input[type=checkbox]").forEach(cb => { if (cb.checked) perms[cb.dataset.perm] = true; });
+  try {
+    const res = await fetch("/api/staff/makestaff", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeStaff:true,perms}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+const staffDemoteBtn = document.getElementById("staff-demote-btn");
+if (staffDemoteBtn) staffDemoteBtn.addEventListener("click", async () => {
+  const u = $("staff-promote-user").value.trim();
+  const msg = $("staff-promote-msg"); msg.textContent = "";
+  if (!u) return;
+  try {
+    const res = await fetch("/api/staff/makestaff", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,makeStaff:false}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Staff: Wipe User Progress ──
+const staffWipeBtn = document.getElementById("staff-wipe-btn");
+if (staffWipeBtn) staffWipeBtn.addEventListener("click", async () => {
+  const u = $("staff-wipe-user").value.trim();
+  const what = $("staff-wipe-what").value;
+  const msg = $("staff-wipe-msg"); msg.textContent = "";
+  if (!u) return;
+  if (!confirm(`Wipe ${what} for ${u}? This cannot be undone.`)) return;
+  try {
+    const res = await fetch("/api/staff/wipeprogress", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({username:u,what}) });
+    const data = await res.json(); msg.textContent = data.message||data.error; msg.style.color = res.ok?"var(--success)":"var(--danger)";
+  } catch { msg.textContent = "Error"; }
+});
+
+// ── Self-Wipe (profile settings) ──
+const wipeInput = document.getElementById("wipe-confirm-input");
+const wipeBtn = document.getElementById("wipe-confirm-btn");
+const WIPE_PHRASE = "I want to erase all the progress I have in everything I own.";
+if (wipeInput && wipeBtn) {
+  // Block paste
+  wipeInput.addEventListener("paste", e => e.preventDefault());
+  wipeInput.addEventListener("drop", e => e.preventDefault());
+  // Enable button only when exact match
+  wipeInput.addEventListener("input", () => {
+    wipeBtn.disabled = wipeInput.value !== WIPE_PHRASE;
+  });
+  wipeBtn.addEventListener("click", async () => {
+    const msg = $("wipe-msg"); msg.textContent = "";
+    if (wipeInput.value !== WIPE_PHRASE) { msg.textContent = "Type the exact sentence."; msg.style.color = "var(--danger)"; return; }
+    try {
+      const res = await fetch("/api/profile/wipe", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({confirmation:wipeInput.value}) });
+      const data = await res.json();
+      if (res.ok) {
+        msg.textContent = "All progress erased."; msg.style.color = "var(--success)";
+        wipeInput.value = ""; wipeBtn.disabled = true;
+        await refreshUser();
+      } else { msg.textContent = data.error; msg.style.color = "var(--danger)"; }
+    } catch { msg.textContent = "Error"; }
+  });
+}
 
 // ============================================================
 //   BUG REPORTS
@@ -1394,6 +2277,13 @@ function initGChatOnce() {
   gchatInitialized = true;
   initChat();
   initAchievementListener();
+  initFriendListeners();
+  // Chat reactions
+  if (window._socket) {
+    window._socket.on('gchat:reactions', ({ messageId, reactions }) => {
+      updateReactions(messageId, reactions);
+    });
+  }
 }
 
 function initChat() {
@@ -1414,6 +2304,7 @@ function initChat() {
   window._socket.on('gchat:msg', (msg) => {
     addGChatMsg(msg);
     scrollGlobalChat();
+    if (user && msg.user !== user.username) playSound('chat');
   });
   // Blocked message feedback (Word Spy anti-cheat, profanity, etc.)
   window._socket.on('gchat:blocked', (reason) => {
@@ -1449,14 +2340,36 @@ function addGChatMsg(msg) {
   div.className = 'chat-msg';
   if (msg.id) div.dataset.msgId = msg.id;
   const time = new Date(msg.time);
-  const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+  const now = new Date();
+  const isToday = time.toDateString() === now.toDateString();
+  const isYesterday = time.toDateString() === new Date(now - 86400000).toDateString();
+  const hhmm = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+  let ts;
+  if (isToday) ts = hhmm;
+  else if (isYesterday) ts = `Yesterday ${hhmm}`;
+  else ts = `${time.getMonth()+1}/${time.getDate()} ${hhmm}`;
+  // Date separator — insert if this message is on a different day than the previous
+  const prevMsg = gchatMessages.lastElementChild;
+  const prevTime = prevMsg?.dataset?.time ? new Date(Number(prevMsg.dataset.time)) : null;
+  if (prevTime && time.toDateString() !== prevTime.toDateString()) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'text-align:center;font-size:9px;color:var(--ink3);padding:4px 0;opacity:0.7;font-weight:700';
+    const dayLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : `${time.getMonth()+1}/${time.getDate()}/${time.getFullYear()}`;
+    sep.textContent = `── ${dayLabel} ──`;
+    gchatMessages.appendChild(sep);
+  }
+  div.dataset.time = msg.time;
   // Role badge
   let badge = '';
-  if (msg.isStaff) badge = '<span class="gchat-role-badge staff-badge">STAFF</span>';
+  if (msg.isOwner) badge = '<span class="gchat-role-badge owner-badge">OWNER</span>';
+  else if (msg.isStaff) badge = '<span class="gchat-role-badge staff-badge">STAFF</span>';
   else if (msg.isMod) badge = '<span class="gchat-role-badge mod-badge">MOD</span>';
   // Delete button (only visible to staff/mod via CSS)
   const delBtn = msg.id ? `<button class="gchat-delete-btn" data-del-id="${msg.id}" title="Delete message">✕</button>` : '';
-  div.innerHTML = `${badge}<span class="chat-msg-user" style="color:${esc(msg.color)}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>${delBtn}`;
+  div.innerHTML = `${badge}<span class="chat-msg-user" data-color-id="${esc(msg.color || '')}">${esc(msg.user)}</span><span class="chat-msg-text">${esc(msg.text)}</span><span class="chat-msg-time">${ts}</span>${delBtn}`;
+  // Apply name color/gradient via helper (handles background-clip:text for gradients).
+  const userSpan = div.querySelector('.chat-msg-user');
+  if (userSpan) applyNameColor(userSpan, msg.color);
   // Wire delete button
   const delBtnEl = div.querySelector('.gchat-delete-btn');
   if (delBtnEl) {
@@ -1466,6 +2379,11 @@ function addGChatMsg(msg) {
     });
   }
   gchatMessages.appendChild(div);
+  // Add reaction bar
+  if (msg.id) addReactionBar(div, msg.id);
+  // Show reaction bar on hover
+  div.addEventListener('mouseenter', () => { const bar = div.querySelector('.reaction-bar'); if (bar) bar.style.display = 'flex'; });
+  div.addEventListener('mouseleave', () => { const bar = div.querySelector('.reaction-bar'); const picker = div.querySelector('.reaction-picker'); if (bar && !picker) bar.style.display = bar.querySelector('.reaction-counts')?.innerHTML ? 'flex' : 'none'; });
   if (gchatMessages.children.length > 150) gchatMessages.removeChild(gchatMessages.firstChild);
 }
 
@@ -1504,6 +2422,8 @@ async function loadAchievements() {
 
 // Achievement toast notification
 function showAchievementToast(data) {
+  playSound('achieve');
+  spawnParticles(window.innerWidth / 2, window.innerHeight / 2, 'sparkle');
   const toast = document.createElement('div');
   toast.className = 'ach-toast';
   toast.innerHTML = `<span class="ach-toast-icon">${data.icon || '🏆'}</span><div class="ach-toast-text"><div class="ach-toast-title">Achievement Unlocked!</div>${esc(data.name)}${data.coins > 0 ? ` · +${data.coins} coins` : ''}</div>`;
@@ -1582,6 +2502,380 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
   });
 });
 
+// ============================================================
+//   COLOR THEMES
+// ============================================================
+const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+function applyTheme(theme) {
+  THEME_CLASSES.forEach(c => document.body.classList.remove(c));
+  if (theme) document.body.classList.add(theme);
+  localStorage.setItem('lobby98_theme', theme || '');
+  // Picking a curated theme clears any custom gradient — only one active at a time.
+  // Use the internal helper so we don't ping-pong (clearGradientBackground itself
+  // does NOT call applyTheme, so this is safe and won't recurse).
+  if (typeof clearGradientBackground === 'function') clearGradientBackground();
+  // Update active swatch
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', (s.dataset.theme || '') === (theme || ''));
+  });
+  // Refresh the gradient-active chip in Settings (now blank since we just cleared it).
+  if (typeof renderGradientCurrentPreview === 'function') renderGradientCurrentPreview();
+}
+// Init theme from localStorage
+const savedTheme = localStorage.getItem('lobby98_theme') || '';
+if (savedTheme) applyTheme(savedTheme);
+// Theme swatch clicks
+document.getElementById('theme-grid')?.addEventListener('click', e => {
+  const swatch = e.target.closest('.theme-swatch');
+  if (!swatch) return;
+  applyTheme(swatch.dataset.theme || '');
+});
+// Mark active swatch on page load
+setTimeout(() => applyTheme(savedTheme), 50);
+
+// Dashboard changelog toggle
+const dashChangelogToggle = document.getElementById('dash-changelog-toggle');
+if (dashChangelogToggle) dashChangelogToggle.addEventListener('click', () => {
+  const extra = $('dash-changelog-extra');
+  if (!extra) return;
+  extra.hidden = !extra.hidden;
+  dashChangelogToggle.textContent = extra.hidden ? 'Show older updates' : 'Hide older updates';
+});
+
+// ============================================================
+//   6. AVATAR BUILDER
+// ============================================================
+const AVATAR_PARTS = {
+  face: ['😀','😊','😎','🤓','😈','👻','🤖','🐱','🐸','🦊','🐼','🐵','🦁','🐲','🎃'],
+  hat: ['none','🎩','🧢','👑','🎓','🪖','🎀','🌸','⭐','🔥','❄️','💎','🌈'],
+  bg: ['#22aed1','#e04858','#4caf50','#9c27b0','#ff9800','#2196f3','#e91e63','#00bcd4','#ff5722','#607d8b','#ffd700','#1a1a2e'],
+};
+function renderAvatarPreview(avatar, size = 48) {
+  const bg = avatar.bg || '#22aed1';
+  const face = avatar.face || '😀';
+  const hat = avatar.hat || 'none';
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.55)}px;position:relative;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15)">${face}${hat!=='none'?`<span style="position:absolute;top:-${Math.round(size*0.15)}px;font-size:${Math.round(size*0.35)}px">${hat}</span>`:''}</div>`;
+}
+
+// ============================================================
+//   7. FRIENDS & DMs
+// ============================================================
+let _currentDmFriend = null;
+async function loadFriends() {
+  try {
+    const res = await fetch('/api/friends');
+    const data = await res.json();
+    // Pending requests
+    const reqCard = $('friend-requests-card');
+    const reqList = $('friend-requests-list');
+    if (data.pending?.length) {
+      reqCard.hidden = false;
+      reqList.innerHTML = data.pending.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.05)"><span style="font-size:20px">${p.pfpEmoji||'😎'}</span><strong style="flex:1">${esc(p.username)}</strong><button class="btn btn-primary btn-sm" onclick="acceptFriend(${p.id})">Accept</button><button class="btn btn-ghost btn-sm" onclick="rejectFriend(${p.id})">Decline</button></div>`).join('');
+    } else reqCard.hidden = true;
+    // Friends list
+    const list = $('friends-list');
+    const onlineCount = data.friends.filter(f => f.online).length;
+    $('friend-online-count').textContent = data.friends.length > 0 ? `(${onlineCount} online)` : '';
+    if (!data.friends.length) { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">No friends yet. Add someone above!</p>'; return; }
+    list.innerHTML = data.friends.sort((a,b)=>b.online-a.online).map(f => {
+      const av = renderAvatarPreview(f.avatar || {}, 32);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.05)"><span style="position:relative">${av}<span style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;background:${f.online?'var(--success)':'#888'};border:2px solid var(--white)"></span></span><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis">${esc(f.username)}</div><div style="font-size:11px;color:var(--ink3)">${f.online?'Online':'Offline'}</div></div><button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openDM(${f.id},'${esc(f.username)}')">💬</button><button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--danger)" onclick="unfriend(${f.id})">✕</button></div>`;
+    }).join('');
+  } catch {}
+}
+
+window.acceptFriend = async (id) => { await fetch('/api/friends/accept', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fromId:id}) }); loadFriends(); showToast('Friend request accepted!', '🤝'); };
+window.rejectFriend = async (id) => { await fetch('/api/friends/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:id}) }); loadFriends(); };
+window.unfriend = async (id) => { if (!confirm('Remove this friend?')) return; await fetch('/api/friends/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:id}) }); loadFriends(); };
+window.openDM = async (friendId, name) => {
+  _currentDmFriend = friendId;
+  $('dm-panel').hidden = false;
+  $('dm-title').textContent = `💬 ${name}`;
+  $('dm-messages').innerHTML = '<p style="color:var(--ink3);font-size:12px;text-align:center">Loading...</p>';
+  try {
+    const res = await fetch(`/api/dm/${friendId}`);
+    const data = await res.json();
+    const msgEl = $('dm-messages');
+    if (!data.messages?.length) { msgEl.innerHTML = '<p style="color:var(--ink3);font-size:12px;text-align:center">No messages yet</p>'; return; }
+    msgEl.innerHTML = data.messages.map(m => {
+      const isMe = m.from_id === user.id;
+      const time = new Date(m.time);
+      const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+      return `<div style="margin-bottom:6px;text-align:${isMe?'right':'left'}"><div style="display:inline-block;max-width:80%;padding:6px 10px;border-radius:12px;background:${isMe?'var(--accent)':'rgba(0,0,0,0.08)'};color:${isMe?'#fff':'var(--ink)'};font-size:13px">${esc(m.text)}</div><div style="font-size:9px;color:var(--ink3);margin-top:1px">${ts}</div></div>`;
+    }).join('');
+    msgEl.scrollTop = msgEl.scrollHeight;
+  } catch {}
+};
+
+document.getElementById('dm-close')?.addEventListener('click', () => { $('dm-panel').hidden = true; _currentDmFriend = null; });
+document.getElementById('dm-send-btn')?.addEventListener('click', async () => {
+  const input = $('dm-input');
+  const text = input.value.trim();
+  if (!text || !_currentDmFriend) return;
+  input.value = '';
+  await fetch('/api/dm/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:_currentDmFriend,text}) });
+  openDM(_currentDmFriend, $('dm-title').textContent.replace('💬 ', ''));
+  playSound('click');
+});
+document.getElementById('dm-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('dm-send-btn')?.click(); });
+
+document.getElementById('friend-add-btn')?.addEventListener('click', async () => {
+  const input = $('friend-add-input');
+  const msg = $('friend-add-msg');
+  const username = input.value.trim(); msg.textContent = '';
+  if (!username) return;
+  try {
+    const res = await fetch('/api/friends/request', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username}) });
+    const data = await res.json();
+    msg.textContent = data.message || data.error;
+    msg.style.color = res.ok ? 'var(--success)' : 'var(--danger)';
+    if (res.ok) { input.value = ''; loadFriends(); playSound('achieve'); }
+  } catch { msg.textContent = 'Error'; }
+});
+
+// DM socket notification
+function initFriendListeners() {
+  if (!window._socket) return;
+  window._socket.on('friend:request', (data) => {
+    showToast(`${data.from} sent you a friend request!`, '📬', 5000);
+    playSound('achieve');
+  });
+  window._socket.on('dm:message', (data) => {
+    showToast(`${data.from}: ${data.text.slice(0, 40)}`, '💬', 4000);
+    playSound('chat');
+    if (_currentDmFriend === data.fromId) openDM(data.fromId, data.from);
+  });
+}
+
+// ============================================================
+//   8. CHAT REACTIONS
+// ============================================================
+const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🔥'];
+
+function addReactionBar(msgEl, msgId) {
+  if (!msgId || msgEl.querySelector('.reaction-bar')) return;
+  const bar = document.createElement('div');
+  bar.className = 'reaction-bar';
+  bar.style.cssText = 'display:none;gap:2px;margin-top:3px;flex-wrap:wrap;align-items:center';
+  // Reaction counts (populated later)
+  const counts = document.createElement('span');
+  counts.className = 'reaction-counts';
+  counts.style.cssText = 'display:flex;gap:3px;flex-wrap:wrap';
+  bar.appendChild(counts);
+  // Add reaction button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'reaction-add-btn';
+  addBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:11px;padding:1px 4px;border-radius:6px;opacity:0.5;transition:opacity .15s';
+  addBtn.textContent = '+';
+  addBtn.title = 'React';
+  addBtn.addEventListener('mouseenter', () => { addBtn.style.opacity = '1'; });
+  addBtn.addEventListener('mouseleave', () => { addBtn.style.opacity = '0.5'; });
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showReactionPicker(msgEl, msgId);
+  });
+  bar.appendChild(addBtn);
+  msgEl.appendChild(bar);
+}
+
+function showReactionPicker(msgEl, msgId) {
+  // Remove any existing picker
+  document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.style.cssText = 'position:absolute;bottom:100%;right:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);border-radius:10px;padding:4px 6px;display:flex;gap:2px;z-index:50;animation:toastSlideIn .15s ease';
+  REACTION_EMOJIS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;padding:2px 4px;border-radius:4px;transition:transform .1s';
+    btn.textContent = emoji;
+    btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.3)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
+    btn.addEventListener('click', async () => {
+      picker.remove();
+      await fetch('/api/chat/react', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messageId:msgId,emoji}) });
+    });
+    picker.appendChild(btn);
+  });
+  msgEl.style.position = 'relative';
+  msgEl.appendChild(picker);
+  setTimeout(() => { document.addEventListener('click', () => picker.remove(), { once: true }); }, 50);
+}
+
+function updateReactions(messageId, reactions) {
+  const msgEl = gchatMessages?.querySelector(`[data-msg-id="${messageId}"]`);
+  if (!msgEl) return;
+  let bar = msgEl.querySelector('.reaction-bar');
+  if (!bar) { addReactionBar(msgEl, messageId); bar = msgEl.querySelector('.reaction-bar'); }
+  const counts = bar.querySelector('.reaction-counts');
+  if (reactions && reactions.length > 0) {
+    bar.style.display = 'flex';
+    counts.innerHTML = reactions.map(r => `<span style="background:rgba(0,0,0,0.06);border-radius:8px;padding:1px 5px;font-size:11px;cursor:default" title="${r.count}">${r.emoji} ${r.count > 1 ? r.count : ''}</span>`).join('');
+  } else {
+    counts.innerHTML = '';
+  }
+}
+
+// ============================================================
+//   10. MOBILE RESPONSIVE
+// ============================================================
+const navHamburger = document.getElementById('nav-hamburger');
+const navLinksWrap = document.getElementById('nav-links-wrap');
+if (navHamburger && navLinksWrap) {
+  navHamburger.addEventListener('click', () => {
+    navLinksWrap.classList.toggle('open');
+    playSound('click');
+  });
+  navLinksWrap.querySelectorAll('.nav-link').forEach(l => {
+    l.addEventListener('click', () => navLinksWrap.classList.remove('open'));
+  });
+}
+const gchatMobileToggle = document.getElementById('gchat-mobile-toggle');
+const gchatCloseMobile = document.getElementById('gchat-close-mobile');
+if (gchatMobileToggle) gchatMobileToggle.addEventListener('click', () => {
+  const sidebar = $('gchat-sidebar');
+  if (sidebar) { sidebar.hidden = false; document.body.classList.add('gchat-open'); }
+});
+if (gchatCloseMobile) gchatCloseMobile.addEventListener('click', () => {
+  const sidebar = $('gchat-sidebar');
+  if (sidebar && window.innerWidth <= 768) { sidebar.hidden = true; document.body.classList.remove('gchat-open'); }
+});
+
+// ============================================================
+//   12. DAILY CHALLENGES
+// ============================================================
+async function loadDailyChallenges() {
+  const list = $('daily-challenges-list');
+  const timer = $('daily-reset-timer');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/daily');
+    const data = await res.json();
+    if (!data.challenges) return;
+    if (timer && data.resetIn) {
+      const hrs = Math.floor(data.resetIn / 3600000);
+      const mins = Math.floor((data.resetIn % 3600000) / 60000);
+      timer.textContent = `Resets in ${hrs}h ${mins}m`;
+    }
+    list.innerHTML = data.challenges.map(c => {
+      const pct = Math.min(100, Math.round((c.progress / c.goal) * 100));
+      const done = c.progress >= c.goal;
+      return `<div style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.05)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:22px">${c.icon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--ink)">${c.name}</div>
+            <div style="font-size:11px;color:var(--ink3)">${c.desc}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            ${c.claimed ? '<span style="color:var(--success);font-size:11px;font-weight:700">✓ Claimed</span>'
+             : done ? `<button class="btn btn-primary btn-sm" style="font-size:11px;padding:4px 10px" onclick="claimDailyChallenge('${c.key}',${c.reward})">Claim 💰${c.reward}</button>`
+             : `<span style="font-size:11px;color:var(--ink3)">${c.progress}/${c.goal}</span>`}
+          </div>
+        </div>
+        <div class="daily-bar"><div class="daily-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    }).join('');
+  } catch { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">Could not load challenges</p>'; }
+}
+window.claimDailyChallenge = async (key, reward) => {
+  try {
+    const res = await fetch('/api/daily/claim', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({challengeKey:key}) });
+    if (res.ok) {
+      showToast(`Challenge complete! +${reward} coins`, '🎯', 3000);
+      playSound('win');
+      spawnParticles(window.innerWidth / 2, window.innerHeight / 3, 'confetti');
+      await refreshUser();
+      loadDailyChallenges();
+    }
+  } catch {}
+};
+
+// ============================================================
+//   11. SPECTATOR MODE (Arcade)
+// ============================================================
+async function loadLiveGames() {
+  const list = $('arcade-live-list');
+  if (!list) return;
+  try {
+    const res = await fetch('/api/arcade/live');
+    const data = await res.json();
+    if (!data.games?.length) { list.innerHTML = '<p style="color:var(--ink3);font-size:13px">No one is playing right now</p>'; return; }
+    list.innerHTML = data.games.map(g => {
+      const gameNames = {memory:'Memory Match',minesweeper:'Minesweeper',clickspeed:'Firing Range',mathrush:'Math Rush',snake:'Snake'};
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.05)">
+        <span style="font-size:10px;color:var(--success);font-weight:700">● LIVE</span>
+        <div style="flex:1"><strong>${esc(g.username)}</strong> <span style="color:var(--ink3);font-size:12px">playing ${gameNames[g.game]||g.game}</span></div>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="startSpectating(${g.id},'${esc(g.username)}','${g.game}')">👁️ Watch</button>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+window.startSpectating = (playerId, username, game) => {
+  $('arcade-play-area').hidden = true;
+  $('arcade-live-card').hidden = true;
+  document.querySelector('.arcade-grid').hidden = true;
+  $('arcade-spectate-area').hidden = false;
+  $('spectate-title').textContent = `👁️ Watching ${username} play ${game}`;
+  $('spectate-container').innerHTML = '<p style="color:var(--ink3);text-align:center;padding:20px">Connecting to live game...</p>';
+  socket.emit('spectate:join', { playerId });
+  showToast(`Watching ${username}`, '👁️', 2000);
+  const frameHandler = ({ score, state }) => {
+    const container = $('spectate-container');
+    if (!container) return;
+    container.innerHTML = `<div style="text-align:center;padding:16px"><div style="font-size:32px;font-weight:800;color:var(--accent);margin-bottom:4px">${score||0}</div><div style="font-size:12px;color:var(--ink3)">Score</div><div style="margin-top:12px;padding:12px;background:var(--neo);border-radius:var(--rs);font-size:13px;color:var(--ink2)">${state||'Game in progress...'}</div></div>`;
+  };
+  const endHandler = () => {
+    $('spectate-container').innerHTML = '<p style="color:var(--ink3);text-align:center;padding:20px;font-weight:700">Game ended!</p>';
+    socket.off('spectate:frame', frameHandler);
+    socket.off('spectate:ended', endHandler);
+    setTimeout(() => stopSpectating(playerId), 2000);
+  };
+  socket.on('spectate:frame', frameHandler);
+  socket.on('spectate:ended', endHandler);
+  window._spectateCleanup = () => { socket.off('spectate:frame', frameHandler); socket.off('spectate:ended', endHandler); };
+};
+window.stopSpectating = (playerId) => {
+  if (window._spectateCleanup) { window._spectateCleanup(); window._spectateCleanup = null; }
+  if (playerId) socket.emit('spectate:leave', { playerId });
+  $('arcade-spectate-area').hidden = true;
+  $('arcade-live-card').hidden = false;
+  document.querySelector('.arcade-grid').hidden = false;
+  loadLiveGames();
+};
+document.getElementById('spectate-back')?.addEventListener('click', () => stopSpectating());
+socket.on('arcade:liveUpdate', loadLiveGames);
+
+// ============================================================
+//   VERSION CHECK — prompt reload on update
+// ============================================================
+let _siteVersion = null;
+let _updatePrompted = false;
+async function checkSiteVersion() {
+  try {
+    const res = await fetch('/api/version');
+    const data = await res.json();
+    if (!_siteVersion) { _siteVersion = data.version; return; }
+    if (data.version !== _siteVersion && !_updatePrompted) {
+      _updatePrompted = true;
+      const container = $('announcements');
+      if (!container) return;
+      const bar = document.createElement('div');
+      bar.className = 'announce-bar info';
+      bar.innerHTML = `<span>🔄 Lobby 98 has been updated!</span><button class="btn btn-ghost btn-sm" style="color:#fff;border:1px solid rgba(255,255,255,0.4);margin-left:8px;font-size:11px" onclick="location.reload()">Reload</button><button class="announce-x" title="Dismiss">✕</button>`;
+      bar.querySelector('.announce-x').addEventListener('click', () => { bar.style.animation='toastOut .2s ease forwards'; setTimeout(()=>bar.remove(),200); });
+      container.appendChild(bar);
+    }
+  } catch {}
+}
+checkSiteVersion();
+setInterval(checkSiteVersion, 30000); // Check every 30 seconds
+
 checkSession();
 checkStaff();
 loadFakeNews();
+
+// Dismiss loading screen
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls) { ls.classList.add('fade-out'); setTimeout(() => ls.remove(), 600); }
+}, 1200);

@@ -10,8 +10,50 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <script>
+    // Apply theme/gradient BEFORE anything renders so loading screen matches.
+    // Only one is ever active at a time — if both are set (legacy state from an
+    // earlier version that layered them), prefer the curated theme and clear
+    // the gradient so the user lands in a clean, consistent state.
+    let _t = localStorage.getItem('lobby98_theme');
+    let _g = localStorage.getItem('lobby98_gradient_bg');
+    if (_t && _g) { localStorage.removeItem('lobby98_gradient_bg'); localStorage.removeItem('lobby98_gradient_bg_id'); _g = null; }
+    if (_t) document.body.classList.add(_t);
+    else if (_g) {
+      const s = document.createElement('style');
+      s.id = 'custom-gradient-bg-style';
+      s.textContent = `body .sky-bg{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
+      document.head.appendChild(s);
+      document.body.classList.add('has-custom-bg');
+    }
+  </script>
+  <!-- 9. LOADING SCREEN -->
+  <div id="loading-screen">
+    <div class="loader-brand">Lobby <span>98</span></div>
+    <div class="loader-sub">Loading your experience...</div>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+    <div class="loader-dots"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+  </div>
+
   <div class="sky-bg"></div>
-  <div class="xmb-wave"><svg class="xmb-svg" viewBox="0 0 1440 200" preserveAspectRatio="none"><path class="xmb-path xmb-1" d="M0,100 C360,20 720,180 1080,80 C1260,30 1380,120 1440,100 L1440,200 L0,200 Z"/><path class="xmb-path xmb-2" d="M0,120 C300,60 600,160 900,90 C1100,40 1300,140 1440,110 L1440,200 L0,200 Z"/><path class="xmb-path xmb-3" d="M0,140 C240,80 480,180 720,100 C960,30 1200,150 1440,120 L1440,200 L0,200 Z"/></svg></div>
+  <div class="xmb-wave"><svg class="xmb-svg" viewBox="0 0 1440 400" preserveAspectRatio="none">
+    <!-- 3 BIG ribbons -->
+    <path class="xmb-path xmb-b1" d="M0,180 C360,100 720,280 1080,150 C1260,100 1380,230 1440,180 L1440,240 C1380,200 1260,150 1080,200 C720,260 360,140 0,230 Z"/>
+    <path class="xmb-path xmb-b2" d="M0,210 C300,130 600,300 900,170 C1100,110 1300,260 1440,210 L1440,270 C1300,230 1100,160 900,220 C600,280 300,170 0,260 Z"/>
+    <path class="xmb-path xmb-b3" d="M0,240 C240,150 480,320 720,190 C960,120 1200,280 1440,240 L1440,300 C1200,260 960,170 720,240 C480,300 240,190 0,290 Z"/>
+    <!-- 4 SMALL ribbons -->
+    <path class="xmb-path xmb-s1" d="M0,160 C400,120 800,220 1200,140 C1350,120 1400,180 1440,160 L1440,185 C1400,170 1350,140 1200,165 C800,210 400,140 0,185 Z"/>
+    <path class="xmb-path xmb-s2" d="M0,195 C350,150 700,260 1050,180 C1250,140 1380,220 1440,195 L1440,220 C1380,205 1250,160 1050,205 C700,250 350,170 0,220 Z"/>
+    <path class="xmb-path xmb-s3" d="M0,230 C300,190 650,290 1000,210 C1200,170 1350,250 1440,230 L1440,255 C1350,240 1200,190 1000,235 C650,280 300,210 0,255 Z"/>
+    <path class="xmb-path xmb-s4" d="M0,265 C280,220 560,310 840,240 C1080,190 1320,280 1440,260 L1440,285 C1320,270 1080,210 840,265 C560,300 280,240 0,285 Z"/>
+    <!-- 6 TINY ribbons -->
+    <path class="xmb-path xmb-t1" d="M0,145 C480,125 960,180 1440,145 L1440,155 C960,175 480,135 0,155 Z"/>
+    <path class="xmb-path xmb-t2" d="M0,175 C360,155 720,210 1080,170 C1260,155 1380,190 1440,175 L1440,185 C1380,185 1260,165 1080,180 C720,205 360,165 0,185 Z"/>
+    <path class="xmb-path xmb-t3" d="M0,200 C400,180 800,230 1200,195 C1350,185 1420,210 1440,200 L1440,210 C1420,205 1350,195 1200,205 C800,225 400,190 0,210 Z"/>
+    <path class="xmb-path xmb-t4" d="M0,225 C320,210 640,250 960,220 C1200,205 1380,240 1440,225 L1440,235 C1380,235 1200,215 960,230 C640,245 320,220 0,235 Z"/>
+    <path class="xmb-path xmb-t5" d="M0,255 C440,235 880,280 1320,250 C1400,245 1430,260 1440,255 L1440,265 C1430,262 1400,255 1320,260 C880,275 440,245 0,265 Z"/>
+    <path class="xmb-path xmb-t6" d="M0,280 C360,265 720,300 1080,275 C1260,265 1380,290 1440,280 L1440,290 C1380,286 1260,275 1080,285 C720,296 360,275 0,290 Z"/>
+  </svg></div>
   <div class="orbs"><span class="orb orb1"></span><span class="orb orb2"></span><span class="orb orb3"></span></div>
   <div class="bubbles">
     <span class="bubble b1"></span><span class="bubble b2"></span><span class="bubble b3"></span>
@@ -25,9 +67,10 @@
   <!-- === NAV (hidden when not logged in) === -->
   <nav class="top-nav" id="top-nav" hidden>
     <div class="nav-left">
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu">☰</button>
       <div class="nav-brand">Lobby <span class="b98">98</span></div>
     </div>
-    <div class="nav-links">
+    <div class="nav-links" id="nav-links-wrap">
       <button class="nav-link active" data-page="dashboard">Home</button>
       <button class="nav-link" data-page="play">Party Games</button>
       <button class="nav-link" data-page="arcade">Arcade</button>
@@ -38,14 +81,18 @@
       <button class="nav-link" data-page="settings">Settings</button>
       <button class="nav-link" data-page="leaderboard">Leaderboard</button>
       <button class="nav-link" data-page="achievements">🏆 Achievements</button>
+      <button class="nav-link" data-page="friends">👥 Friends</button>
       <button class="nav-link nav-staff" data-page="staff" id="nav-staff-link" hidden>Staff</button>
     </div>
     <div class="nav-right">
-      <span class="nav-coins" id="nav-coins">🪙 0</span>
+      <span class="nav-coins" id="nav-coins"><span class="coin-i"></span> 0</span>
       <button class="btn btn-ghost btn-sm" id="bug-report-btn" style="font-size:11px;padding:5px 10px">🐛 Report Bug</button>
       <span class="nav-user" id="nav-user">User</span>
     </div>
   </nav>
+
+  <!-- === ANNOUNCEMENT BARS === -->
+  <div id="announcements"></div>
 
   <main class="stage" id="stage">
 
@@ -116,6 +163,47 @@
           <p class="dc-desc">Change password, view stats, manage your profile.</p>
         </div>
       </div>
+      <div class="glass-card" id="daily-challenges-card">
+        <h3 class="card-title">🎯 Daily Challenges <span style="font-size:11px;font-weight:600;color:var(--ink3)" id="daily-reset-timer"></span></h3>
+        <div id="daily-challenges-list"><p style="color:var(--ink3);font-size:13px">Loading challenges...</p></div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">📋 What's New</h3>
+        <div style="font-size:13px;color:var(--ink2);line-height:1.6">
+          <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.5 — April 26, 2026</div>
+          <div>🎨 10 color themes (Midnight, Sunset, Neon, Lava, and more)</div>
+          <div>🎵 Ambient background music with shuffle</div>
+          <div>👑 Owner/Staff/Mod role hierarchy</div>
+          <div>🍀 Luck skill tree + major dungeon rebalance</div>
+          <div>👥 Friends system with DMs and online status</div>
+          <div>😂 Chat reactions (👍❤️😂😮😢🔥)</div>
+          <div>🎭 Avatar builder with faces, hats & colors</div>
+          <div>✨ Page transitions, sounds, particles & loading screen</div>
+        </div>
+        <div id="dash-changelog-extra" hidden style="font-size:13px;color:var(--ink2);line-height:1.6;margin-top:10px">
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.4 — April 25, 2026</div>
+            <div>🛡️ 14 admin tools, mute/kick/ban, user list</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.3 — April 24, 2026</div>
+            <div>💬 Persistent sidebar chat with role badges</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.2 — April 22, 2026</div>
+            <div>⚔️ 26 areas, 50+ monsters, forge & skill tree</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.1 — April 20, 2026</div>
+            <div>🎮 5 arcade games, stock market, cosmetic shop</div>
+          </div>
+          <div>
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.0 — April 18, 2026</div>
+            <div>🎉 4 party games, accounts, Frutiger Aero UI</div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="dash-changelog-toggle" style="margin-top:8px">Show older updates</button>
+      </div>
       <div class="glass-card fake-news-card">
         <h3 class="card-title">📰 Lobby 98 News</h3>
         <p class="fake-news-text" id="fake-news-text">Loading headlines...</p>
@@ -169,6 +257,9 @@
         <div class="glass-card">
           <h3 class="card-title">Players <span class="count-badge" id="player-count">0/12</span></h3>
           <ul class="player-list" id="player-list"></ul>
+          <div id="bot-controls" class="bot-controls" hidden>
+            <button class="btn btn-ghost btn-sm" id="add-bot-btn">🤖 Add Bot</button>
+          </div>
           <h3 class="card-title" style="margin-top:18px">Pick a game</h3>
           <p class="card-sub" id="host-note">(waiting for host)</p>
           <ul class="game-list" id="game-list">
@@ -176,6 +267,8 @@
             <li class="game-card" data-mode="wordspy"><div class="gc-icon">◆</div><div class="gc-body"><div class="gc-name">Word Spy</div><div class="gc-desc">Everyone has a word. The spy doesn't.</div></div></li>
             <li class="game-card" data-mode="chain"><div class="gc-icon">◁</div><div class="gc-body"><div class="gc-name">Chain</div><div class="gc-desc">Build a sentence. One player sneaks in a target word.</div></div></li>
             <li class="game-card" data-mode="echo"><div class="gc-icon">◇</div><div class="gc-body"><div class="gc-name">Echo</div><div class="gc-desc">Same prompt, but the Echo sees a twist. Write answers, find them.</div></div></li>
+            <li class="game-card" data-mode="c4"><div class="gc-icon">🔴</div><div class="gc-body"><div class="gc-name">Connect Four</div><div class="gc-desc">2 players only. Drop pieces, get four in a row. Best of 3.</div></div></li>
+            <li class="game-card" data-mode="crazy8"><div class="gc-icon">🃏</div><div class="gc-body"><div class="gc-name">Crazy Eights</div><div class="gc-desc">Match suit or rank. 8s are wild. First to empty hand wins. Bots supported!</div></div></li>
             <li class="game-card" data-mode="blitz"><div class="gc-icon">💥</div><div class="gc-body"><div class="gc-name">Blitz</div><div class="gc-desc">Top-down shooter. WASD + mouse. Last one standing wins.</div></div></li>
           </ul>
           <div class="start-area" id="start-game-area" hidden>
@@ -220,6 +313,52 @@
           <div class="game-phase" id="phase-echo-discuss" hidden><h3 class="ph-title">🔍 Which Answer is the Echo's?</h3><p class="ph-inst">These answers are shuffled. One person had a <em>different</em> prompt.</p><div class="ratings-reveal" id="echo-answers-reveal"></div></div>
           <div class="game-phase" id="phase-echo-voting" hidden><h3 class="ph-title">🗳️ Vote — Which Answer?</h3><p class="ph-inst">Pick the answer you think came from the Echo.</p><div class="vote-grid" id="echo-vote-grid"></div><div class="wait-ind" id="echo-vote-waiting" hidden><div class="spinner"></div><p class="wait-txt">Waiting for votes… <span id="echo-votes-progress">0/0</span></p></div></div>
           <div class="game-phase" id="phase-echo-results" hidden><h3 class="ph-title">Round Results</h3><div id="echo-result-reveal" style="text-align:center;margin:12px 0"></div><div id="echo-prompts-compare"></div><div class="round-scores" id="echo-round-scores"></div><div class="next-area" id="echo-next-area" hidden><button class="btn btn-primary btn-lg" id="echo-next-btn">Next Round →</button></div></div>
+          <!-- Connect Four phases -->
+          <div class="game-phase" id="phase-c4-playing" hidden>
+            <div class="c4-header">
+              <div class="c4-player-tag" id="c4-p1-tag"><span class="c4-piece c4-piece-1"></span><span class="c4-name" id="c4-p1-name">Player 1</span><span class="c4-score" id="c4-p1-score">0</span></div>
+              <div class="c4-vs">vs</div>
+              <div class="c4-player-tag" id="c4-p2-tag"><span class="c4-piece c4-piece-2"></span><span class="c4-name" id="c4-p2-name">Player 2</span><span class="c4-score" id="c4-p2-score">0</span></div>
+            </div>
+            <p class="c4-status" id="c4-status">Your turn</p>
+            <div class="c4-board-wrap"><div class="c4-board" id="c4-board" role="grid" aria-label="Connect Four board"></div></div>
+          </div>
+          <div class="game-phase" id="phase-c4-results" hidden>
+            <h3 class="ph-title" id="c4-result-title">Round Result</h3>
+            <div class="c4-result-board-wrap"><div class="c4-board c4-board-small" id="c4-result-board"></div></div>
+            <div class="round-scores" id="c4-round-scores"></div>
+            <div class="next-area"><button class="btn btn-primary btn-lg" id="c4-next-round-btn">Next Round →</button></div>
+          </div>
+          <!-- Crazy Eights phases -->
+          <div class="game-phase" id="phase-crazy8-playing" hidden>
+            <div class="c8-header" id="c8-opponents"></div>
+            <div class="c8-table">
+              <div class="c8-pile c8-draw-pile" id="c8-draw"><span class="c8-pile-count" id="c8-draw-count">0</span><span class="c8-pile-label">Draw</span></div>
+              <div class="c8-discard" id="c8-discard"></div>
+              <div class="c8-suit-badge" id="c8-suit-badge"></div>
+            </div>
+            <p class="c8-status" id="c8-status">Your turn</p>
+            <div class="c8-hand" id="c8-hand"></div>
+            <div class="c8-actions" id="c8-actions">
+              <button class="btn btn-ghost btn-sm" id="c8-draw-btn">Draw Card</button>
+              <button class="btn btn-ghost btn-sm" id="c8-pass-btn" disabled>Pass</button>
+            </div>
+            <div class="c8-suit-picker" id="c8-suit-picker" hidden>
+              <p class="c8-suit-title">Pick a suit:</p>
+              <div class="c8-suit-options">
+                <button class="c8-suit-opt" data-suit="H">♥</button>
+                <button class="c8-suit-opt" data-suit="D">♦</button>
+                <button class="c8-suit-opt" data-suit="C">♣</button>
+                <button class="c8-suit-opt" data-suit="S">♠</button>
+              </div>
+            </div>
+          </div>
+          <div class="game-phase" id="phase-crazy8-results" hidden>
+            <h3 class="ph-title" id="c8-result-title">Round Result</h3>
+            <div id="c8-result-hands"></div>
+            <div class="round-scores" id="c8-round-scores"></div>
+            <div class="next-area"><button class="btn btn-primary btn-lg" id="c8-next-round-btn">Next Round →</button></div>
+          </div>
           <!-- Shared -->
           <div class="game-phase" id="phase-discuss" hidden></div>
           <div class="game-phase" id="phase-intermission" hidden></div>
@@ -255,13 +394,22 @@
         <button class="btn btn-ghost btn-sm" id="arcade-back" style="margin-bottom:12px">← Back to arcade</button>
         <div id="arcade-game-container"></div>
       </div>
+      <div class="glass-card" id="arcade-spectate-area" hidden>
+        <button class="btn btn-ghost btn-sm" id="spectate-back" style="margin-bottom:12px">← Back to arcade</button>
+        <h3 class="card-title" id="spectate-title">Watching...</h3>
+        <div id="spectate-container"></div>
+      </div>
+      <div class="glass-card" id="arcade-live-card">
+        <h3 class="card-title">👁️ Live Games</h3>
+        <div id="arcade-live-list"><p style="color:var(--ink3);font-size:13px">No one is playing right now</p></div>
+      </div>
     </section>
 
     <!-- ============== SHOP ============== -->
     <section class="page" id="page-shop" hidden>
       <div class="glass-card shop-header">
         <h2 class="card-title">🛍️ Shop</h2>
-        <div class="shop-balance"><span class="shop-coins" id="shop-coins">🪙 0</span><span class="shop-sub">Earn coins by playing games</span></div>
+        <div class="shop-balance"><span class="shop-coins" id="shop-coins"><span class="coin-i"></span> 0</span><span class="shop-sub">Earn coins by playing games</span></div>
       </div>
       <div id="shop-content"></div>
     </section>
@@ -269,13 +417,32 @@
     <!-- ============== PROFILE ============== -->
     <section class="page" id="page-profile" hidden>
       <div class="glass-card" style="text-align:center;padding:28px">
-        <div id="profile-pfp" style="font-size:64px;margin-bottom:8px">😎</div>
+        <div id="profile-avatar-preview" style="display:flex;justify-content:center;margin-bottom:8px"></div>
+        <div id="profile-pfp" style="font-size:64px;margin-bottom:8px;display:none">😎</div>
         <h2 class="card-title" style="justify-content:center" id="profile-username">Username</h2>
         <p id="profile-title-display" style="color:var(--mid);font-weight:700;font-size:14px"></p>
       </div>
       <div class="glass-card">
+        <h3 class="card-title">🎨 Avatar Builder</h3>
+        <p class="card-desc">Build your avatar — shown on your profile and friends list.</p>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Face</span>
+          <div id="avatar-face-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:28px;cursor:pointer"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Hat / Accessory</span>
+          <div id="avatar-hat-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:24px;cursor:pointer"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <span class="lbl">Background Color</span>
+          <div id="avatar-bg-picker" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="avatar-save-btn" style="width:100%;margin-top:4px">Save Avatar</button>
+        <p class="form-err" id="avatar-save-msg"></p>
+      </div>
+      <div class="glass-card">
         <h3 class="card-title">Profile Picture</h3>
-        <p class="card-desc">Pick an emoji as your profile picture.</p>
+        <p class="card-desc">Or pick a simple emoji instead.</p>
         <div id="pfp-picker" style="display:flex;flex-wrap:wrap;gap:8px;font-size:28px;cursor:pointer"></div>
       </div>
       <div class="glass-card">
@@ -289,9 +456,14 @@
         <div id="profile-title-picker" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <input class="inp" type="text" id="custom-title-input" maxlength="20" placeholder="Custom title (1-2 words)" style="flex:1;min-width:160px" />
-          <button class="btn btn-primary btn-sm" id="custom-title-btn">Set (🪙1000)</button>
+          <button class="btn btn-primary btn-sm" id="custom-title-btn">Set (<span class="coin-i"></span>1000)</button>
         </div>
         <p class="form-err" id="custom-title-error"></p>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title">✨ Profile Aura</h3>
+        <p class="card-desc">Equip a border glow from your owned auras.</p>
+        <div id="profile-border-picker" style="display:flex;flex-wrap:wrap;gap:10px"></div>
       </div>
       <div class="glass-card">
         <h3 class="card-title">Inventory</h3>
@@ -303,6 +475,24 @@
     <section class="page" id="page-settings" hidden>
       <div class="glass-card">
         <h2 class="card-title">⚙️ Settings</h2>
+        <div class="settings-section">
+          <h3 class="settings-label">🎨 Color Theme</h3>
+          <p class="card-desc" style="margin-top:-4px">Curated themes change the full palette (glass, accents, text). Or browse 380+ gradient-only themes below.</p>
+          <div class="theme-grid" id="theme-grid">
+            <div class="theme-swatch" data-theme="" style="background:linear-gradient(135deg,#4aa0c8,#8dd4b8,#d0ecc0)"><span>Aqua</span></div>
+            <div class="theme-swatch" data-theme="theme-midnight" style="background:linear-gradient(135deg,#1a0530,#2a1050,#0d0520)"><span>Midnight</span></div>
+            <div class="theme-swatch" data-theme="theme-sunset" style="background:linear-gradient(135deg,#c04040,#e88030,#f0b040)"><span>Sunset</span></div>
+            <div class="theme-swatch" data-theme="theme-golden" style="background:linear-gradient(135deg,#c09020,#d4a020,#e8c060)"><span>Golden</span></div>
+            <div class="theme-swatch" data-theme="theme-forest" style="background:linear-gradient(135deg,#0a4020,#2a8040,#60b060)"><span>Forest</span></div>
+            <div class="theme-swatch" data-theme="theme-sakura" style="background:linear-gradient(135deg,#d06080,#e08090,#e0b0c0)"><span>Sakura</span></div>
+            <div class="theme-swatch" data-theme="theme-neon" style="background:linear-gradient(135deg,#050515,#0a0a20,#0d0d30);border:1px solid rgba(0,229,255,0.3)"><span style="color:#00e5ff">Neon</span></div>
+            <div class="theme-swatch" data-theme="theme-ocean" style="background:linear-gradient(135deg,#041828,#0a3060,#1a6080)"><span>Ocean</span></div>
+            <div class="theme-swatch" data-theme="theme-lava" style="background:linear-gradient(135deg,#1a0505,#3a0a0a,#200505);border:1px solid rgba(255,60,30,0.2)"><span style="color:#ff8060">Lava</span></div>
+            <div class="theme-swatch" data-theme="theme-arctic" style="background:linear-gradient(135deg,#90c8e8,#c0e8ff,#f0f8ff)"><span style="color:#1a4060">Arctic</span></div>
+          </div>
+          <div id="gradient-current-preview" style="margin:14px 0 8px"></div>
+          <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse 380+ More Gradients</button>
+        </div>
         <div class="settings-section">
           <h3 class="settings-label">Change Password</h3>
           <form id="form-password" class="auth-form">
@@ -319,6 +509,75 @@
         </div>
         <div class="settings-section">
           <button class="btn btn-ghost" id="logout-btn">Log Out</button>
+        </div>
+      </div>
+      <div class="glass-card">
+        <h2 class="card-title" style="color:var(--danger)">⚠️ Erase All Progress</h2>
+        <p class="card-desc" style="font-size:12px;color:var(--ink3)">This will permanently delete your coins, achievements, shop items, game stats, and stock portfolio. Your username and password will be kept. This cannot be undone.</p>
+        <p style="font-size:12px;color:var(--danger);margin:8px 0;font-weight:700">Type exactly: <em>"I want to erase all the progress I have in everything I own."</em></p>
+        <input class="inp" type="text" id="wipe-confirm-input" placeholder="Type the sentence above..." style="width:100%" autocomplete="off" />
+        <button class="btn btn-danger" id="wipe-confirm-btn" style="width:100%;margin-top:8px" disabled>Erase Everything</button>
+        <p class="form-err" id="wipe-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h2 class="card-title">📋 Update Log</h2>
+        <div style="max-height:400px;overflow-y:auto;font-size:13px;color:var(--ink2);line-height:1.6" id="update-log">
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.5 — April 26, 2026</div>
+            <div>👑 Owner/Staff/Mod role hierarchy with selective permissions</div>
+            <div>🧹 Staff can wipe user progress (coins, games, achievements, shop, stocks)</div>
+            <div>⚠️ Self-wipe option in Settings (type exact phrase, paste blocked)</div>
+            <div>🍀 New Luck skill tree branch (Scavenger, Fortune, Jackpot, Treasure, Golden Touch)</div>
+            <div>⚔️ Major dungeon rebalance — 2x XP, 2 stat pts/level, +1 stat per kill, +1 skill per world</div>
+            <div>🗺️ Area selector redesigned as sliding carousel</div>
+            <div>🔄 Shift+hover item comparison in dungeon inventory</div>
+            <div>✦ Skill tree now uses tabs for 4 branches</div>
+            <div>🛡️ Advanced chat moderation — leetspeak/homoglyph/spacing evasion detection</div>
+            <div>⏱️ Chat rate limiting (3 msg / 5 sec) and duplicate detection</div>
+            <div>⚠️ Auto-mute escalation (3 violations = 10 min, 6 = 1 hour)</div>
+            <div>🔒 Registration rate limit (2 accounts/IP/hour)</div>
+            <div>🕐 24-hour account age for chat & bugs, new user notice bar</div>
+            <div>📋 This update log!</div>
+            <div>🎨 10 color themes in Settings</div>
+            <div>🎵 Ambient background music with shuffle</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.4 — April 25, 2026</div>
+            <div>🛡️ Redesigned staff panel with 14 admin tools (Eastlake-style grid)</div>
+            <div>💬 Per-message delete buttons on global chat for staff/mods</div>
+            <div>🔇 Timeout/mute system (up to 24 hours)</div>
+            <div>👢 Kick user, ⭐ Make/Remove Mod, 🔑 Reset Password</div>
+            <div>👥 User list with online/banned/mod/muted badges</div>
+            <div>🐛 Bug report spam limit (3 per user)</div>
+            <div>🕐 24-hour account age required for chat & bug reports</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.3 — April 24, 2026</div>
+            <div>💬 Persistent global chat sidebar (survives restarts)</div>
+            <div>🏷️ STAFF and MOD role badges on messages</div>
+            <div>🚫 Profanity filter with user feedback</div>
+            <div>🕵️ Word Spy anti-cheat blocks spy words in chat</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.2 — April 22, 2026</div>
+            <div>⚔️ 26 areas, 50+ monsters, 5 rarities, 8 unique weapons</div>
+            <div>⚒️ Forge & dismantle system</div>
+            <div>✦ Skill tree with 4 branches</div>
+            <div>🏆 Auto-save, settings panel, tutorial</div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-weight:700;color:var(--ink1)">v1.1 — April 20, 2026</div>
+            <div>🎮 5 arcade games + Blitz multiplayer shooter</div>
+            <div>📈 Fake stock market with live prices</div>
+            <div>🛒 Cosmetic shop (name colors, borders, titles)</div>
+            <div>🏆 16 achievements</div>
+          </div>
+          <div>
+            <div style="font-weight:700;color:var(--ink1)">v1.0 — April 18, 2026</div>
+            <div>🎉 4 party games: Frequency, Word Spy, Chain, Echo</div>
+            <div>👤 Accounts, profiles, leaderboard</div>
+            <div>🎨 Frutiger Aero UI</div>
+          </div>
         </div>
       </div>
     </section>
@@ -365,6 +624,37 @@
         </div>
       </div>
       <div id="dg-play-area" class="dungeon-container" hidden></div>
+    </section>
+
+    <!-- ============== FRIENDS ============== -->
+    <section class="page" id="page-friends" hidden>
+      <div class="glass-card">
+        <h2 class="card-title">👥 Friends</h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input class="inp" type="text" id="friend-add-input" placeholder="Add friend by username..." style="flex:1" />
+          <button class="btn btn-primary btn-sm" id="friend-add-btn">Add</button>
+        </div>
+        <p class="form-err" id="friend-add-msg"></p>
+      </div>
+      <div class="glass-card" id="friend-requests-card" hidden>
+        <h3 class="card-title" style="font-size:16px">📬 Pending Requests</h3>
+        <div id="friend-requests-list"></div>
+      </div>
+      <div class="glass-card">
+        <h3 class="card-title" style="font-size:16px">Friends List <span id="friend-online-count" style="font-size:12px;color:var(--ink3)"></span></h3>
+        <div id="friends-list"><p style="color:var(--ink3);font-size:13px">No friends yet. Add someone above!</p></div>
+      </div>
+      <div class="glass-card" id="dm-panel" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 class="card-title" style="font-size:16px;margin:0" id="dm-title">DM</h3>
+          <button class="btn btn-ghost btn-sm" id="dm-close">✕ Close</button>
+        </div>
+        <div id="dm-messages" style="max-height:300px;overflow-y:auto;margin-bottom:10px;padding:8px;background:var(--neo);border-radius:var(--rs)"></div>
+        <div style="display:flex;gap:8px">
+          <input class="inp" type="text" id="dm-input" placeholder="Type a message..." style="flex:1" maxlength="300" />
+          <button class="btn btn-primary btn-sm" id="dm-send-btn">Send</button>
+        </div>
+      </div>
     </section>
 
     <!-- ============== STAFF ============== -->
@@ -437,9 +727,52 @@
           <p class="form-err" id="staff-mod-msg"></p>
         </div>
 
+        <!-- Owner: Staff Management -->
+        <div class="glass-card owner-only">
+          <h3 class="settings-label">👑 Staff Management <span style="font-size:9px;background:rgba(255,215,0,0.2);color:#ffd700;padding:1px 6px;border-radius:4px;margin-left:4px">OWNER</span></h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <input class="inp" type="text" id="staff-promote-user" placeholder="username" style="flex:1;min-width:100px" />
+            <button class="btn btn-primary btn-sm" id="staff-promote-btn">Make Staff</button>
+            <button class="btn btn-ghost btn-sm" id="staff-demote-btn">Remove Staff</button>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Permissions (check to grant):</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px" id="staff-perms-grid">
+            <label><input type="checkbox" data-perm="ban" /> Ban/Unban</label>
+            <label><input type="checkbox" data-perm="kick" /> Kick</label>
+            <label><input type="checkbox" data-perm="mute" /> Mute</label>
+            <label><input type="checkbox" data-perm="coins" /> Give Coins</label>
+            <label><input type="checkbox" data-perm="items" /> Give Items</label>
+            <label><input type="checkbox" data-perm="broadcast" /> Broadcast</label>
+            <label><input type="checkbox" data-perm="event" /> Site Events</label>
+            <label><input type="checkbox" data-perm="chat" /> Clear Chat</label>
+            <label><input type="checkbox" data-perm="resetpw" /> Reset Password</label>
+            <label><input type="checkbox" data-perm="wipe" /> Wipe Progress</label>
+            <label><input type="checkbox" data-perm="mod" /> Make Mods</label>
+          </div>
+          <p class="form-err" id="staff-promote-msg"></p>
+        </div>
+
+        <!-- Staff: Wipe User Progress -->
+        <div class="glass-card">
+          <h3 class="settings-label">🧹 Wipe User Progress</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input class="inp" type="text" id="staff-wipe-user" placeholder="username" style="flex:1;min-width:100px" />
+            <select class="inp" id="staff-wipe-what" style="width:120px">
+              <option value="all">Everything</option>
+              <option value="coins">Coins only</option>
+              <option value="games">Game stats</option>
+              <option value="achievements">Achievements</option>
+              <option value="shop">Shop/cosmetics</option>
+              <option value="stocks">Stocks</option>
+            </select>
+            <button class="btn btn-danger btn-sm" id="staff-wipe-btn">Wipe</button>
+          </div>
+          <p class="form-err" id="staff-wipe-msg"></p>
+        </div>
+
         <!-- Give Coins -->
         <div class="glass-card">
-          <h3 class="settings-label">🪙 Give Coins</h3>
+          <h3 class="settings-label"><span class="coin-i"></span> Give Coins</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input class="inp" type="text" id="staff-coins-user" placeholder="username" style="flex:1;min-width:120px" />
             <input class="inp" type="number" id="staff-coins-amount" placeholder="amount" style="width:100px" />
@@ -484,7 +817,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <select class="inp" id="staff-event-select" style="flex:1">
               <option value="">No active event</option>
-              <option value="double-coins">🪙 Double Coins Weekend</option>
+              <option value="double-coins"><span class="coin-i"></span> Double Coins Weekend</option>
               <option value="happy-hour">🎉 Happy Hour (1.5x coins)</option>
               <option value="chaos-mode">🌀 Chaos Mode (UI wobbles)</option>
             </select>
@@ -510,7 +843,11 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary btn-sm" id="staff-confetti-btn">🎊 Confetti</button>
             <button class="btn btn-primary btn-sm" id="staff-nuke-btn">💥 UI Nuke</button>
-            <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn">🪙 +1000 to self</button>
+            <button class="btn btn-primary btn-sm" id="staff-selfcoins-btn"><span class="coin-i"></span> +1000 to self</button>
+          </div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(224,72,88,0.15)">
+            <button class="btn btn-danger btn-sm" id="staff-deleteall-btn" style="width:100%">☢️ Delete ALL Non-Staff Accounts</button>
+            <p class="form-err" id="staff-deleteall-msg"></p>
           </div>
         </div>
 
@@ -549,6 +886,7 @@
   </main>
   <!-- Global Chat Sidebar (persistent, always visible except party games) -->
   <aside class="gchat-sidebar" id="gchat-sidebar" hidden>
+    <button id="gchat-close-mobile">✕</button>
     <div class="gchat-head">
       <span>💬 Chat</span>
       <span style="font-size:11px;color:var(--ink3);font-weight:600" id="gchat-online"></span>
@@ -559,6 +897,7 @@
       <button type="submit" class="btn btn-primary btn-sm" style="padding:6px 10px;flex-shrink:0">▶</button>
     </form>
   </aside>
+  <button id="gchat-mobile-toggle" title="Open chat">💬</button>
 
   <div class="news-ticker" id="news-ticker">
     <span class="ticker-label">📰 LOBBY 98 NEWS</span>
@@ -571,5 +910,101 @@
   <script src="js/stocks.js"></script>
   <script src="js/shooter.js"></script>
   <script type="module" src="js/client.js"></script>
+
+  <!-- ============== GRADIENT PICKER MODAL ============== -->
+  <!-- Hidden by default. The .open class on the backdrop fades in the dark overlay
+       (the "shadow on the page") and slides the inner card up. Click backdrop, X
+       button, or ESC key to close — all routed through closeGradientPicker(). -->
+  <div id="gradient-modal" class="gradient-backdrop" hidden>
+    <div class="gradient-modal-card glass-card" role="dialog" aria-label="Gradient picker">
+      <div class="gradient-modal-header">
+        <h3 style="margin:0;font-size:18px">🌈 Gradient Backgrounds</h3>
+        <button class="gradient-modal-close" id="gradient-modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="gradient-modal-controls">
+        <input type="text" class="inp" id="gradient-search" placeholder="Search gradients (e.g. ocean, sunset, neon)..." autocomplete="off" />
+        <button class="btn btn-ghost btn-sm" id="gradient-clear-btn" title="Switch back to the default Aqua theme">Reset to default</button>
+      </div>
+      <div class="gradient-modal-meta" id="gradient-meta"></div>
+      <div class="gradient-modal-grid" id="gradient-grid"></div>
+    </div>
+  </div>
+
+  <!-- Hidden YouTube Player -->
+  <div id="yt-player-wrap" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none"><div id="yt-player"></div></div>
+
+  <!-- Music Control Button -->
+  <button id="music-toggle" title="Toggle music" style="position:fixed;bottom:44px;left:12px;z-index:300;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s">🔇</button>
+
+  <script>
+  (function(){
+    const TRACKS = ['gVOzQfe_GQE','1YRRvQuCfjM','x_x4THh-tJk'];
+    let player = null, started = false, muted = false, currentIdx = -1;
+
+    // Shuffle helper
+    function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+    let queue = shuffle(TRACKS);
+
+    function nextTrack(){
+      currentIdx++;
+      if(currentIdx >= queue.length){ queue = shuffle(TRACKS); currentIdx = 0; }
+      if(player && player.loadVideoById) player.loadVideoById(queue[currentIdx]);
+    }
+
+    // Load YT IFrame API
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+
+    window.onYouTubeIframeAPIReady = function(){
+      player = new YT.Player('yt-player', {
+        height:'1',width:'1',
+        videoId: queue[0],
+        playerVars: { autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
+        events: {
+          onReady: function(e){
+            e.target.setVolume(15); // Quiet — 15% volume
+            currentIdx = 0;
+          },
+          onStateChange: function(e){
+            if(e.data === YT.PlayerState.ENDED) nextTrack();
+          },
+          onError: function(){ nextTrack(); }
+        }
+      });
+    };
+
+    // Start on first user interaction (click anywhere)
+    function startMusic(){
+      if(started) return;
+      started = true;
+      if(player && player.playVideo){ player.playVideo(); }
+      else { setTimeout(startMusic, 500); started = false; return; }
+      const btn = document.getElementById('music-toggle');
+      if(btn) btn.textContent = '🎵';
+      document.removeEventListener('click', startMusic);
+      document.removeEventListener('keydown', startMusic);
+    }
+    document.addEventListener('click', startMusic, { once: false });
+    document.addEventListener('keydown', startMusic, { once: false });
+
+    // Toggle button
+    const btn = document.getElementById('music-toggle');
+    if(btn) btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(!player) return;
+      if(!started){ startMusic(); return; }
+      muted = !muted;
+      if(muted){ player.mute(); btn.textContent = '🔇'; }
+      else { player.unMute(); btn.textContent = '🎵'; }
+    });
+    // Right-click to skip track
+    if(btn) btn.addEventListener('contextmenu', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(started && player) nextTrack();
+    });
+  })();
+  </script>
+
 </body>
 </html>
