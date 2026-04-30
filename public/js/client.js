@@ -483,6 +483,9 @@ function renderGamePicker(snap) {
       if (snap.players.length < 2) { sn.textContent = `Need 2+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
       else if (snap.players.length > 6) { sn.textContent = `Max 6 players for Crazy Eights (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
       else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
+    } else if (snap.mode === "blitz") {
+      if (snap.players.length < 2) { sn.textContent = `Need 2+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
+      else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
     } else if (snap.players.length < 3) { sn.textContent = `Need 3+ players (${snap.players.length} now)`; $("start-game-btn").disabled = true; }
     else { sn.textContent = `${snap.players.length} players ready`; $("start-game-btn").disabled = false; }
   } else sa.hidden = true;
@@ -499,7 +502,7 @@ $("add-bot-btn").addEventListener("click", () => { socket.emit("room:addBot", {}
 function switchToGame(snap) {
   $("game-room-code").textContent = snap.code;
   const badge = $("game-mode-badge");
-  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : snap.game?.type === "echo" ? "🔊 Echo" : snap.game?.type === "c4" ? "🔴 Connect Four" : snap.game?.type === "crazy8" ? "🃏 Crazy Eights" : "🎵 Frequency";
+  badge.textContent = snap.game?.type === "wordspy" ? "🕵️ Word Spy" : snap.game?.type === "chain" ? "⛓️ Chain" : snap.game?.type === "echo" ? "🔊 Echo" : snap.game?.type === "c4" ? "🔴 Connect Four" : snap.game?.type === "crazy8" ? "🃏 Crazy Eights" : snap.game?.type === "blitz" ? "💥 Blitz" : "🎵 Frequency";
   updateRound(snap.game); syncChat(); renderPhase(snap); showPage("page-game");
 }
 
@@ -507,6 +510,10 @@ function updateRound(g) { if (g) $("game-round-badge").textContent = `Round ${g.
 
 function renderPhase(snap) {
   const g = snap.game; if (!g) return;
+  // Blitz has its own rendering lifecycle via shooter.js + game:blitzStart event.
+  // Don't touch game-phase visibility or it'll hide the shooter container.
+  // Exception: gameover phase should still render normally so scores show.
+  if (g.type === "blitz" && g.phase !== "gameover") return;
   ["phase-prompting","phase-voting","phase-results","phase-gameover","phase-discuss","phase-intermission","phase-ws-clues","phase-ws-discuss","phase-ws-voting","phase-ws-spyguess","phase-ws-results","phase-chain-building","phase-chain-results","phase-echo-submit","phase-echo-discuss","phase-echo-voting","phase-echo-results","phase-c4-playing","phase-c4-results","phase-crazy8-playing","phase-crazy8-results"].forEach(id => { const el = $(id); if (el) el.hidden = true; });
   updateRound(g); startTimer(g.timerEnd, g.phase);
   const ph = g.phase;
@@ -1347,26 +1354,29 @@ function renderC4Results(snap) {
 
 $("c4-next-round-btn").addEventListener("click", () => socket.emit("game:nextRound"));
 
+
 // ============================================================
-//   CRAZY EIGHTS (card game)
+//   CRAZY EIGHTS (card game) — UNO-style UI
 // ============================================================
 const C8_SUIT_SYMBOLS = { H: "♥", D: "♦", C: "♣", S: "♠" };
-const C8_SUIT_COLORS = { H: "#e04848", D: "#e04848", C: "#1a1a2e", S: "#1a1a2e" };
-let c8MyHand = []; // populated from game:c8Hand events
-let c8PendingWild = -1; // card index waiting for suit pick
+let c8MyHand = [];
+let c8PendingWild = -1;
 
 socket.on("game:c8Hand", ({ hand }) => { c8MyHand = hand || []; });
 socket.on("game:c8Drew", ({ card }) => {
   if (card) c8MyHand.push(card);
-  // Re-render if we're on the playing phase
   if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
 });
 
 function c8CardHTML(card, opts = {}) {
-  const color = C8_SUIT_COLORS[card.suit] || "#000";
   const suit = C8_SUIT_SYMBOLS[card.suit] || "?";
-  const cls = `c8-card ${opts.playable ? "playable" : ""} ${opts.selected ? "selected" : ""} ${opts.small ? "c8-card-sm" : ""}`;
-  return `<div class="${cls}" style="--card-color:${color}" ${opts.idx !== undefined ? `data-idx="${opts.idx}"` : ""}>
+  const isWild = card.rank === "8";
+  const suitCls = `suit-${card.suit}`;
+  const wildCls = isWild ? "rank-8" : "";
+  const sizeCls = opts.small ? "c8-card-sm" : "";
+  const playCls = opts.playable ? "playable" : "";
+  const cls = `c8-card ${suitCls} ${wildCls} ${sizeCls} ${playCls}`.trim();
+  return `<div class="${cls}" ${opts.idx !== undefined ? `data-idx="${opts.idx}"` : ""}>
     <span class="c8-card-rank">${card.rank}</span>
     <span class="c8-card-suit">${suit}</span>
   </div>`;
@@ -1376,40 +1386,65 @@ function renderC8Playing(snap) {
   $("phase-crazy8-playing").hidden = false;
   const g = snap.game;
   const myTurn = me && g.currentTurn === me.id;
-  // Opponents header
+
+  // Opponents — face-down card fans
   const opps = $("c8-opponents"); opps.innerHTML = "";
   for (const pid of g.playerIds) {
     if (me && pid === me.id) continue;
     const name = g.playerNames?.[pid] || "???";
     const isTurn = pid === g.currentTurn;
-    const isBot = snap.players.find(p => p.id === pid)?.isBot;
-    opps.innerHTML += `<div class="c8-opp ${isTurn ? "c8-opp-active" : ""}">
-      <span class="c8-opp-name">${esc(name)}${isBot ? " 🤖" : ""}</span>
-      <span class="c8-opp-count">${g.handSizes?.[pid] || 0} cards</span>
-    </div>`;
+    const isBotP = snap.players.find(p => p.id === pid)?.isBot;
+    const cardCount = g.handSizes?.[pid] || 0;
+    const opp = document.createElement("div");
+    opp.className = `c8-opp ${isTurn ? "active" : ""}`;
+    let cardsHTML = '<div class="c8-opp-cards">';
+    const maxShow = Math.min(cardCount, 8);
+    const spread = Math.min(14, maxShow > 1 ? 60 / maxShow : 0);
+    for (let i = 0; i < maxShow; i++) {
+      const offset = (i - (maxShow - 1) / 2) * spread;
+      const rot = (i - (maxShow - 1) / 2) * 4;
+      cardsHTML += `<div class="c8-opp-card-back" style="left:calc(50% + ${offset}px - 14px);transform:rotate(${rot}deg)"></div>`;
+    }
+    cardsHTML += '</div>';
+    opp.innerHTML = `${cardsHTML}<div class="c8-opp-info">${esc(name)}${isBotP ? " 🤖" : ""}</div><div class="c8-opp-count">${cardCount} card${cardCount !== 1 ? "s" : ""}</div>`;
+    opps.appendChild(opp);
   }
+
   // Discard pile top card
   const dc = $("c8-discard");
   dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
-  // Active suit badge (only shown when different from card suit, i.e. after an 8)
+
+  // Active suit badge
   const sb = $("c8-suit-badge");
   if (g.activeSuit && g.topCard?.rank === "8") {
-    sb.innerHTML = `<span style="color:${C8_SUIT_COLORS[g.activeSuit]};font-size:24px">${C8_SUIT_SYMBOLS[g.activeSuit]}</span>`;
+    sb.className = `c8-suit-indicator suit-${g.activeSuit}`;
+    sb.textContent = C8_SUIT_SYMBOLS[g.activeSuit];
     sb.hidden = false;
   } else sb.hidden = true;
+
   // Draw pile count
   $("c8-draw-count").textContent = g.drawPileCount;
+
   // Status
   const st = $("c8-status");
-  st.classList.remove("your-turn","opp-turn");
-  if (myTurn) { st.textContent = g.drewThisTurn ? "Play the drawn card or pass" : "Your turn — play a card or draw"; st.classList.add("your-turn"); }
-  else { const turnName = g.playerNames?.[g.currentTurn] || "???"; st.textContent = `${turnName}'s turn`; st.classList.add("opp-turn"); }
+  st.classList.remove("your-turn", "opp-turn");
+  if (myTurn) {
+    st.textContent = g.drewThisTurn ? "Play the drawn card or pass" : "Your turn — play a card or draw";
+    st.classList.add("your-turn");
+  } else {
+    const turnName = g.playerNames?.[g.currentTurn] || "???";
+    st.textContent = `${turnName}'s turn`;
+    st.classList.add("opp-turn");
+  }
+
   // Actions
   $("c8-draw-btn").disabled = !myTurn || g.drewThisTurn;
   $("c8-pass-btn").disabled = !myTurn || !g.drewThisTurn;
+
   // Hide suit picker
   $("c8-suit-picker").hidden = true;
   c8PendingWild = -1;
+
   // Hand
   renderC8Hand(snap);
 }
@@ -1430,7 +1465,6 @@ function renderC8Hand(snap) {
     if (canPlay) {
       cardEl.addEventListener("click", () => {
         if (card.rank === "8") {
-          // Show suit picker
           c8PendingWild = i;
           $("c8-suit-picker").hidden = false;
         } else {
@@ -1462,6 +1496,13 @@ document.querySelectorAll(".c8-suit-opt").forEach(btn => {
   });
 });
 
+// Draw pile click handler — clicking the card back draws
+document.addEventListener("click", (e) => {
+  if (e.target?.closest?.("#c8-draw")) {
+    $("c8-draw-btn")?.click();
+  }
+});
+
 $("c8-draw-btn").addEventListener("click", () => { socket.emit("game:c8Draw"); playSound('click'); });
 $("c8-pass-btn").addEventListener("click", () => { socket.emit("game:c8Pass"); playSound('click'); });
 
@@ -1470,7 +1511,6 @@ function renderC8Results(snap) {
   const g = snap.game;
   const winnerName = g.lastPlay?.playerName || "???";
   $("c8-result-title").textContent = `🏆 ${winnerName} wins the round!`;
-  // Show remaining hands
   const rh = $("c8-result-hands"); rh.innerHTML = "";
   if (g.allHands) {
     for (const pid of g.playerIds) {
@@ -1481,7 +1521,6 @@ function renderC8Results(snap) {
         <div class="c8-result-cards">${hand.map(c => c8CardHTML(c, { small: true })).join("")}</div></div>`;
     }
   }
-  // Scores
   const sc = $("c8-round-scores"); sc.innerHTML = "";
   const sorted = g.playerIds.map(pid => ({ pid, name: g.playerNames?.[pid] || "???", score: g.scores?.[pid] || 0 })).sort((a,b) => b.score - a.score);
   for (const p of sorted) {

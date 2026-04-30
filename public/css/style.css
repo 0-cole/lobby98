@@ -1042,53 +1042,125 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
 }
 
 /* ============================================================
-   CRAZY EIGHTS CARD GAME
+   CRAZY EIGHTS — UNO-STYLE CARD GAME UI
+   Cards use bold suit-colored backgrounds with big white text.
+   Opponents shown with face-down card fans at the top.
+   Player's hand at the bottom, fanned with overlap.
    ============================================================ */
-.c8-header{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
-.c8-opp{padding:6px 12px;border-radius:10px;background:var(--neo);box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi);text-align:center;min-width:80px}
-.c8-opp-active{box-shadow:0 0 0 2px var(--accent),inset 1px 1px 3px var(--neo-lo)}
-.c8-opp-name{display:block;font-weight:700;font-size:12px;color:var(--ink)}
-.c8-opp-count{font-size:11px;color:var(--ink3);font-weight:600}
 
-.c8-table{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0;position:relative}
-.c8-draw-pile{width:70px;height:100px;background:linear-gradient(135deg,#1a3a6a,#0d2040);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.15);transition:transform .12s}
-.c8-draw-pile:hover{transform:translateY(-2px)}
-.c8-pile-count{font-size:22px;font-weight:900;color:#fff}
-.c8-pile-label{font-size:10px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:1px}
-.c8-suit-badge{position:absolute;right:calc(50% - 120px);top:0;background:var(--glass);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.2)}
+/* ── Table layout ── */
+.c8-table-layout{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:680px;margin:0 auto;position:relative;min-height:500px}
 
-.c8-status{text-align:center;font-weight:800;font-size:14px;margin:8px 0;min-height:20px;color:var(--ink2)}
-.c8-status.your-turn{color:var(--success)}
+/* ── Opponents row ── */
+.c8-opponents-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:4px 0}
+.c8-opp{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;position:relative}
+.c8-opp-info{font-size:12px;font-weight:800;color:var(--ink);text-align:center;text-shadow:0 1px 2px rgba(0,0,0,0.2)}
+.c8-opp-count{font-size:10px;font-weight:700;color:var(--ink3)}
+.c8-opp.active .c8-opp-info{color:var(--accent)}
+.c8-opp.active{filter:drop-shadow(0 0 8px var(--accent))}
+.c8-opp-cards{display:flex;justify-content:center;height:40px;position:relative}
+.c8-opp-card-back{width:28px;height:40px;border-radius:5px;background:linear-gradient(135deg,#c41e3a,#8b0000);box-shadow:0 2px 4px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.15);position:absolute}
+.c8-opp-card-back::after{content:"✦";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.3);font-size:14px;font-weight:900}
+
+/* ── Center play area ── */
+.c8-center{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0;position:relative}
+
+/* Draw pile */
+.c8-draw-pile{position:relative;cursor:pointer;transition:transform .15s}
+.c8-draw-pile:hover{transform:translateY(-3px) scale(1.03)}
+.c8-card-back{width:72px;height:105px;border-radius:10px;background:linear-gradient(145deg,#c41e3a,#8b0000);box-shadow:0 4px 12px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center}
+.c8-back-star{color:rgba(255,255,255,0.4);font-size:28px;font-weight:900;text-shadow:0 2px 4px rgba(0,0,0,0.3)}
+.c8-pile-count{position:absolute;bottom:-8px;right:-8px;background:#222;color:#fff;font-size:11px;font-weight:900;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.4);border:2px solid rgba(255,255,255,0.2)}
+
+/* Discard area */
+.c8-discard-area{position:relative}
+.c8-discard{min-width:72px;min-height:105px}
+.c8-suit-indicator{position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid rgba(255,255,255,0.3);z-index:2}
+.c8-suit-indicator.suit-H{background:#e04040;color:#fff}
+.c8-suit-indicator.suit-D{background:#e88020;color:#fff}
+.c8-suit-indicator.suit-C{background:#2e8b57;color:#fff}
+.c8-suit-indicator.suit-S{background:#3060b0;color:#fff}
+
+/* Direction arrow */
+.c8-direction{font-size:20px;font-weight:900;color:var(--ink3);opacity:.5;position:absolute;right:8px;top:50%;transform:translateY(-50%)}
+
+/* ── Status ── */
+.c8-status{text-align:center;font-weight:900;font-size:15px;margin:2px 0 6px;min-height:22px;color:var(--ink2);text-shadow:0 1px 2px rgba(0,0,0,0.15)}
+.c8-status.your-turn{color:#4caf50}
 .c8-status.opp-turn{color:var(--ink3)}
 
-.c8-hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0;min-height:105px}
-.c8-actions{display:flex;gap:8px;justify-content:center;margin:8px 0}
+/* ── Card design — bold colored backgrounds like UNO ── */
+.c8-card{width:72px;height:105px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;cursor:default;transition:transform .18s ease,box-shadow .18s ease,margin-top .18s ease;position:relative;user-select:none;border:2.5px solid rgba(255,255,255,0.25);flex-shrink:0}
+.c8-card-rank{font-size:32px;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.35);line-height:1}
+.c8-card-suit{font-size:16px;color:rgba(255,255,255,0.85);text-shadow:0 1px 2px rgba(0,0,0,0.3)}
+/* Inner oval — the white ellipse behind the number like UNO cards */
+.c8-card::before{content:"";position:absolute;width:52px;height:80px;border-radius:50%;background:rgba(255,255,255,0.15);transform:rotate(-25deg)}
+/* Suit colors */
+.c8-card.suit-H{background:linear-gradient(145deg,#ff4444,#c41e1e);box-shadow:0 3px 10px rgba(196,30,30,0.4)}
+.c8-card.suit-D{background:linear-gradient(145deg,#ff9020,#d06800);box-shadow:0 3px 10px rgba(208,104,0,0.4)}
+.c8-card.suit-C{background:linear-gradient(145deg,#38a060,#1a6838);box-shadow:0 3px 10px rgba(26,104,56,0.4)}
+.c8-card.suit-S{background:linear-gradient(145deg,#4080d0,#1a4898);box-shadow:0 3px 10px rgba(26,72,152,0.4)}
+.c8-card.rank-8{background:linear-gradient(145deg,#2a2a3a,#0a0a15);box-shadow:0 3px 10px rgba(0,0,0,0.5);border-color:rgba(255,215,0,0.4)}
+.c8-card.rank-8 .c8-card-rank{color:#ffd700}
+.c8-card.rank-8::before{background:rgba(255,215,0,0.1)}
 
-/* Card styling */
-.c8-card{width:64px;height:95px;border-radius:8px;background:#fffdf5;box-shadow:0 2px 6px rgba(0,0,0,0.2),inset 0 0 0 1px rgba(0,0,0,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;cursor:default;transition:transform .12s ease,box-shadow .12s ease;position:relative;user-select:none}
-.c8-card.playable{cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.2),0 0 0 2px rgba(76,175,80,0.5)}
-.c8-card.playable:hover{transform:translateY(-8px) scale(1.05);box-shadow:0 8px 16px rgba(0,0,0,0.25),0 0 0 2px rgba(76,175,80,0.8)}
-.c8-card-rank{font-size:22px;color:var(--card-color,#000)}
-.c8-card-suit{font-size:18px;color:var(--card-color,#000)}
-.c8-card-sm{width:40px;height:60px;font-size:10px}
-.c8-card-sm .c8-card-rank{font-size:14px}
-.c8-card-sm .c8-card-suit{font-size:12px}
-.c8-discard .c8-card{box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+/* ── Player's hand — fanned overlap ── */
+.c8-my-hand-wrap{width:100%;overflow-x:auto;padding:8px 0 4px}
+.c8-hand{display:flex;justify-content:center;padding:0 20px;min-height:110px}
+.c8-hand .c8-card{margin-left:-18px;cursor:default}
+.c8-hand .c8-card:first-child{margin-left:0}
+.c8-hand .c8-card.playable{cursor:pointer}
+.c8-hand .c8-card.playable:hover{transform:translateY(-16px) scale(1.08);z-index:10;box-shadow:0 10px 24px rgba(0,0,0,0.4)}
+.c8-hand .c8-card:not(.playable){filter:brightness(0.7);margin-top:6px}
 
-/* Suit picker overlay */
-.c8-suit-picker{text-align:center;padding:10px;background:var(--glass);border-radius:12px;margin:10px auto;max-width:260px;backdrop-filter:blur(6px)}
-.c8-suit-title{font-weight:800;font-size:13px;color:var(--ink);margin-bottom:8px}
-.c8-suit-options{display:flex;gap:8px;justify-content:center}
-.c8-suit-opt{width:50px;height:50px;border-radius:10px;border:2px solid transparent;background:var(--neo);font-size:28px;cursor:pointer;transition:all .15s;box-shadow:2px 2px 5px var(--neo-lo),-1px -1px 4px var(--neo-hi)}
-.c8-suit-opt:hover{transform:translateY(-2px);border-color:var(--accent)}
-.c8-suit-opt[data-suit="H"],.c8-suit-opt[data-suit="D"]{color:#e04848}
-.c8-suit-opt[data-suit="C"],.c8-suit-opt[data-suit="S"]{color:#1a1a2e}
+/* ── Actions ── */
+.c8-actions{display:flex;gap:10px;justify-content:center;margin:6px 0}
+.c8-action-btn{padding:8px 20px;font-weight:800;font-size:13px;border-radius:12px;background:var(--neo);color:var(--ink);border:none;cursor:pointer;box-shadow:2px 2px 5px var(--neo-lo),-1px -1px 4px var(--neo-hi);transition:all .15s}
+.c8-action-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 4px 10px rgba(0,0,0,0.2)}
+.c8-action-btn:disabled{opacity:.4;cursor:not-allowed}
 
-/* Results */
-.c8-result-player{padding:8px 12px;background:var(--neo);border-radius:10px;margin-bottom:8px;box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)}
-.c8-result-name{font-weight:800;color:var(--ink);margin-right:8px}
-.c8-result-pts{font-size:12px;color:var(--ink3);font-weight:600}
-.c8-result-cards{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+/* ── Suit picker overlay ── */
+.c8-suit-picker{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);border-radius:16px;z-index:20}
+.c8-suit-title{font-weight:900;font-size:16px;color:#fff;margin-bottom:14px;text-shadow:0 2px 4px rgba(0,0,0,0.4)}
+.c8-suit-options{display:flex;gap:12px}
+.c8-suit-opt{width:60px;height:60px;border-radius:14px;border:3px solid rgba(255,255,255,0.3);font-size:32px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;font-weight:900}
+.c8-suit-opt:hover{transform:scale(1.12);border-color:#fff}
+.c8-suit-h{background:linear-gradient(145deg,#ff4444,#c41e1e);color:#fff}
+.c8-suit-d{background:linear-gradient(145deg,#ff9020,#d06800);color:#fff}
+.c8-suit-c{background:linear-gradient(145deg,#38a060,#1a6838);color:#fff}
+.c8-suit-s{background:linear-gradient(145deg,#4080d0,#1a4898);color:#fff}
+
+/* ── Discard card (slightly larger for emphasis) ── */
+.c8-discard .c8-card{width:78px;height:112px;box-shadow:0 6px 20px rgba(0,0,0,0.45)}
+.c8-discard .c8-card .c8-card-rank{font-size:36px}
+
+/* ── Small cards for results ── */
+.c8-card-sm{width:40px;height:58px;border-radius:6px;border-width:1.5px}
+.c8-card-sm::before{display:none}
+.c8-card-sm .c8-card-rank{font-size:16px}
+.c8-card-sm .c8-card-suit{font-size:10px}
+
+/* ── Results ── */
+.c8-result-player{padding:10px 14px;background:var(--neo);border-radius:12px;margin-bottom:10px;box-shadow:inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)}
+.c8-result-name{font-weight:900;color:var(--ink);margin-right:8px}
+.c8-result-pts{font-size:12px;color:var(--ink3);font-weight:700}
+.c8-result-cards{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+
+@media (max-width:480px){
+  .c8-table-layout{min-height:420px}
+  .c8-card{width:58px;height:85px}
+  .c8-card-rank{font-size:24px}
+  .c8-card-suit{font-size:13px}
+  .c8-card::before{width:40px;height:64px}
+  .c8-hand .c8-card{margin-left:-22px}
+  .c8-discard .c8-card{width:64px;height:92px}
+  .c8-discard .c8-card .c8-card-rank{font-size:28px}
+  .c8-card-back{width:58px;height:85px}
+  .c8-draw-pile:hover{transform:none}
+  .c8-opp-card-back{width:22px;height:32px;border-radius:4px}
+  .c8-suit-opt{width:50px;height:50px;font-size:26px}
+  .c8-center{gap:16px;padding:14px 0}
+}
 
 /* Bot badge */
 .player-bot-badge{font-size:11px;margin-left:4px}

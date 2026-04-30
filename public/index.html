@@ -332,25 +332,41 @@
           </div>
           <!-- Crazy Eights phases -->
           <div class="game-phase" id="phase-crazy8-playing" hidden>
-            <div class="c8-header" id="c8-opponents"></div>
-            <div class="c8-table">
-              <div class="c8-pile c8-draw-pile" id="c8-draw"><span class="c8-pile-count" id="c8-draw-count">0</span><span class="c8-pile-label">Draw</span></div>
-              <div class="c8-discard" id="c8-discard"></div>
-              <div class="c8-suit-badge" id="c8-suit-badge"></div>
-            </div>
-            <p class="c8-status" id="c8-status">Your turn</p>
-            <div class="c8-hand" id="c8-hand"></div>
-            <div class="c8-actions" id="c8-actions">
-              <button class="btn btn-ghost btn-sm" id="c8-draw-btn">Draw Card</button>
-              <button class="btn btn-ghost btn-sm" id="c8-pass-btn" disabled>Pass</button>
-            </div>
-            <div class="c8-suit-picker" id="c8-suit-picker" hidden>
-              <p class="c8-suit-title">Pick a suit:</p>
-              <div class="c8-suit-options">
-                <button class="c8-suit-opt" data-suit="H">♥</button>
-                <button class="c8-suit-opt" data-suit="D">♦</button>
-                <button class="c8-suit-opt" data-suit="C">♣</button>
-                <button class="c8-suit-opt" data-suit="S">♠</button>
+            <div class="c8-table-layout">
+              <!-- Opponents around the table -->
+              <div class="c8-opponents-row" id="c8-opponents"></div>
+              <!-- Center play area -->
+              <div class="c8-center">
+                <div class="c8-draw-pile" id="c8-draw" title="Draw a card">
+                  <div class="c8-card-back"><span class="c8-back-star">✦</span></div>
+                  <span class="c8-pile-count" id="c8-draw-count">0</span>
+                </div>
+                <div class="c8-discard-area">
+                  <div class="c8-discard" id="c8-discard"></div>
+                  <div class="c8-suit-indicator" id="c8-suit-badge" hidden></div>
+                </div>
+                <div class="c8-direction" id="c8-direction">→</div>
+              </div>
+              <!-- Status -->
+              <p class="c8-status" id="c8-status">Your turn</p>
+              <!-- Player's hand -->
+              <div class="c8-my-hand-wrap">
+                <div class="c8-hand" id="c8-hand"></div>
+              </div>
+              <!-- Actions -->
+              <div class="c8-actions" id="c8-actions">
+                <button class="btn c8-action-btn" id="c8-draw-btn">🂠 Draw</button>
+                <button class="btn c8-action-btn" id="c8-pass-btn" disabled>⏭ Pass</button>
+              </div>
+              <!-- Suit picker overlay -->
+              <div class="c8-suit-picker" id="c8-suit-picker" hidden>
+                <p class="c8-suit-title">Pick a suit:</p>
+                <div class="c8-suit-options">
+                  <button class="c8-suit-opt c8-suit-h" data-suit="H">♥</button>
+                  <button class="c8-suit-opt c8-suit-d" data-suit="D">♦</button>
+                  <button class="c8-suit-opt c8-suit-c" data-suit="C">♣</button>
+                  <button class="c8-suit-opt c8-suit-s" data-suit="S">♠</button>
+                </div>
               </div>
             </div>
           </div>
