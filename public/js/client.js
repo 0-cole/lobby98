@@ -404,7 +404,8 @@ $("form-create").addEventListener("submit", e => {
   e.preventDefault(); $("create-error").textContent = "";
   const fd = new FormData(e.target);
   const vis = document.getElementById("create-visibility");
-  socket.emit("room:create", { name: fd.get("name"), visibility: vis ? vis.value : "public" }, resp => {
+  const maxP = document.getElementById("create-max-players");
+  socket.emit("room:create", { name: fd.get("name"), visibility: vis ? vis.value : "public", maxPlayers: maxP ? Number(maxP.value) : 4 }, resp => {
     if (resp?.error) { $("create-error").textContent = resp.error; return; }
     me = resp.you; isSpectator = false; enterRoom(resp.snapshot, resp.chat);
   });
@@ -460,10 +461,10 @@ function renderRoom(snap) {
     const sh = document.createElement("li"); sh.className = "player-item"; sh.innerHTML = '<span class="player-name" style="color:var(--ink3);font-style:italic">Spectators 👻</span>'; list.appendChild(sh);
     for (const s of snap.spectators) { const li = document.createElement("li"); li.className = "player-item"; li.innerHTML = `<span class="player-dot" style="opacity:.4"></span><span class="player-name">${esc(s.name)}</span>${me&&s.id===me.id?'<span class="player-you-tag">(you)</span>':""}`; list.appendChild(li); }
   }
-  $("player-count").textContent = `${snap.players.length}/12`;
-  // Show "Add Bot" button only for host when no game is running
+  $("player-count").textContent = `${snap.players.length}/${snap.maxPlayers || 12}`;
+  // Show "Add Bot" button only for host when no game is running and room not full
   const bc = $("bot-controls");
-  if (bc) bc.hidden = !(amHost && !snap.game && snap.players.length < 12);
+  if (bc) bc.hidden = !(amHost && !snap.game && snap.players.length < (snap.maxPlayers || 12));
   renderGamePicker(snap);
 }
 
@@ -743,7 +744,19 @@ socket.on("room:update", snap => {
     if (ph === "echo-submit" && (snap.game.round !== prevRound || prevPhase !== "echo-submit")) { hasSubmittedEchoAnswer = false; hasSubmittedVote = false; }
     if (ph === "echo-voting" && prevPhase !== "echo-voting") hasSubmittedVote = false;
     switchToGame(snap);
-  } else { resetRoomState(); showPage("page-room"); /* stay in room lobby */ }
+  } else {
+    // No active game — we're in the room lobby (either never started, or game ended
+    // and host clicked "back to lobby"). Clear game-phase state but DO NOT nuke
+    // `me` or `currentRoom` — those are the player's room identity.
+    myPrompt = null; selectedRating = null;
+    hasSubmittedRating = false; hasSubmittedVote = false;
+    myWord = null; hasSubmittedClue = false; hasSubmittedSpyGuess = false;
+    myChainRole = null; hasAccused = false; coinsAwarded = false;
+    myEchoPrompt = null; hasSubmittedEchoAnswer = false;
+    c8MyHand = [];
+    clearTI();
+    showPage("page-room");
+  }
 });
 socket.on("game:yourPrompt", ({ prompt }) => { myPrompt = prompt; $("prompt-text").textContent = prompt; });
 socket.on("game:echoPrompt", ({ prompt, isEcho }) => { myEchoPrompt = prompt; hasSubmittedEchoAnswer = false; });

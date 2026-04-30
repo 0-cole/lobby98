@@ -1013,6 +1013,7 @@ function getPublicRooms() {
     if (room.visibility === "private") continue;
     list.push({
       code, mode: room.mode, playerCount: room.players.size,
+      maxPlayers: room.maxPlayers || MAX_PLAYERS,
       hostName: room.players.get(room.hostId)?.name || "???",
       inGame: !!room.game
     });
@@ -1125,6 +1126,7 @@ function roomSnapshot(room) {
   return {
     code: room.code,
     hostId: room.hostId,
+    maxPlayers: room.maxPlayers || MAX_PLAYERS,
     mode: room.mode,
     visibility: room.visibility || "public",
     players: [...room.players.values()].map(p => ({
@@ -3470,10 +3472,11 @@ io.on("connection", (socket) => {
   });
 
   // ----- Create room -----
-  socket.on("room:create", ({ name, visibility }, ack) => {
+  socket.on("room:create", ({ name, visibility, maxPlayers }, ack) => {
     const clean = sanitizeName(name);
     if (!clean) return ack?.({ error: "Name required (1-16 characters, no weird stuff)" });
 
+    const roomMax = Math.min(Math.max(Number(maxPlayers) || 4, 2), MAX_PLAYERS);
     const code = generateCode();
     const room = {
       code,
@@ -3485,6 +3488,7 @@ io.on("connection", (socket) => {
       game: null,
       _timer: null,
       visibility: visibility === "private" ? "private" : "public",
+      maxPlayers: roomMax,
       createdAt: Date.now()
     };
     room.players.set(socket.id, { id: socket.id, name: clean });
@@ -3503,7 +3507,7 @@ io.on("connection", (socket) => {
     const upperCode = typeof code === "string" ? code.toUpperCase().trim() : "";
     const room = rooms.get(upperCode);
     if (!room) return ack?.({ error: "That room doesn't exist" });
-    if (room.players.size + room.spectators.size >= MAX_PLAYERS) return ack?.({ error: "Room is full" });
+    if (room.players.size + room.spectators.size >= (room.maxPlayers || MAX_PLAYERS)) return ack?.({ error: "Room is full" });
 
     const clean = sanitizeName(name);
     if (!clean) return ack?.({ error: "Name required (1-16 characters, no weird stuff)" });
@@ -3582,7 +3586,7 @@ io.on("connection", (socket) => {
     if (!room) return ack?.({ error: "Room gone" });
     if (room.hostId !== socket.id) return ack?.({ error: "Only the host can add bots" });
     if (room.game) return ack?.({ error: "Can't add bots during a game" });
-    if (room.players.size >= MAX_PLAYERS) return ack?.({ error: "Room is full" });
+    if (room.players.size >= (room.maxPlayers || MAX_PLAYERS)) return ack?.({ error: "Room is full" });
     const botId = makeBotId();
     const botName = pickBotName(room);
     room.players.set(botId, { id: botId, name: botName, isBot: true });

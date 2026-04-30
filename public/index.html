@@ -220,6 +220,7 @@
           <form id="form-create" class="auth-form">
             <label><span class="lbl">Your name in-game</span><input class="inp" type="text" name="name" required maxlength="16" autocomplete="off" placeholder="pick a name" id="create-name-input" /></label>
             <label><span class="lbl">Visibility</span><select class="inp" name="visibility" id="create-visibility"><option value="public">🌐 Public</option><option value="private">🔒 Private</option></select></label>
+            <label><span class="lbl">Max Players</span><select class="inp" name="maxPlayers" id="create-max-players"><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option></select></label>
             <button type="submit" class="btn btn-primary">Create</button>
             <p class="form-err" id="create-error"></p>
           </form>
@@ -940,46 +941,82 @@
   (function(){
     const TRACKS = ['gVOzQfe_GQE','1YRRvQuCfjM','x_x4THh-tJk'];
     let player = null, started = false, muted = false, currentIdx = -1;
+    let errorCount = 0;
+    const MAX_ERRORS = TRACKS.length + 2;
 
-    // Shuffle helper
     function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
     let queue = shuffle(TRACKS);
 
     function nextTrack(){
       currentIdx++;
       if(currentIdx >= queue.length){ queue = shuffle(TRACKS); currentIdx = 0; }
+      console.log('[Lobby98 Music] Loading track:', queue[currentIdx]);
       if(player && player.loadVideoById) player.loadVideoById(queue[currentIdx]);
     }
 
     // Load YT IFrame API
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
+    tag.onerror = function(){ console.error('[Lobby98 Music] YouTube IFrame API failed to load — ad blocker or network issue?'); };
     document.head.appendChild(tag);
 
     window.onYouTubeIframeAPIReady = function(){
+      console.log('[Lobby98 Music] YT API ready');
       player = new YT.Player('yt-player', {
         height:'1',width:'1',
         videoId: queue[0],
         playerVars: { autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
         events: {
           onReady: function(e){
-            e.target.setVolume(15); // Quiet — 15% volume
+            console.log('[Lobby98 Music] Player ready, volume 15%');
+            e.target.setVolume(15);
             currentIdx = 0;
           },
           onStateChange: function(e){
-            if(e.data === YT.PlayerState.ENDED) nextTrack();
+            if(e.data === YT.PlayerState.ENDED){ errorCount = 0; nextTrack(); }
+            if(e.data === YT.PlayerState.PLAYING){ errorCount = 0; console.log('[Lobby98 Music] Playing'); }
           },
-          onError: function(){ nextTrack(); }
+          onError: function(e){
+            errorCount++;
+            console.warn('[Lobby98 Music] Error on track', queue[currentIdx], '— error code:', e.data, '— attempt', errorCount);
+            if(errorCount < MAX_ERRORS) nextTrack();
+            else console.error('[Lobby98 Music] All tracks failed, giving up.');
+          }
         }
       });
     };
 
-    // Start on first user interaction (click anywhere)
+    // Start on first user interaction
     function startMusic(){
       if(started) return;
+      if(!player || !player.playVideo){
+        // API not ready yet — retry on next interaction
+        console.log('[Lobby98 Music] Player not ready, will retry...');
+        return;
+      }
       started = true;
-      if(player && player.playVideo){ player.playVideo(); }
-      else { setTimeout(startMusic, 500); started = false; return; }
+      try {
+        player.playVideo();
+        console.log('[Lobby98 Music] playVideo() called');
+        // Verify it actually started after a short delay
+        setTimeout(function(){
+          if(player && player.getPlayerState){
+            const state = player.getPlayerState();
+            console.log('[Lobby98 Music] Player state after play:', state);
+            // -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+            if(state !== 1 && state !== 3){
+              console.warn('[Lobby98 Music] Playback may have been blocked by browser. State:', state);
+              // Try unmuting in case browser blocked because it thought audio was muted
+              player.unMute();
+              player.playVideo();
+            }
+          }
+        }, 1500);
+      } catch(err) {
+        console.error('[Lobby98 Music] playVideo error:', err);
+        started = false;
+        return;
+      }
       const btn = document.getElementById('music-toggle');
       if(btn) btn.textContent = '🎵';
       document.removeEventListener('click', startMusic);
