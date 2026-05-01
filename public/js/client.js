@@ -1386,6 +1386,54 @@ socket.on("game:c8Drew", ({ card, canPlay }) => {
   }
 });
 
+// Reshuffle animation — cards fly from discard pile back to draw pile
+socket.on("game:c8Reshuffle", ({ newDrawCount }) => {
+  const discard = document.querySelector('.c8-discard');
+  const draw = document.querySelector('.c8-draw-pile');
+  const tableLayout = document.querySelector('.c8-table-layout');
+  if (!discard || !draw || !tableLayout) return;
+  const tableRect = tableLayout.getBoundingClientRect();
+  const discardRect = discard.getBoundingClientRect();
+  const drawRect = draw.getBoundingClientRect();
+  const fromX = discardRect.left - tableRect.left + discardRect.width / 2;
+  const fromY = discardRect.top - tableRect.top + discardRect.height / 2;
+  const toX = drawRect.left - tableRect.left + drawRect.width / 2;
+  const toY = drawRect.top - tableRect.top + drawRect.height / 2;
+  // Spawn 6 card-backs flying from discard → draw pile
+  const count = 6;
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const card = document.createElement('div');
+      card.className = 'c8-reshuffle-card';
+      card.innerHTML = '✦';
+      card.style.cssText = `position:absolute;left:${fromX - 18}px;top:${fromY - 26}px;z-index:25;
+        width:36px;height:52px;border-radius:6px;background:linear-gradient(145deg,#c41e3a,#8b0000);
+        color:rgba(255,255,255,0.4);font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;
+        border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 4px 12px rgba(0,0,0,0.4);
+        transition:all .45s cubic-bezier(.2,.8,.3,1);pointer-events:none;`;
+      tableLayout.appendChild(card);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        card.style.left = `${toX - 18}px`;
+        card.style.top = `${toY - 26}px`;
+        card.style.transform = `rotate(${(Math.random() - 0.5) * 30}deg) scale(0.8)`;
+        card.style.opacity = '0.7';
+      }));
+      setTimeout(() => card.remove(), 500);
+    }, i * 80);
+  }
+  // Flash the draw pile count after all cards land
+  setTimeout(() => {
+    const countEl = $('c8-draw-count');
+    if (countEl) {
+      countEl.textContent = newDrawCount;
+      countEl.style.transform = 'scale(1.4)';
+      countEl.style.transition = 'transform .2s';
+      setTimeout(() => { countEl.style.transform = ''; }, 300);
+    }
+  }, count * 80 + 400);
+  playSound('click');
+});
+
 function c8CardHTML(card, opts = {}) {
   const suit = C8_SUIT_SYMBOLS[card.suit] || "";
   const isWild = ["8","+4","SC"].includes(card.rank);

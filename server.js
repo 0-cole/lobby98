@@ -2926,10 +2926,34 @@ function startCrazy8Game(room, numRounds) {
 function c8TopCard(g) { return g.discardPile[g.discardPile.length - 1]; }
 function c8CurrentPlayer(g) { return g.playerIds[g.turnIdx]; }
 
+// Auto-reshuffle: when the draw pile gets low (≤5 cards), scoop up the discard
+// pile (except the top card), shuffle it back in, and notify clients for animation.
+const C8_RESHUFFLE_THRESHOLD = 5;
+function c8MaybeReshuffle(room) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8") return false;
+  if (g.drawPile.length > C8_RESHUFFLE_THRESHOLD) return false;
+  if (g.discardPile.length <= 1) return false; // nothing to reclaim
+  const top = g.discardPile.pop();
+  const reclaimed = g.discardPile;
+  g.discardPile = [top];
+  // Shuffle reclaimed cards
+  for (let i = reclaimed.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [reclaimed[i], reclaimed[j]] = [reclaimed[j], reclaimed[i]];
+  }
+  g.drawPile.push(...reclaimed);
+  // Notify all clients so they can show the reshuffle animation
+  io.to(room.code).emit("game:c8Reshuffle", { newDrawCount: g.drawPile.length });
+  addSystemMessage(room, `🔄 Draw pile reshuffled! (${g.drawPile.length} cards)`);
+  return true;
+}
+
 function c8AdvanceTurn(room) {
   const g = room.game;
   g.turnIdx = (g.turnIdx + g.direction + g.playerIds.length) % g.playerIds.length;
   g.drewThisTurn = false;
+  c8MaybeReshuffle(room);
   broadcastRoom(room);
   c8MaybeBotTurn(room);
 }
