@@ -613,7 +613,7 @@ function renderIntermission(snap) {
 
 function renderGameOver(snap) {
   $("phase-gameover").hidden = false; const g = snap.game, amHost = me && snap.hostId === me.id;
-  if (!coinsAwarded && me && g.scores[me.id] !== undefined) { coinsAwarded = true; /* coins awarded server-side, just refresh user */ checkSession(); }
+  if (!coinsAwarded && me && g.scores[me.id] !== undefined) { coinsAwarded = true; refreshUser(); }
   const sb = snap.players.filter(p => g.scores[p.id] !== undefined).map(p => ({ ...p, score: g.scores[p.id] || 0 })).sort((a, b) => b.score - a.score);
   const c = $("final-scoreboard"); c.innerHTML = "";
   sb.forEach((p, i) => { const isMe = me && p.id === me.id; const m = i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`; const d = document.createElement("div"); d.className = `scoreboard-entry ${i===0?"scoreboard-winner":""} ${isMe?"scoreboard-me":""}`; d.innerHTML = `<span class="scoreboard-rank">${m}</span><span class="scoreboard-name">${esc(p.name)}${isMe?" (you)":""}</span><span class="scoreboard-score">${p.score} pts</span>`; c.appendChild(d); });
@@ -1387,15 +1387,19 @@ socket.on("game:c8Drew", ({ card, canPlay }) => {
 });
 
 function c8CardHTML(card, opts = {}) {
-  const suit = C8_SUIT_SYMBOLS[card.suit] || "?";
-  const isWild = card.rank === "8";
-  const suitCls = `suit-${card.suit}`;
-  const wildCls = isWild ? "rank-8" : "";
+  const suit = C8_SUIT_SYMBOLS[card.suit] || "";
+  const isWild = ["8","+4","SC"].includes(card.rank);
+  const suitCls = card.suit === "W" ? "suit-wild" : `suit-${card.suit}`;
+  const wildCls = isWild ? "rank-wild" : "";
+  const actionCls = ["S","R","+2","+4","SC"].includes(card.rank) ? "rank-action" : "";
   const sizeCls = opts.small ? "c8-card-sm" : "";
   const playCls = opts.playable ? "playable" : "";
-  const cls = `c8-card ${suitCls} ${wildCls} ${sizeCls} ${playCls}`.trim();
+  const cls = `c8-card ${suitCls} ${wildCls} ${actionCls} ${sizeCls} ${playCls}`.trim();
+  // Display labels for special cards
+  const rankLabels = { "S": "⊘", "R": "⟳", "+2": "+2", "+4": "+4", "SC": "★" };
+  const rankText = rankLabels[card.rank] || card.rank;
   return `<div class="${cls}" ${opts.idx !== undefined ? `data-idx="${opts.idx}"` : ""}>
-    <span class="c8-card-rank">${card.rank}</span>
+    <span class="c8-card-rank">${rankText}</span>
     <span class="c8-card-suit">${suit}</span>
   </div>`;
 }
@@ -1406,7 +1410,7 @@ function renderC8Playing(snap) {
   const myTurn = me && g.currentTurn === me.id;
 
   // Detect if a new card was just played (for animation)
-  const playKey = g.lastPlay ? `${g.lastPlay.playerId}-${g.lastPlay.card?.rank}-${g.lastPlay.card?.suit}` : null;
+  const playKey = g.lastPlay ? `${g.lastPlay.playerId}-${g.lastPlay.card?.rank}-${g.lastPlay.card?.suit}-${Date.now()>>8}` : null;
   const isNewPlay = playKey && playKey !== c8LastPlayId;
   c8LastPlayId = playKey;
 
@@ -1442,9 +1446,9 @@ function renderC8Playing(snap) {
     dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
   }
 
-  // Active suit badge
+  // Active suit badge — shown when a wild card was played
   const sb = $("c8-suit-badge");
-  if (g.activeSuit && g.topCard?.rank === "8") {
+  if (g.activeSuit && ["8","+4","SC"].includes(g.topCard?.rank)) {
     sb.className = `c8-suit-indicator suit-${g.activeSuit}`;
     sb.textContent = C8_SUIT_SYMBOLS[g.activeSuit];
     sb.hidden = false;
@@ -1556,7 +1560,7 @@ function renderC8Hand(snap) {
     const cardEl = div.firstElementChild;
     if (canPlay) {
       cardEl.addEventListener("click", () => {
-        if (card.rank === "8") {
+        if (["8","+4","SC"].includes(card.rank)) {
           c8PendingWild = i;
           $("c8-suit-picker").hidden = false;
         } else {
@@ -1571,13 +1575,13 @@ function renderC8Hand(snap) {
 
 function c8CanPlayClient(card, topCard, activeSuit) {
   if (!topCard) return false;
-  if (card.rank === "8") return true;
+  if (["8","+4","SC"].includes(card.rank)) return true; // all wilds
   if (card.suit === (activeSuit || topCard.suit)) return true;
   if (card.rank === topCard.rank) return true;
   return false;
 }
 
-// Suit picker for 8s (wild)
+// Suit picker for wilds (8, +4, SC)
 document.querySelectorAll(".c8-suit-opt").forEach(btn => {
   btn.addEventListener("click", () => {
     if (c8PendingWild < 0) return;
@@ -1623,7 +1627,7 @@ function showDrawnCardPrompt(card) {
   prompt.classList.add('visible');
   $('c8-drawn-yes').addEventListener('click', () => {
     if (cardIdx < 0) return;
-    if (card.rank === '8') {
+    if (["8","+4","SC"].includes(card.rank)) {
       c8PendingWild = cardIdx;
       hideDrawnCardPrompt();
       $('c8-suit-picker').hidden = false;
@@ -1650,13 +1654,18 @@ function renderC8Results(snap) {
   $("phase-crazy8-results").hidden = false;
   const g = snap.game;
   const winnerName = g.lastPlay?.playerName || "???";
+  const isMyWin = me && g.lastPlay?.playerId === me.id;
   $("c8-result-title").textContent = `🏆 ${winnerName} wins the round!`;
+
+  // Win celebration animation
+  showC8WinOverlay(winnerName, isMyWin);
+  if (isMyWin) { playSound('win'); spawnParticles(window.innerWidth/2, window.innerHeight/2, 'confetti'); }
   const rh = $("c8-result-hands"); rh.innerHTML = "";
   if (g.allHands) {
     for (const pid of g.playerIds) {
       const name = g.playerNames?.[pid] || "???";
       const hand = g.allHands[pid] || [];
-      const pts = hand.reduce((s, c) => { if (c.rank === "8") return s+50; if (["J","Q","K"].includes(c.rank)) return s+10; if (c.rank === "A") return s+1; return s+parseInt(c.rank); }, 0);
+      const pts = hand.reduce((s, c) => { if (["8","+4","SC"].includes(c.rank)) return s+50; if (["S","R","+2"].includes(c.rank)) return s+20; if (["J","Q","K"].includes(c.rank)) return s+10; if (c.rank === "A") return s+1; return s+(parseInt(c.rank)||0); }, 0);
       rh.innerHTML += `<div class="c8-result-player"><span class="c8-result-name">${esc(name)}</span><span class="c8-result-pts">${hand.length === 0 ? "Winner!" : `${hand.length} cards (${pts} pts)`}</span>
         <div class="c8-result-cards">${hand.map(c => c8CardHTML(c, { small: true })).join("")}</div></div>`;
     }
@@ -1669,6 +1678,16 @@ function renderC8Results(snap) {
   $("c8-next-round-btn").textContent = g.round >= g.totalRounds ? "🏆 See Final Scores" : "Next Round →";
 }
 $("c8-next-round-btn").addEventListener("click", () => socket.emit("game:nextRound"));
+
+function showC8WinOverlay(name, isMe) {
+  // Remove any existing
+  document.querySelectorAll('.c8-win-overlay').forEach(e => e.remove());
+  const el = document.createElement('div');
+  el.className = 'c8-win-overlay';
+  el.innerHTML = `<div class="c8-win-text">${isMe ? '🎉 You Win!' : `🏆 ${esc(name)} Wins!`}</div><div class="c8-win-sub">${isMe ? 'Nice hand!' : 'Better luck next round'}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
 
 // ============================================================
 //   ROOM BROWSER
