@@ -268,11 +268,21 @@ app.post("/api/arcade/score", (req, res) => {
   if (!sess) return res.status(401).json({ error: "Not logged in" });
   const user = getUserById(sess.user_id);
   const { game, score, elapsed } = req.body || {};
+
+  // Character purchase for Pirate Royale — deducts coins
+  if (game === 'yh_unlock') {
+    const cost = Math.abs(Math.floor(Number(score) || 0));
+    if (cost <= 0 || cost > 5000) return res.status(400).json({ error: "Invalid purchase" });
+    if (user.coins < cost) return res.status(400).json({ error: "Not enough coins" });
+    addCoins(user.id, -cost);
+    return res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+  }
+
   // Anti-cheat: validate score range and minimum elapsed time
-  const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), 50);
+  const maxCoins = game === 'pirate_royale' ? 100 : 50;
+  const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), maxCoins);
   const elapsedMs = Number(elapsed) || 0;
-  // Games should take at least a few seconds — reject suspiciously fast completions
-  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000, dungeon: 0 };
+  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000, dungeon: 0, pirate_royale: 0 };
   const minTime = MIN_TIMES[game] || 3000;
   if (coins > 10 && elapsedMs < minTime) {
     return res.status(400).json({ error: "Score rejected — too fast", coinsEarned: 0 });
@@ -803,8 +813,164 @@ app.post("/api/stocks/sell", (req, res) => {
 //   SHOOTER RELAY (Socket.IO)
 // ============================================================
 // Shooter rooms are just regular rooms with mode "blitz".
-// Server relays positions and bullets between players. No server-side physics.
+// Server relays positions and bullets between players. No server-side physics
+// for humans, but bots are fully simulated server-side.
 const shooterStates = new Map(); // roomCode -> { players: {id: {x,y,angle,hp,name,color}} }
+
+// Shared constants (must match client)
+const SH_W = 800, SH_H = 500, SH_PLAYER_R = 14, SH_BULLET_R = 4;
+const SH_BULLET_SPEED = 12, SH_PLAYER_SPEED = 3.2, SH_FIRE_RATE = 500, SH_MAX_HP = 100;
+const SH_WALLS = [
+  {x:200,y:100,w:20,h:180},{x:580,y:220,w:20,h:180},
+  {x:300,y:350,w:200,h:20},{x:100,y:250,w:120,h:20},
+  {x:580,y:80,w:120,h:20},{x:380,y:150,w:20,h:120},
+];
+const SH_BOT_COLORS = ['#e04858','#4caf50','#f5a623','#7c3aed','#f472b6','#15803d','#c89020','#38bdf8','#dc2626','#6366f1'];
+
+// Per-room bot state
+const shooterBots = new Map(); // roomCode -> Map<botId, botState>
+
+function shCollideWall(x, y, r) {
+  for (const w of SH_WALLS) {
+    const cx = Math.max(w.x, Math.min(x, w.x + w.w));
+    const cy = Math.max(w.y, Math.min(y, w.y + w.h));
+    if (Math.sqrt((x-cx)**2 + (y-cy)**2) < r) return true;
+  }
+  return false;
+}
+
+function shSpawnPos() {
+  let x, y, tries = 0;
+  do { x = 60 + Math.random()*(SH_W-120); y = 60 + Math.random()*(SH_H-120); tries++; }
+  while (shCollideWall(x, y, SH_PLAYER_R+4) && tries < 50);
+  return { x, y };
+}
+
+function initShooterBots(roomCode, room) {
+  const bots = new Map();
+  for (const [pid, p] of room.players) {
+    if (!isBot(pid)) continue;
+    const sp = shSpawnPos();
+    bots.set(pid, {
+      x: sp.x, y: sp.y, angle: Math.random()*Math.PI*2,
+      hp: SH_MAX_HP, name: p.name,
+      color: SH_BOT_COLORS[Math.abs(pid.charCodeAt(4)||0) % SH_BOT_COLORS.length],
+      lastFire: 0, targetId: null,
+      // Movement AI state
+      moveAngle: Math.random()*Math.PI*2, moveTimer: 0, strafeDir: 1,
+    });
+  }
+  shooterBots.set(roomCode, bots);
+  // Seed their positions into the state broadcast
+  if (!shooterStates.has(roomCode)) shooterStates.set(roomCode, { players: {} });
+  const state = shooterStates.get(roomCode);
+  for (const [bid, b] of bots) {
+    state.players[bid] = { x: b.x, y: b.y, angle: b.angle, hp: b.hp, name: b.name, color: b.color };
+  }
+}
+
+// Bot tick — called at ~15fps from the existing state broadcast interval
+function tickShooterBots(roomCode) {
+  const bots = shooterBots.get(roomCode);
+  if (!bots || bots.size === 0) return;
+  const state = shooterStates.get(roomCode);
+  if (!state) return;
+  const now = Date.now();
+  const allPlayers = state.players; // includes bots + humans
+
+  for (const [bid, bot] of bots) {
+    if (bot.hp <= 0) continue;
+
+    // Find nearest alive enemy (non-self)
+    let nearDist = Infinity, nearId = null, nearX = 0, nearY = 0;
+    for (const [pid, p] of Object.entries(allPlayers)) {
+      if (pid === bid || !p || p.hp <= 0) continue;
+      const d = Math.sqrt((bot.x-p.x)**2 + (bot.y-p.y)**2);
+      if (d < nearDist) { nearDist = d; nearId = pid; nearX = p.x; nearY = p.y; }
+    }
+
+    // Movement: approach nearest enemy with some strafing
+    if (nearId) {
+      const toAngle = Math.atan2(nearY - bot.y, nearX - bot.x);
+      // Strafe perpendicular when close
+      bot.moveTimer--;
+      if (bot.moveTimer <= 0) { bot.strafeDir = Math.random() > 0.5 ? 1 : -1; bot.moveTimer = 20 + Math.floor(Math.random()*40); }
+      let moveA;
+      if (nearDist < 120) {
+        // Strafe at 90 degrees
+        moveA = toAngle + bot.strafeDir * Math.PI/2;
+      } else if (nearDist < 250) {
+        // Approach at an angle
+        moveA = toAngle + bot.strafeDir * 0.4;
+      } else {
+        // Run straight toward
+        moveA = toAngle;
+      }
+      const dx = Math.cos(moveA) * SH_PLAYER_SPEED;
+      const dy = Math.sin(moveA) * SH_PLAYER_SPEED;
+      const nx = Math.max(SH_PLAYER_R, Math.min(SH_W - SH_PLAYER_R, bot.x + dx));
+      const ny = Math.max(SH_PLAYER_R, Math.min(SH_H - SH_PLAYER_R, bot.y + dy));
+      if (!shCollideWall(nx, bot.y, SH_PLAYER_R)) bot.x = nx;
+      if (!shCollideWall(bot.x, ny, SH_PLAYER_R)) bot.y = ny;
+
+      // Aim at target with slight inaccuracy
+      bot.angle = toAngle + (Math.random() - 0.5) * 0.2;
+
+      // Shoot if in range and fire cooldown elapsed
+      if (nearDist < 350 && now - bot.lastFire > SH_FIRE_RATE) {
+        bot.lastFire = now;
+        const bx = bot.x + Math.cos(bot.angle) * SH_PLAYER_R;
+        const by = bot.y + Math.sin(bot.angle) * SH_PLAYER_R;
+        io.to(roomCode).emit('shooter:bullet', {
+          x: bx, y: by,
+          vx: Math.cos(bot.angle) * SH_BULLET_SPEED,
+          vy: Math.sin(bot.angle) * SH_BULLET_SPEED,
+          owner: bid
+        });
+      }
+    } else {
+      // No targets: wander randomly
+      bot.moveTimer--;
+      if (bot.moveTimer <= 0) { bot.moveAngle = Math.random()*Math.PI*2; bot.moveTimer = 30 + Math.floor(Math.random()*60); }
+      const dx = Math.cos(bot.moveAngle) * SH_PLAYER_SPEED * 0.6;
+      const dy = Math.sin(bot.moveAngle) * SH_PLAYER_SPEED * 0.6;
+      const nx = Math.max(SH_PLAYER_R, Math.min(SH_W-SH_PLAYER_R, bot.x+dx));
+      const ny = Math.max(SH_PLAYER_R, Math.min(SH_H-SH_PLAYER_R, bot.y+dy));
+      if (!shCollideWall(nx, bot.y, SH_PLAYER_R)) bot.x = nx;
+      if (!shCollideWall(bot.x, ny, SH_PLAYER_R)) bot.y = ny;
+    }
+
+    // Update state broadcast entry
+    allPlayers[bid] = { x: bot.x, y: bot.y, angle: bot.angle, hp: bot.hp, name: bot.name, color: bot.color };
+  }
+}
+
+// Handle hits on bots (human clients detect collisions and send shooter:hit)
+function handleBotHit(roomCode, victimId, damage, attackerId) {
+  const bots = shooterBots.get(roomCode);
+  if (!bots) return false;
+  const bot = bots.get(victimId);
+  if (!bot || bot.hp <= 0) return false;
+  bot.hp = Math.max(0, bot.hp - damage);
+  if (bot.hp <= 0) {
+    // Bot died — emit kill event and respawn after delay
+    io.to(roomCode).emit('shooter:kill', { killer: attackerId, victim: victimId });
+    setTimeout(() => {
+      if (!bots.has(victimId)) return;
+      const sp = shSpawnPos();
+      bot.x = sp.x; bot.y = sp.y; bot.hp = SH_MAX_HP;
+      bot.angle = Math.random()*Math.PI*2;
+    }, 1500);
+  }
+  // Update state
+  const state = shooterStates.get(roomCode);
+  if (state?.players[victimId]) state.players[victimId].hp = bot.hp;
+  return true;
+}
+
+function cleanupShooterBots(roomCode) {
+  shooterBots.delete(roomCode);
+}
 
 function setupShooterRelay(socket, roomCode) {
   socket.on('shooter:move', (data) => {
@@ -816,17 +982,23 @@ function setupShooterRelay(socket, roomCode) {
     socket.to(roomCode).emit('shooter:bullet', { ...b, owner: socket.id });
   });
   socket.on('shooter:hit', ({ victim, damage }) => {
-    io.to(roomCode).emit('shooter:hit', { victim, damage, attacker: socket.id });
+    // Check if victim is a bot — handle server-side
+    if (isBot(victim)) {
+      handleBotHit(roomCode, victim, damage, socket.id);
+    } else {
+      io.to(roomCode).emit('shooter:hit', { victim, damage, attacker: socket.id });
+    }
   });
   socket.on('shooter:died', ({ killer }) => {
     io.to(roomCode).emit('shooter:kill', { killer, victim: socket.id });
   });
 }
 
-// Broadcast shooter state at 15fps
+// Broadcast shooter state at 15fps + tick bots
 setInterval(() => {
   for (const [code, state] of shooterStates) {
-    if (Object.keys(state.players).length === 0) { shooterStates.delete(code); continue; }
+    if (Object.keys(state.players).length === 0) { shooterStates.delete(code); cleanupShooterBots(code); continue; }
+    tickShooterBots(code);
     io.to(code).emit('shooter:state', state.players);
   }
 }, 66);
@@ -1147,14 +1319,19 @@ function gameSnapshot(room) {
   const g = room.game;
   if (!g) return null;
 
+  // Blitz has a minimal game object (no scores, rounds, etc.) — return early
+  if (g.type === "blitz") {
+    return { type: "blitz", phase: g.phase };
+  }
+
   const snap = {
-    type: g.type,          // "frequency" or "wordspy"
+    type: g.type,
     phase: g.phase,
-    round: g.round,
-    totalRounds: g.totalRounds,
-    scores: Object.fromEntries(g.scores),
+    round: g.round || 1,
+    totalRounds: g.totalRounds || 1,
+    scores: g.scores ? Object.fromEntries(g.scores) : {},
     timerEnd: g.timerEnd || null,
-    playerCount: g.activePlayers.size,
+    playerCount: g.activePlayers ? g.activePlayers.size : 0,
     roundScoreDeltas: g.roundScoreDeltas || {}
   };
 
@@ -1588,6 +1765,11 @@ function startNextRound(room) {
 
 function backToLobby(room) {
   clearRoomTimer(room);
+  // Clean up blitz bot state if it was a blitz game
+  if (room.game?.type === "blitz") {
+    shooterStates.delete(room.code);
+    cleanupShooterBots(room.code);
+  }
   room.game = null;
   room.mode = null;
   // Move spectators back to players
@@ -2843,10 +3025,19 @@ function c4MaybeBotTurn(room) {
 // Point values: 8 = 50, face cards (J/Q/K) = 10, A = 1, 2-7/9-10 = face value
 const C8_SUITS = ["H","D","C","S"];
 const C8_RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+const C8_SPECIAL_RANKS = ["S","R","+2"]; // per-suit specials (1 each per suit)
+const C8_WILD_RANKS = ["+4","SC"];         // suitless wilds (2 of each)
+const C8_IS_WILD = new Set(["8","+4","SC"]);
+const C8_IS_ACTION = new Set(["S","R","+2","+4","SC"]);
 
 function c8NewDeck() {
   const deck = [];
+  // Standard cards: 2-A in each suit (includes 8s as basic wilds)
   for (const s of C8_SUITS) for (const r of C8_RANKS) deck.push({ suit: s, rank: r });
+  // Action cards: Skip, Reverse, +2 — one per suit
+  for (const s of C8_SUITS) for (const r of C8_SPECIAL_RANKS) deck.push({ suit: s, rank: r });
+  // Wild cards: +4 and Stack-Color — 2 of each, no suit
+  for (const r of C8_WILD_RANKS) { deck.push({ suit: "W", rank: r }); deck.push({ suit: "W", rank: r }); }
   // Shuffle (Fisher-Yates)
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -2856,10 +3047,11 @@ function c8NewDeck() {
 }
 
 function c8CardPoints(card) {
-  if (card.rank === "8") return 50;
+  if (C8_IS_WILD.has(card.rank)) return 50;
+  if (C8_IS_ACTION.has(card.rank)) return 20;
   if (["J","Q","K"].includes(card.rank)) return 10;
   if (card.rank === "A") return 1;
-  return parseInt(card.rank);
+  return parseInt(card.rank) || 0;
 }
 
 function c8HandPoints(hand) {
@@ -2867,9 +3059,9 @@ function c8HandPoints(hand) {
 }
 
 function c8CanPlay(card, topCard, activeSuit) {
-  if (card.rank === "8") return true; // 8s are always playable (wild)
-  if (card.suit === (activeSuit || topCard.suit)) return true;
-  if (card.rank === topCard.rank) return true;
+  if (C8_IS_WILD.has(card.rank)) return true; // 8, +4, SC always playable
+  if (card.suit === (activeSuit || topCard.suit)) return true; // suit match
+  if (card.rank === topCard.rank) return true; // rank match (including S on S, R on R, +2 on +2)
   return false;
 }
 
@@ -2883,11 +3075,11 @@ function startCrazy8Game(room, numRounds) {
   for (const pid of playerIds) {
     hands.set(pid, deck.splice(0, cardsPerHand));
   }
-  // Flip first card to discard — if it's an 8, bury it and try again
+  // Flip first card to discard — skip wilds and action cards
   let firstCard;
   do {
     firstCard = deck.shift();
-    if (firstCard.rank === "8") { deck.push(firstCard); firstCard = null; }
+    if (C8_IS_WILD.has(firstCard.rank) || C8_IS_ACTION.has(firstCard.rank)) { deck.push(firstCard); firstCard = null; }
   } while (!firstCard);
 
   room.game = {
@@ -2916,10 +3108,34 @@ function startCrazy8Game(room, numRounds) {
 function c8TopCard(g) { return g.discardPile[g.discardPile.length - 1]; }
 function c8CurrentPlayer(g) { return g.playerIds[g.turnIdx]; }
 
+// Auto-reshuffle: when the draw pile gets low (≤5 cards), scoop up the discard
+// pile (except the top card), shuffle it back in, and notify clients for animation.
+const C8_RESHUFFLE_THRESHOLD = 5;
+function c8MaybeReshuffle(room) {
+  const g = room.game;
+  if (!g || g.type !== "crazy8") return false;
+  if (g.drawPile.length > C8_RESHUFFLE_THRESHOLD) return false;
+  if (g.discardPile.length <= 1) return false; // nothing to reclaim
+  const top = g.discardPile.pop();
+  const reclaimed = g.discardPile;
+  g.discardPile = [top];
+  // Shuffle reclaimed cards
+  for (let i = reclaimed.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [reclaimed[i], reclaimed[j]] = [reclaimed[j], reclaimed[i]];
+  }
+  g.drawPile.push(...reclaimed);
+  // Notify all clients so they can show the reshuffle animation
+  io.to(room.code).emit("game:c8Reshuffle", { newDrawCount: g.drawPile.length });
+  addSystemMessage(room, `🔄 Draw pile reshuffled! (${g.drawPile.length} cards)`);
+  return true;
+}
+
 function c8AdvanceTurn(room) {
   const g = room.game;
   g.turnIdx = (g.turnIdx + g.direction + g.playerIds.length) % g.playerIds.length;
   g.drewThisTurn = false;
+  c8MaybeReshuffle(room);
   broadcastRoom(room);
   c8MaybeBotTurn(room);
 }
@@ -2932,44 +3148,133 @@ function c8HandlePlay(room, socketId, cardIdx, chosenSuit) {
   if (!hand || cardIdx < 0 || cardIdx >= hand.length) return;
   const card = hand[cardIdx];
   if (!c8CanPlay(card, c8TopCard(g), g.activeSuit)) return;
+
   // Play the card
   hand.splice(cardIdx, 1);
   g.discardPile.push(card);
-  g.lastPlay = { playerId: socketId, card, playerName: room.players.get(socketId)?.name || "???" };
-  // Handle 8 (wild) — set the chosen suit
-  if (card.rank === "8") {
-    g.activeSuit = (chosenSuit && C8_SUITS.includes(chosenSuit)) ? chosenSuit : card.suit;
+  const playerName = room.players.get(socketId)?.name || "???";
+  g.lastPlay = { playerId: socketId, card, playerName };
+
+  // Resolve suit (wilds pick a suit)
+  if (C8_IS_WILD.has(card.rank)) {
+    g.activeSuit = (chosenSuit && C8_SUITS.includes(chosenSuit)) ? chosenSuit : (card.suit !== "W" ? card.suit : "H");
   } else {
     g.activeSuit = card.suit;
   }
+
+  // === Stack-Color (SC) — play ALL cards of the chosen suit from hand ===
+  if (card.rank === "SC") {
+    const stackSuit = g.activeSuit;
+    const stacked = [];
+    for (let i = hand.length - 1; i >= 0; i--) {
+      if (hand[i].suit === stackSuit) { stacked.push(hand[i]); g.discardPile.push(hand[i]); hand.splice(i, 1); }
+    }
+    if (stacked.length > 0) {
+      g.lastPlay.stacked = stacked;
+      addSystemMessage(room, `🃏 ${playerName} stacked ${stacked.length} ${stackSuit === "H"?"♥":stackSuit==="D"?"♦":stackSuit==="C"?"♣":"♠"} card${stacked.length!==1?"s":""}!`);
+    }
+  }
+
   // Check if this player won the round
   if (hand.length === 0) {
     c8EndRound(room, socketId);
     return;
   }
+
+  // === Apply action effects before advancing turn ===
+  if (card.rank === "S") {
+    // Skip — advance past next player
+    addSystemMessage(room, `⏭ ${playerName} played Skip!`);
+    c8AdvanceTurn(room); // move to next player
+    c8AdvanceTurn(room); // skip them
+    return;
+  }
+  if (card.rank === "R") {
+    // Reverse direction (in 2-player acts like skip)
+    g.direction *= -1;
+    addSystemMessage(room, `🔄 ${playerName} reversed!`);
+    if (g.playerIds.length === 2) {
+      // In 2-player, reverse = skip (you go again after advancing)
+      c8AdvanceTurn(room);
+      c8AdvanceTurn(room);
+    } else {
+      c8AdvanceTurn(room);
+    }
+    return;
+  }
+  if (card.rank === "+2") {
+    // Draw Two — next player draws 2 and loses turn
+    c8AdvanceTurnRaw(g);
+    const victim = c8CurrentPlayer(g);
+    c8ForceDrawCards(room, victim, 2);
+    addSystemMessage(room, `➕ ${playerName} played +2! ${room.players.get(victim)?.name || "???"} draws 2.`);
+    c8AdvanceTurn(room); // skip their turn
+    return;
+  }
+  if (card.rank === "+4") {
+    // Wild Draw Four — next player draws 4 and loses turn
+    c8AdvanceTurnRaw(g);
+    const victim = c8CurrentPlayer(g);
+    c8ForceDrawCards(room, victim, 4);
+    addSystemMessage(room, `🔥 ${playerName} played +4! ${room.players.get(victim)?.name || "???"} draws 4.`);
+    c8AdvanceTurn(room); // skip their turn
+    return;
+  }
+
+  // Normal card or 8 (wild) — just advance
   c8AdvanceTurn(room);
+}
+
+// Advance turn index without broadcasting (used internally before applying effects)
+function c8AdvanceTurnRaw(g) {
+  g.turnIdx = (g.turnIdx + g.direction + g.playerIds.length) % g.playerIds.length;
+  g.drewThisTurn = false;
+}
+
+// Force a player to draw N cards from the pile
+function c8ForceDrawCards(room, playerId, count) {
+  const g = room.game;
+  const hand = g.hands.get(playerId);
+  if (!hand) return;
+  for (let i = 0; i < count; i++) {
+    if (g.drawPile.length === 0) {
+      // Reshuffle discard (keep top card)
+      const top = g.discardPile.pop();
+      g.drawPile = g.discardPile;
+      g.discardPile = [top];
+      for (let j = g.drawPile.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [g.drawPile[j], g.drawPile[k]] = [g.drawPile[k], g.drawPile[j]];
+      }
+    }
+    if (g.drawPile.length === 0) break;
+    hand.push(g.drawPile.pop());
+  }
+  // Notify the player what they drew
+  if (!isBot(playerId)) {
+    const sock = io.sockets.sockets.get(playerId);
+    if (sock) sock.emit("game:c8Hand", { hand });
+  }
 }
 
 function c8HandleDraw(room, socketId) {
   const g = room.game;
   if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
   if (c8CurrentPlayer(g) !== socketId) return;
-  if (g.drewThisTurn) return; // already drew — must pass
+  if (g.drewThisTurn) return; // already drew this turn
   // If draw pile is empty, shuffle discard pile back in (keep top card)
   if (g.drawPile.length === 0) {
     const top = g.discardPile.pop();
     g.drawPile = g.discardPile;
     g.discardPile = [top];
-    // Shuffle draw pile
     for (let i = g.drawPile.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [g.drawPile[i], g.drawPile[j]] = [g.drawPile[j], g.drawPile[i]];
     }
   }
   if (g.drawPile.length === 0) {
-    // Extremely rare: no cards left at all. Force pass.
-    g.drewThisTurn = true;
-    broadcastRoom(room);
+    // No cards left at all — skip turn
+    c8AdvanceTurn(room);
     return;
   }
   const drawn = g.drawPile.pop();
@@ -2978,22 +3283,32 @@ function c8HandleDraw(room, socketId) {
   // Notify only the drawing player what they got (bots don't need this)
   if (!isBot(socketId)) {
     const sock = io.sockets.sockets.get(socketId);
-    if (sock) sock.emit("game:c8Drew", { card: drawn });
+    const drawnPlayable = c8CanPlay(drawn, c8TopCard(g), g.activeSuit);
+    if (sock) sock.emit("game:c8Drew", { card: drawn, canPlay: drawnPlayable });
+  }
+  // Check if the drawn card (or any card now) is playable.
+  // If nothing is playable, auto-advance — no pass button needed.
+  const hand = g.hands.get(socketId);
+  const top = c8TopCard(g);
+  const hasPlayable = hand.some(c => c8CanPlay(c, top, g.activeSuit));
+  if (!hasPlayable) {
+    // Brief delay so the player sees the drawn card before turn moves on
+    broadcastRoom(room);
+    setTimeout(() => {
+      if (g.phase === "crazy8-playing" && c8CurrentPlayer(g) === socketId) {
+        c8AdvanceTurn(room);
+      }
+    }, isBot(socketId) ? 400 : 800);
+    return;
   }
   broadcastRoom(room);
-  // If bot drew, let the bot AI decide whether to play the drawn card
+  // If bot drew, let the bot AI decide what to play
   if (isBot(socketId)) {
     setTimeout(() => c8BotAfterDraw(room, socketId, drawn), 500 + Math.random() * 500);
   }
 }
 
-function c8HandlePass(room, socketId) {
-  const g = room.game;
-  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
-  if (c8CurrentPlayer(g) !== socketId) return;
-  if (!g.drewThisTurn) return; // must draw first before passing
-  c8AdvanceTurn(room);
-}
+// c8HandlePass removed — drawing auto-advances if nothing is playable
 
 function c8EndRound(room, winnerId) {
   const g = room.game;
@@ -3027,7 +3342,7 @@ function c8NextRound(room, socketId) {
   g.hands = new Map();
   for (const pid of g.playerIds) g.hands.set(pid, deck.splice(0, cardsPerHand));
   let firstCard;
-  do { firstCard = deck.shift(); if (firstCard.rank === "8") { deck.push(firstCard); firstCard = null; } } while (!firstCard);
+  do { firstCard = deck.shift(); if (C8_IS_WILD.has(firstCard.rank) || C8_IS_ACTION.has(firstCard.rank)) { deck.push(firstCard); firstCard = null; } } while (!firstCard);
   g.drawPile = deck;
   g.discardPile = [firstCard];
   g.activeSuit = firstCard.suit;
@@ -3052,9 +3367,8 @@ function c8FinishGame(room) {
 
 // ── Crazy Eights Bot AI ──
 function c8BotPickSuit(hand) {
-  // Pick the suit we hold the most of (excluding 8s)
   const counts = { H: 0, D: 0, C: 0, S: 0 };
-  for (const c of hand) if (c.rank !== "8") counts[c.suit]++;
+  for (const c of hand) if (c.suit !== "W" && !C8_IS_WILD.has(c.rank)) counts[c.suit]++;
   let best = "H", bestN = -1;
   for (const [s, n] of Object.entries(counts)) if (n > bestN) { bestN = n; best = s; }
   return best;
@@ -3066,12 +3380,14 @@ function c8BotChooseCard(hand, topCard, activeSuit) {
     if (c8CanPlay(hand[i], topCard, activeSuit)) playable.push(i);
   }
   if (playable.length === 0) return -1;
-  // Prefer non-8s first (save wilds), then prefer matching the suit we have most of
-  const nonWild = playable.filter(i => hand[i].rank !== "8");
-  const pool = nonWild.length > 0 ? nonWild : playable;
-  // Among candidates, prefer high-value cards to dump points early
-  pool.sort((a, b) => c8CardPoints(hand[b]) - c8CardPoints(hand[a]));
-  return pool[0];
+  // Priority: +2/+4 > Skip/Reverse > normal high-value > wilds (save)
+  const pri = (r) => { if (r==="+2"||r==="+4") return 4; if (r==="S"||r==="R") return 3; if (C8_IS_WILD.has(r)) return 0; return 2; };
+  playable.sort((a, b) => {
+    const pa = pri(hand[a].rank), pb = pri(hand[b].rank);
+    if (pa !== pb) return pb - pa;
+    return c8CardPoints(hand[b]) - c8CardPoints(hand[a]);
+  });
+  return playable[0];
 }
 
 function c8MaybeBotTurn(room) {
@@ -3085,7 +3401,7 @@ function c8MaybeBotTurn(room) {
   setTimeout(() => {
     if (cardIdx >= 0) {
       const card = hand[cardIdx];
-      const suit = card.rank === "8" ? c8BotPickSuit(hand) : undefined;
+      const suit = C8_IS_WILD.has(card.rank) ? c8BotPickSuit(hand) : undefined;
       c8HandlePlay(room, pid, cardIdx, suit);
     } else {
       c8HandleDraw(room, pid);
@@ -3098,14 +3414,11 @@ function c8BotAfterDraw(room, botId, drawnCard) {
   if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
   if (c8CurrentPlayer(g) !== botId) return;
   const hand = g.hands.get(botId);
-  // Check if the drawn card (now last in hand) is playable
   const top = c8TopCard(g);
   if (c8CanPlay(drawnCard, top, g.activeSuit)) {
     const idx = hand.indexOf(drawnCard);
-    const suit = drawnCard.rank === "8" ? c8BotPickSuit(hand) : undefined;
+    const suit = C8_IS_WILD.has(drawnCard.rank) ? c8BotPickSuit(hand) : undefined;
     c8HandlePlay(room, botId, idx, suit);
-  } else {
-    c8HandlePass(room, botId);
   }
 }
 
@@ -3665,8 +3978,11 @@ io.on("connection", (socket) => {
       }
       // Blitz is real-time, not turn-based. Set up relay and tell clients.
       room.game = { type: "blitz", phase: "playing" };
+      // Init bot players server-side before setting up relays
+      initShooterBots(room.code, room);
       setupShooterRelay(socket, room.code);
       for (const [pid] of room.players) {
+        if (isBot(pid)) continue; // bots don't have sockets
         const s = io.sockets.sockets.get(pid);
         if (s && s !== socket) setupShooterRelay(s, room.code);
       }
@@ -3781,14 +4097,6 @@ io.on("connection", (socket) => {
     const room = rooms.get(code);
     if (!room) return ack?.({ error: "Room gone" });
     c8HandleDraw(room, socket.id);
-    ack?.({ ok: true });
-  });
-  socket.on("game:c8Pass", (_, ack) => {
-    const code = socketToRoom.get(socket.id);
-    if (!code) return ack?.({ error: "Not in a room" });
-    const room = rooms.get(code);
-    if (!room) return ack?.({ error: "Room gone" });
-    c8HandlePass(room, socket.id);
     ack?.({ ok: true });
   });
 

@@ -219,7 +219,7 @@ function checkNewUserNotice() {
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-profile","page-market","page-achievements","page-friends"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-yohoho","page-profile","page-market","page-achievements","page-friends"];
 
 function showPage(id) {
   const outgoing = PAGES.find(p => !$(p)?.hidden && p !== id);
@@ -238,7 +238,7 @@ function showPage(id) {
       el.style.animation = '';
     }
   });
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends"};
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-yohoho":"yohoho","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
   if (user && !GCHAT_HIDDEN_PAGES.has(id)) showGChat();
   else hideGChat();
@@ -249,7 +249,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "yohoho" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -258,6 +258,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "shop") loadShop();
     if (l.dataset.page === "settings") loadSettings();
     if (l.dataset.page === "play") { prefillName(); loadRoomBrowser(); }
+    if (l.dataset.page === "yohoho") renderYHCharacters();
     if (l.dataset.page === "leaderboard") loadLeaderboard();
     if (l.dataset.page === "achievements") loadAchievements();
     if (l.dataset.page === "profile") loadProfile();
@@ -506,7 +507,12 @@ function switchToGame(snap) {
   updateRound(snap.game); syncChat(); renderPhase(snap); showPage("page-game");
 }
 
-function updateRound(g) { if (g) $("game-round-badge").textContent = `Round ${g.round}/${g.totalRounds}`; }
+function updateRound(g) {
+  if (!g) return;
+  // Blitz is real-time with no rounds
+  if (g.type === "blitz") { $("game-round-badge").textContent = "Live"; return; }
+  $("game-round-badge").textContent = `Round ${g.round || 1}/${g.totalRounds || 1}`;
+}
 
 function renderPhase(snap) {
   const g = snap.game; if (!g) return;
@@ -613,7 +619,7 @@ function renderIntermission(snap) {
 
 function renderGameOver(snap) {
   $("phase-gameover").hidden = false; const g = snap.game, amHost = me && snap.hostId === me.id;
-  if (!coinsAwarded && me && g.scores[me.id] !== undefined) { coinsAwarded = true; /* coins awarded server-side, just refresh user */ checkSession(); }
+  if (!coinsAwarded && me && g.scores[me.id] !== undefined) { coinsAwarded = true; refreshUser(); }
   const sb = snap.players.filter(p => g.scores[p.id] !== undefined).map(p => ({ ...p, score: g.scores[p.id] || 0 })).sort((a, b) => b.score - a.score);
   const c = $("final-scoreboard"); c.innerHTML = "";
   sb.forEach((p, i) => { const isMe = me && p.id === me.id; const m = i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`; const d = document.createElement("div"); d.className = `scoreboard-entry ${i===0?"scoreboard-winner":""} ${isMe?"scoreboard-me":""}`; d.innerHTML = `<span class="scoreboard-rank">${m}</span><span class="scoreboard-name">${esc(p.name)}${isMe?" (you)":""}</span><span class="scoreboard-score">${p.score} pts</span>`; c.appendChild(d); });
@@ -761,6 +767,10 @@ socket.on("room:update", snap => {
     myChainRole = null; hasAccused = false; coinsAwarded = false;
     myEchoPrompt = null; hasSubmittedEchoAnswer = false;
     c8MyHand = [];
+    c8LastPlayId = null;
+    c8DrawnCard = null;
+    c8DrawnCanPlay = false;
+    hideDrawnCardPrompt();
     clearTI();
     showPage("page-room");
   }
@@ -1361,23 +1371,89 @@ $("c4-next-round-btn").addEventListener("click", () => socket.emit("game:nextRou
 const C8_SUIT_SYMBOLS = { H: "♥", D: "♦", C: "♣", S: "♠" };
 let c8MyHand = [];
 let c8PendingWild = -1;
+let c8LastPlayId = null;
+let c8DrawnCard = null;
+let c8DrawnCanPlay = false;
 
-socket.on("game:c8Hand", ({ hand }) => { c8MyHand = hand || []; });
-socket.on("game:c8Drew", ({ card }) => {
-  if (card) c8MyHand.push(card);
+socket.on("game:c8Hand", ({ hand }) => {
+  c8MyHand = hand || [];
+  c8DrawnCard = null; c8DrawnCanPlay = false;
+  hideDrawnCardPrompt();
   if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
+});
+socket.on("game:c8Drew", ({ card, canPlay }) => {
+  if (card) c8MyHand.push(card);
+  c8DrawnCard = card || null;
+  c8DrawnCanPlay = !!canPlay;
+  if (currentRoom?.game?.phase === "crazy8-playing") {
+    renderC8Hand(currentRoom);
+    if (c8DrawnCard && c8DrawnCanPlay) showDrawnCardPrompt(c8DrawnCard);
+    else hideDrawnCardPrompt();
+  }
+});
+
+// Reshuffle animation — cards fly from discard pile back to draw pile
+socket.on("game:c8Reshuffle", ({ newDrawCount }) => {
+  const discard = document.querySelector('.c8-discard');
+  const draw = document.querySelector('.c8-draw-pile');
+  const tableLayout = document.querySelector('.c8-table-layout');
+  if (!discard || !draw || !tableLayout) return;
+  const tableRect = tableLayout.getBoundingClientRect();
+  const discardRect = discard.getBoundingClientRect();
+  const drawRect = draw.getBoundingClientRect();
+  const fromX = discardRect.left - tableRect.left + discardRect.width / 2;
+  const fromY = discardRect.top - tableRect.top + discardRect.height / 2;
+  const toX = drawRect.left - tableRect.left + drawRect.width / 2;
+  const toY = drawRect.top - tableRect.top + drawRect.height / 2;
+  // Spawn 6 card-backs flying from discard → draw pile
+  const count = 6;
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const card = document.createElement('div');
+      card.className = 'c8-reshuffle-card';
+      card.innerHTML = '✦';
+      card.style.cssText = `position:absolute;left:${fromX - 18}px;top:${fromY - 26}px;z-index:25;
+        width:36px;height:52px;border-radius:6px;background:linear-gradient(145deg,#c41e3a,#8b0000);
+        color:rgba(255,255,255,0.4);font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;
+        border:1.5px solid rgba(255,255,255,0.15);box-shadow:0 4px 12px rgba(0,0,0,0.4);
+        transition:all .45s cubic-bezier(.2,.8,.3,1);pointer-events:none;`;
+      tableLayout.appendChild(card);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        card.style.left = `${toX - 18}px`;
+        card.style.top = `${toY - 26}px`;
+        card.style.transform = `rotate(${(Math.random() - 0.5) * 30}deg) scale(0.8)`;
+        card.style.opacity = '0.7';
+      }));
+      setTimeout(() => card.remove(), 500);
+    }, i * 80);
+  }
+  // Flash the draw pile count after all cards land
+  setTimeout(() => {
+    const countEl = $('c8-draw-count');
+    if (countEl) {
+      countEl.textContent = newDrawCount;
+      countEl.style.transform = 'scale(1.4)';
+      countEl.style.transition = 'transform .2s';
+      setTimeout(() => { countEl.style.transform = ''; }, 300);
+    }
+  }, count * 80 + 400);
+  playSound('click');
 });
 
 function c8CardHTML(card, opts = {}) {
-  const suit = C8_SUIT_SYMBOLS[card.suit] || "?";
-  const isWild = card.rank === "8";
-  const suitCls = `suit-${card.suit}`;
-  const wildCls = isWild ? "rank-8" : "";
+  const suit = C8_SUIT_SYMBOLS[card.suit] || "";
+  const isWild = ["8","+4","SC"].includes(card.rank);
+  const suitCls = card.suit === "W" ? "suit-wild" : `suit-${card.suit}`;
+  const wildCls = isWild ? "rank-wild" : "";
+  const actionCls = ["S","R","+2","+4","SC"].includes(card.rank) ? "rank-action" : "";
   const sizeCls = opts.small ? "c8-card-sm" : "";
   const playCls = opts.playable ? "playable" : "";
-  const cls = `c8-card ${suitCls} ${wildCls} ${sizeCls} ${playCls}`.trim();
+  const cls = `c8-card ${suitCls} ${wildCls} ${actionCls} ${sizeCls} ${playCls}`.trim();
+  // Display labels for special cards
+  const rankLabels = { "S": "⊘", "R": "⟳", "+2": "+2", "+4": "+4", "SC": "★" };
+  const rankText = rankLabels[card.rank] || card.rank;
   return `<div class="${cls}" ${opts.idx !== undefined ? `data-idx="${opts.idx}"` : ""}>
-    <span class="c8-card-rank">${card.rank}</span>
+    <span class="c8-card-rank">${rankText}</span>
     <span class="c8-card-suit">${suit}</span>
   </div>`;
 }
@@ -1386,6 +1462,11 @@ function renderC8Playing(snap) {
   $("phase-crazy8-playing").hidden = false;
   const g = snap.game;
   const myTurn = me && g.currentTurn === me.id;
+
+  // Detect if a new card was just played (for animation)
+  const playKey = g.lastPlay ? `${g.lastPlay.playerId}-${g.lastPlay.card?.rank}-${g.lastPlay.card?.suit}-${Date.now()>>8}` : null;
+  const isNewPlay = playKey && playKey !== c8LastPlayId;
+  c8LastPlayId = playKey;
 
   // Opponents — face-down card fans
   const opps = $("c8-opponents"); opps.innerHTML = "";
@@ -1397,6 +1478,7 @@ function renderC8Playing(snap) {
     const cardCount = g.handSizes?.[pid] || 0;
     const opp = document.createElement("div");
     opp.className = `c8-opp ${isTurn ? "active" : ""}`;
+    opp.dataset.pid = pid;
     let cardsHTML = '<div class="c8-opp-cards">';
     const maxShow = Math.min(cardCount, 8);
     const spread = Math.min(14, maxShow > 1 ? 60 / maxShow : 0);
@@ -1410,13 +1492,17 @@ function renderC8Playing(snap) {
     opps.appendChild(opp);
   }
 
-  // Discard pile top card
+  // Discard pile top card — if a new card was just played, animate it
   const dc = $("c8-discard");
-  dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
+  if (isNewPlay && g.lastPlay?.card) {
+    c8AnimateCardToDiscard(g.lastPlay, dc, g, snap);
+  } else {
+    dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
+  }
 
-  // Active suit badge
+  // Active suit badge — shown when a wild card was played
   const sb = $("c8-suit-badge");
-  if (g.activeSuit && g.topCard?.rank === "8") {
+  if (g.activeSuit && ["8","+4","SC"].includes(g.topCard?.rank)) {
     sb.className = `c8-suit-indicator suit-${g.activeSuit}`;
     sb.textContent = C8_SUIT_SYMBOLS[g.activeSuit];
     sb.hidden = false;
@@ -1429,7 +1515,7 @@ function renderC8Playing(snap) {
   const st = $("c8-status");
   st.classList.remove("your-turn", "opp-turn");
   if (myTurn) {
-    st.textContent = g.drewThisTurn ? "Play the drawn card or pass" : "Your turn — play a card or draw";
+    st.textContent = g.drewThisTurn ? "Play a matching card" : "Your turn — play a card or draw";
     st.classList.add("your-turn");
   } else {
     const turnName = g.playerNames?.[g.currentTurn] || "???";
@@ -1439,14 +1525,78 @@ function renderC8Playing(snap) {
 
   // Actions
   $("c8-draw-btn").disabled = !myTurn || g.drewThisTurn;
-  $("c8-pass-btn").disabled = !myTurn || !g.drewThisTurn;
 
-  // Hide suit picker
+  // Hide suit picker and drawn-card prompt
   $("c8-suit-picker").hidden = true;
   c8PendingWild = -1;
+  // Only hide drawn prompt if it's no longer our turn (if still our turn, keep it)
+  if (!myTurn) hideDrawnCardPrompt();
 
   // Hand
   renderC8Hand(snap);
+}
+
+// Animate a played card flying from origin to the discard pile
+function c8AnimateCardToDiscard(lastPlay, discardEl, g, snap) {
+  const card = lastPlay.card;
+  const playerId = lastPlay.playerId;
+  const isMe = me && playerId === me.id;
+  const tableLayout = document.querySelector('.c8-table-layout');
+  if (!tableLayout) { discardEl.innerHTML = c8CardHTML(card); return; }
+
+  // Determine origin position
+  let originX, originY;
+  const tableRect = tableLayout.getBoundingClientRect();
+  const discardRect = discardEl.getBoundingClientRect();
+  const targetX = discardRect.left - tableRect.left + discardRect.width / 2;
+  const targetY = discardRect.top - tableRect.top + discardRect.height / 2;
+
+  if (isMe) {
+    // From bottom center (player's hand area)
+    const handEl = $("c8-hand");
+    if (handEl) {
+      const hr = handEl.getBoundingClientRect();
+      originX = hr.left - tableRect.left + hr.width / 2;
+      originY = hr.top - tableRect.top + hr.height / 2;
+    } else {
+      originX = targetX;
+      originY = tableRect.height - 40;
+    }
+  } else {
+    // From the opponent's position
+    const oppEl = document.querySelector(`.c8-opp[data-pid="${playerId}"]`);
+    if (oppEl) {
+      const or = oppEl.getBoundingClientRect();
+      originX = or.left - tableRect.left + or.width / 2;
+      originY = or.top - tableRect.top + or.height / 2;
+    } else {
+      originX = targetX;
+      originY = 20;
+    }
+  }
+
+  // Create the flying card
+  const flyDiv = document.createElement("div");
+  flyDiv.innerHTML = c8CardHTML(card);
+  const flyCard = flyDiv.firstElementChild;
+  flyCard.classList.add("c8-card-flying");
+  flyCard.style.cssText = `position:absolute;left:${originX - 36}px;top:${originY - 52}px;z-index:30;transition:all .4s cubic-bezier(.2,.8,.3,1);pointer-events:none;`;
+  tableLayout.appendChild(flyCard);
+
+  // Trigger the animation on next frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      flyCard.style.left = `${targetX - 36}px`;
+      flyCard.style.top = `${targetY - 52}px`;
+      flyCard.style.transform = `rotate(${(Math.random() - 0.5) * 8}deg) scale(1.05)`;
+    });
+  });
+
+  // After animation ends, remove the flying card and show the actual discard
+  setTimeout(() => {
+    flyCard.remove();
+    discardEl.innerHTML = c8CardHTML(card);
+  }, 420);
 }
 
 function renderC8Hand(snap) {
@@ -1464,7 +1614,7 @@ function renderC8Hand(snap) {
     const cardEl = div.firstElementChild;
     if (canPlay) {
       cardEl.addEventListener("click", () => {
-        if (card.rank === "8") {
+        if (["8","+4","SC"].includes(card.rank)) {
           c8PendingWild = i;
           $("c8-suit-picker").hidden = false;
         } else {
@@ -1479,13 +1629,13 @@ function renderC8Hand(snap) {
 
 function c8CanPlayClient(card, topCard, activeSuit) {
   if (!topCard) return false;
-  if (card.rank === "8") return true;
+  if (["8","+4","SC"].includes(card.rank)) return true; // all wilds
   if (card.suit === (activeSuit || topCard.suit)) return true;
   if (card.rank === topCard.rank) return true;
   return false;
 }
 
-// Suit picker for 8s (wild)
+// Suit picker for wilds (8, +4, SC)
 document.querySelectorAll(".c8-suit-opt").forEach(btn => {
   btn.addEventListener("click", () => {
     if (c8PendingWild < 0) return;
@@ -1504,19 +1654,72 @@ document.addEventListener("click", (e) => {
 });
 
 $("c8-draw-btn").addEventListener("click", () => { socket.emit("game:c8Draw"); playSound('click'); });
-$("c8-pass-btn").addEventListener("click", () => { socket.emit("game:c8Pass"); playSound('click'); });
+
+// ── Drawn Card Prompt ──
+// When you draw a playable card, a floating prompt appears over the discard
+// pile showing the drawn card and Yes/No buttons. Clicking Yes plays it,
+// No keeps it in hand (you can still play any other playable card).
+function showDrawnCardPrompt(card) {
+  hideDrawnCardPrompt();
+  const area = document.querySelector('.c8-discard-area');
+  if (!area) return;
+  const prompt = document.createElement('div');
+  prompt.className = 'c8-drawn-prompt';
+  prompt.id = 'c8-drawn-prompt';
+  const cardIdx = c8MyHand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+  prompt.innerHTML = `
+    <div class="c8-drawn-label">Play this card?</div>
+    <div class="c8-drawn-card-wrap">${c8CardHTML(card)}</div>
+    <div class="c8-drawn-btns">
+      <button class="btn c8-drawn-yes" id="c8-drawn-yes">✓ Play</button>
+      <button class="btn c8-drawn-no" id="c8-drawn-no">✗ Keep</button>
+    </div>
+  `;
+  area.appendChild(prompt);
+  // Force reflow then animate in
+  prompt.offsetHeight;
+  prompt.classList.add('visible');
+  $('c8-drawn-yes').addEventListener('click', () => {
+    if (cardIdx < 0) return;
+    if (["8","+4","SC"].includes(card.rank)) {
+      c8PendingWild = cardIdx;
+      hideDrawnCardPrompt();
+      $('c8-suit-picker').hidden = false;
+    } else {
+      socket.emit('game:c8Play', { cardIdx });
+      playSound('click');
+      hideDrawnCardPrompt();
+    }
+  });
+  $('c8-drawn-no').addEventListener('click', () => {
+    hideDrawnCardPrompt();
+    playSound('click');
+  });
+}
+
+function hideDrawnCardPrompt() {
+  const el = document.getElementById('c8-drawn-prompt');
+  if (el) el.remove();
+  c8DrawnCard = null;
+  c8DrawnCanPlay = false;
+}
 
 function renderC8Results(snap) {
   $("phase-crazy8-results").hidden = false;
   const g = snap.game;
   const winnerName = g.lastPlay?.playerName || "???";
+  const isMyWin = me && g.lastPlay?.playerId === me.id;
   $("c8-result-title").textContent = `🏆 ${winnerName} wins the round!`;
+
+  // Win celebration animation
+  showC8WinOverlay(winnerName, isMyWin);
+  if (isMyWin) { playSound('win'); spawnParticles(window.innerWidth/2, window.innerHeight/2, 'confetti'); }
   const rh = $("c8-result-hands"); rh.innerHTML = "";
   if (g.allHands) {
     for (const pid of g.playerIds) {
       const name = g.playerNames?.[pid] || "???";
       const hand = g.allHands[pid] || [];
-      const pts = hand.reduce((s, c) => { if (c.rank === "8") return s+50; if (["J","Q","K"].includes(c.rank)) return s+10; if (c.rank === "A") return s+1; return s+parseInt(c.rank); }, 0);
+      const pts = hand.reduce((s, c) => { if (["8","+4","SC"].includes(c.rank)) return s+50; if (["S","R","+2"].includes(c.rank)) return s+20; if (["J","Q","K"].includes(c.rank)) return s+10; if (c.rank === "A") return s+1; return s+(parseInt(c.rank)||0); }, 0);
       rh.innerHTML += `<div class="c8-result-player"><span class="c8-result-name">${esc(name)}</span><span class="c8-result-pts">${hand.length === 0 ? "Winner!" : `${hand.length} cards (${pts} pts)`}</span>
         <div class="c8-result-cards">${hand.map(c => c8CardHTML(c, { small: true })).join("")}</div></div>`;
     }
@@ -1529,6 +1732,16 @@ function renderC8Results(snap) {
   $("c8-next-round-btn").textContent = g.round >= g.totalRounds ? "🏆 See Final Scores" : "Next Round →";
 }
 $("c8-next-round-btn").addEventListener("click", () => socket.emit("game:nextRound"));
+
+function showC8WinOverlay(name, isMe) {
+  // Remove any existing
+  document.querySelectorAll('.c8-win-overlay').forEach(e => e.remove());
+  const el = document.createElement('div');
+  el.className = 'c8-win-overlay';
+  el.innerHTML = `<div class="c8-win-text">${isMe ? '🎉 You Win!' : `🏆 ${esc(name)} Wins!`}</div><div class="c8-win-sub">${isMe ? 'Nice hand!' : 'Better luck next round'}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
 
 // ============================================================
 //   ROOM BROWSER
@@ -2553,6 +2766,90 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
     syncDungeonAchievements(areasCleared);
   });
 });
+
+// ============================================================
+//   PIRATE ROYALE
+// ============================================================
+let yhSelectedChar = localStorage.getItem('lobby98_yh_char') || 'swab';
+let yhOwnedChars = JSON.parse(localStorage.getItem('lobby98_yh_owned') || '["swab"]');
+
+function renderYHCharacters() {
+  const wrap = document.getElementById('yh-characters');
+  if (!wrap || !window.PirateRoyale) return;
+  wrap.innerHTML = '';
+  for (const ch of window.PirateRoyale.CHARACTERS) {
+    const owned = yhOwnedChars.includes(ch.id);
+    const selected = yhSelectedChar === ch.id;
+    const canBuy = !owned && user && (user.coins || 0) >= ch.cost;
+    const div = document.createElement('div');
+    div.style.cssText = `text-align:center;padding:10px 14px;border-radius:12px;cursor:pointer;min-width:80px;transition:all .15s;
+      background:${selected ? 'var(--accent)' : 'var(--neo)'};color:${selected ? '#fff' : 'var(--ink)'};
+      box-shadow:${selected ? '0 0 0 3px var(--deep)' : 'inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)'};
+      opacity:${owned || canBuy ? '1' : '0.5'}`;
+    div.innerHTML = `<div style="font-size:24px">${ch.emoji}</div>
+      <div style="font-weight:800;font-size:12px">${ch.name}</div>
+      <div style="font-size:10px;color:${selected?'rgba(255,255,255,0.8)':'var(--ink3)'}">${owned ? (selected ? '✓ Selected' : 'Owned') : `🪙 ${ch.cost}`}</div>`;
+    div.addEventListener('click', () => {
+      if (owned) {
+        yhSelectedChar = ch.id;
+        localStorage.setItem('lobby98_yh_char', ch.id);
+        renderYHCharacters();
+      } else if (canBuy) {
+        if (!confirm(`Unlock ${ch.name} for ${ch.cost} coins?`)) return;
+        fetch('/api/arcade/score', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ game: 'yh_unlock', score: -ch.cost, elapsed: 999999 })
+        }).then(r => r.json()).then(d => {
+          if (d.user) { user = d.user; updateUI(); }
+          yhOwnedChars.push(ch.id);
+          yhSelectedChar = ch.id;
+          localStorage.setItem('lobby98_yh_owned', JSON.stringify(yhOwnedChars));
+          localStorage.setItem('lobby98_yh_char', ch.id);
+          renderYHCharacters();
+          playSound('achieve');
+        }).catch(() => {});
+      }
+    });
+    wrap.appendChild(div);
+  }
+}
+
+document.getElementById('yh-start-btn')?.addEventListener('click', () => {
+  const menu = document.getElementById('yh-menu');
+  const playArea = document.getElementById('yh-play-area');
+  const mapIdx = Number(document.getElementById('yh-map-select')?.value || 0);
+  menu.hidden = true;
+  playArea.hidden = false;
+  playArea.innerHTML = '';
+  window.PirateRoyale?.init(playArea, mapIdx, yhSelectedChar, async (result) => {
+    // Award coins
+    try {
+      const res = await fetch('/api/arcade/score', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ game: 'pirate_royale', score: result.coinsEarned, elapsed: 999999 })
+      });
+      const data = await res.json();
+      if (data.user) { user = data.user; updateUI(); }
+    } catch {}
+    // Click to return listener
+    const returnHandler = () => {
+      playArea.removeEventListener('click', returnHandler);
+      canvas?.removeEventListener('click', returnHandler);
+      window.PirateRoyale?.cleanup();
+      playArea.hidden = true;
+      menu.hidden = false;
+      renderYHCharacters();
+    };
+    // Delay so the click that triggers the last attack doesn't immediately return
+    setTimeout(() => {
+      playArea.addEventListener('click', returnHandler);
+      const canvas = playArea.querySelector('canvas');
+      if (canvas) canvas.addEventListener('click', returnHandler);
+    }, 1000);
+  });
+});
+
+// Render characters on initial load if needed
+setTimeout(renderYHCharacters, 500);
 
 // ============================================================
 //   COLOR THEMES

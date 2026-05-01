@@ -1100,18 +1100,55 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
 .c8-card.suit-D{background:linear-gradient(145deg,#ff9020,#d06800);box-shadow:0 3px 10px rgba(208,104,0,0.4)}
 .c8-card.suit-C{background:linear-gradient(145deg,#38a060,#1a6838);box-shadow:0 3px 10px rgba(26,104,56,0.4)}
 .c8-card.suit-S{background:linear-gradient(145deg,#4080d0,#1a4898);box-shadow:0 3px 10px rgba(26,72,152,0.4)}
-.c8-card.rank-8{background:linear-gradient(145deg,#2a2a3a,#0a0a15);box-shadow:0 3px 10px rgba(0,0,0,0.5);border-color:rgba(255,215,0,0.4)}
-.c8-card.rank-8 .c8-card-rank{color:#ffd700}
-.c8-card.rank-8::before{background:rgba(255,215,0,0.1)}
+/* Wild cards (8, +4, Stack-Color) */
+.c8-card.rank-wild{background:linear-gradient(145deg,#2a2a3a,#0a0a15);box-shadow:0 3px 10px rgba(0,0,0,0.5);border-color:rgba(255,215,0,0.4)}
+.c8-card.rank-wild .c8-card-rank{color:#ffd700}
+.c8-card.rank-wild::before{background:rgba(255,215,0,0.1)}
+/* Wild cards with suit W get a rainbow border */
+.c8-card.suit-wild{background:linear-gradient(145deg,#1a1a2e,#0a0a18);border-image:linear-gradient(135deg,#ff4444,#ff9020,#38a060,#4080d0) 1;border-width:2.5px;border-style:solid}
+.c8-card.suit-wild .c8-card-rank{background:linear-gradient(135deg,#ff4444,#ffd700,#38a060,#4080d0);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:28px}
+.c8-card.suit-wild .c8-card-suit{display:none}
+/* Action cards (Skip, Reverse, +2) — diagonal stripe */
+.c8-card.rank-action::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent,transparent 8px,rgba(255,255,255,0.06) 8px,rgba(255,255,255,0.06) 16px);border-radius:inherit;pointer-events:none}
+
+/* ── Win celebration overlay ── */
+.c8-win-overlay{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;animation:c8WinFade 3s ease forwards}
+.c8-win-text{font-size:48px;font-weight:900;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,0.6),0 0 40px rgba(255,215,0,0.4);animation:c8WinBounce .6s cubic-bezier(.2,.8,.3,1.3)}
+.c8-win-sub{font-size:18px;font-weight:700;color:rgba(255,255,255,0.8);margin-top:8px;text-shadow:0 2px 8px rgba(0,0,0,0.5)}
+@keyframes c8WinFade{0%{opacity:1}80%{opacity:1}100%{opacity:0}}
+@keyframes c8WinBounce{0%{transform:scale(0.3) translateY(40px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
 
 /* ── Player's hand — fanned overlap ── */
-.c8-my-hand-wrap{width:100%;overflow-x:auto;padding:8px 0 4px}
-.c8-hand{display:flex;justify-content:center;padding:0 20px;min-height:110px}
+.c8-my-hand-wrap{width:100%;overflow:visible;padding:12px 0 4px}
+.c8-hand{display:flex;justify-content:center;padding:0 20px;min-height:115px;overflow:visible}
+
+/* Allow cards to overflow out of the glass-card and game-phase parents */
+#phase-crazy8-playing{overflow:visible}
+#phase-crazy8-playing .glass-card,
+.game-area,
+.c8-table-layout{overflow:visible}
 .c8-hand .c8-card{margin-left:-18px;cursor:default}
 .c8-hand .c8-card:first-child{margin-left:0}
-.c8-hand .c8-card.playable{cursor:pointer}
-.c8-hand .c8-card.playable:hover{transform:translateY(-16px) scale(1.08);z-index:10;box-shadow:0 10px 24px rgba(0,0,0,0.4)}
-.c8-hand .c8-card:not(.playable){filter:brightness(0.7);margin-top:6px}
+/* Playable cards: glow, slight lift, pulse animation */
+.c8-hand .c8-card.playable{cursor:pointer;transform:translateY(-6px) scale(1.04);z-index:2;animation:c8Playable 2s ease-in-out infinite;box-shadow:0 4px 16px rgba(255,255,255,0.25),0 0 12px rgba(76,175,80,0.5)}
+.c8-hand .c8-card.playable:hover{transform:translateY(-18px) scale(1.1);z-index:10;box-shadow:0 12px 28px rgba(0,0,0,0.4),0 0 16px rgba(76,175,80,0.7);animation:none}
+/* Non-playable: dimmed and pushed down */
+.c8-hand .c8-card:not(.playable){filter:brightness(0.55) saturate(0.6);margin-top:10px}
+
+@keyframes c8Playable{0%,100%{box-shadow:0 4px 16px rgba(255,255,255,0.2),0 0 10px rgba(76,175,80,0.4)}50%{box-shadow:0 6px 20px rgba(255,255,255,0.3),0 0 18px rgba(76,175,80,0.7)}}
+
+/* ── Drawn Card Prompt ── */
+.c8-drawn-prompt{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(10px) scale(0.95);opacity:0;transition:all .25s cubic-bezier(.2,.8,.3,1);z-index:25;background:rgba(10,15,30,0.85);backdrop-filter:blur(10px);border-radius:16px;padding:14px 18px;text-align:center;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12)}
+.c8-drawn-prompt.visible{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+.c8-drawn-label{font-weight:900;font-size:13px;color:#fff;margin-bottom:10px;text-shadow:0 1px 3px rgba(0,0,0,0.4)}
+.c8-drawn-card-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.c8-drawn-card-wrap .c8-card{box-shadow:0 4px 16px rgba(0,0,0,0.4),0 0 12px rgba(255,215,0,0.3);animation:c8DrawnPulse 1.5s ease-in-out infinite}
+.c8-drawn-btns{display:flex;gap:8px;justify-content:center}
+.c8-drawn-yes{background:linear-gradient(145deg,#38a060,#1a6838)!important;color:#fff!important;font-weight:800;font-size:13px;padding:8px 18px;border-radius:10px;border:none;cursor:pointer;transition:all .15s}
+.c8-drawn-yes:hover{transform:translateY(-2px);box-shadow:0 4px 10px rgba(56,160,96,0.4)}
+.c8-drawn-no{background:rgba(255,255,255,0.1)!important;color:#fff!important;font-weight:800;font-size:13px;padding:8px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);cursor:pointer;transition:all .15s}
+.c8-drawn-no:hover{background:rgba(255,255,255,0.2)!important}
+@keyframes c8DrawnPulse{0%,100%{box-shadow:0 4px 16px rgba(0,0,0,0.4),0 0 10px rgba(255,215,0,0.2)}50%{box-shadow:0 6px 20px rgba(0,0,0,0.5),0 0 20px rgba(255,215,0,0.5)}}
 
 /* ── Actions ── */
 .c8-actions{display:flex;gap:10px;justify-content:center;margin:6px 0}
@@ -1131,8 +1168,11 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
 .c8-suit-s{background:linear-gradient(145deg,#4080d0,#1a4898);color:#fff}
 
 /* ── Discard card (slightly larger for emphasis) ── */
-.c8-discard .c8-card{width:78px;height:112px;box-shadow:0 6px 20px rgba(0,0,0,0.45)}
+.c8-discard .c8-card{width:78px;height:112px;box-shadow:0 6px 20px rgba(0,0,0,0.45);transition:transform .15s ease}
 .c8-discard .c8-card .c8-card-rank{font-size:36px}
+
+/* ── Flying card animation ── */
+.c8-card-flying{box-shadow:0 12px 32px rgba(0,0,0,0.5)!important;filter:brightness(1.1)}
 
 /* ── Small cards for results ── */
 .c8-card-sm{width:40px;height:58px;border-radius:6px;border-width:1.5px}
