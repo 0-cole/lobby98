@@ -761,6 +761,7 @@ socket.on("room:update", snap => {
     myChainRole = null; hasAccused = false; coinsAwarded = false;
     myEchoPrompt = null; hasSubmittedEchoAnswer = false;
     c8MyHand = [];
+    c8LastPlayId = null;
     clearTI();
     showPage("page-room");
   }
@@ -1361,8 +1362,14 @@ $("c4-next-round-btn").addEventListener("click", () => socket.emit("game:nextRou
 const C8_SUIT_SYMBOLS = { H: "♥", D: "♦", C: "♣", S: "♠" };
 let c8MyHand = [];
 let c8PendingWild = -1;
+let c8LastPlayId = null; // track lastPlay to trigger animations
 
-socket.on("game:c8Hand", ({ hand }) => { c8MyHand = hand || []; });
+socket.on("game:c8Hand", ({ hand }) => {
+  c8MyHand = hand || [];
+  // Re-render hand immediately — fixes the bug where initial deal doesn't show
+  // (room:update arrives before c8Hand, so renderC8Hand runs with empty c8MyHand).
+  if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
+});
 socket.on("game:c8Drew", ({ card }) => {
   if (card) c8MyHand.push(card);
   if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
@@ -1387,6 +1394,11 @@ function renderC8Playing(snap) {
   const g = snap.game;
   const myTurn = me && g.currentTurn === me.id;
 
+  // Detect if a new card was just played (for animation)
+  const playKey = g.lastPlay ? `${g.lastPlay.playerId}-${g.lastPlay.card?.rank}-${g.lastPlay.card?.suit}` : null;
+  const isNewPlay = playKey && playKey !== c8LastPlayId;
+  c8LastPlayId = playKey;
+
   // Opponents — face-down card fans
   const opps = $("c8-opponents"); opps.innerHTML = "";
   for (const pid of g.playerIds) {
@@ -1397,6 +1409,7 @@ function renderC8Playing(snap) {
     const cardCount = g.handSizes?.[pid] || 0;
     const opp = document.createElement("div");
     opp.className = `c8-opp ${isTurn ? "active" : ""}`;
+    opp.dataset.pid = pid;
     let cardsHTML = '<div class="c8-opp-cards">';
     const maxShow = Math.min(cardCount, 8);
     const spread = Math.min(14, maxShow > 1 ? 60 / maxShow : 0);
@@ -1410,9 +1423,13 @@ function renderC8Playing(snap) {
     opps.appendChild(opp);
   }
 
-  // Discard pile top card
+  // Discard pile top card — if a new card was just played, animate it
   const dc = $("c8-discard");
-  dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
+  if (isNewPlay && g.lastPlay?.card) {
+    c8AnimateCardToDiscard(g.lastPlay, dc, g, snap);
+  } else {
+    dc.innerHTML = g.topCard ? c8CardHTML(g.topCard) : "";
+  }
 
   // Active suit badge
   const sb = $("c8-suit-badge");
@@ -1447,6 +1464,69 @@ function renderC8Playing(snap) {
 
   // Hand
   renderC8Hand(snap);
+}
+
+// Animate a played card flying from origin to the discard pile
+function c8AnimateCardToDiscard(lastPlay, discardEl, g, snap) {
+  const card = lastPlay.card;
+  const playerId = lastPlay.playerId;
+  const isMe = me && playerId === me.id;
+  const tableLayout = document.querySelector('.c8-table-layout');
+  if (!tableLayout) { discardEl.innerHTML = c8CardHTML(card); return; }
+
+  // Determine origin position
+  let originX, originY;
+  const tableRect = tableLayout.getBoundingClientRect();
+  const discardRect = discardEl.getBoundingClientRect();
+  const targetX = discardRect.left - tableRect.left + discardRect.width / 2;
+  const targetY = discardRect.top - tableRect.top + discardRect.height / 2;
+
+  if (isMe) {
+    // From bottom center (player's hand area)
+    const handEl = $("c8-hand");
+    if (handEl) {
+      const hr = handEl.getBoundingClientRect();
+      originX = hr.left - tableRect.left + hr.width / 2;
+      originY = hr.top - tableRect.top + hr.height / 2;
+    } else {
+      originX = targetX;
+      originY = tableRect.height - 40;
+    }
+  } else {
+    // From the opponent's position
+    const oppEl = document.querySelector(`.c8-opp[data-pid="${playerId}"]`);
+    if (oppEl) {
+      const or = oppEl.getBoundingClientRect();
+      originX = or.left - tableRect.left + or.width / 2;
+      originY = or.top - tableRect.top + or.height / 2;
+    } else {
+      originX = targetX;
+      originY = 20;
+    }
+  }
+
+  // Create the flying card
+  const flyDiv = document.createElement("div");
+  flyDiv.innerHTML = c8CardHTML(card);
+  const flyCard = flyDiv.firstElementChild;
+  flyCard.classList.add("c8-card-flying");
+  flyCard.style.cssText = `position:absolute;left:${originX - 36}px;top:${originY - 52}px;z-index:30;transition:all .4s cubic-bezier(.2,.8,.3,1);pointer-events:none;`;
+  tableLayout.appendChild(flyCard);
+
+  // Trigger the animation on next frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      flyCard.style.left = `${targetX - 36}px`;
+      flyCard.style.top = `${targetY - 52}px`;
+      flyCard.style.transform = `rotate(${(Math.random() - 0.5) * 8}deg) scale(1.05)`;
+    });
+  });
+
+  // After animation ends, remove the flying card and show the actual discard
+  setTimeout(() => {
+    flyCard.remove();
+    discardEl.innerHTML = c8CardHTML(card);
+  }, 420);
 }
 
 function renderC8Hand(snap) {

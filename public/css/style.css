@@ -1131,8 +1131,11 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
 .c8-suit-s{background:linear-gradient(145deg,#4080d0,#1a4898);color:#fff}
 
 /* ── Discard card (slightly larger for emphasis) ── */
-.c8-discard .c8-card{width:78px;height:112px;box-shadow:0 6px 20px rgba(0,0,0,0.45)}
+.c8-discard .c8-card{width:78px;height:112px;box-shadow:0 6px 20px rgba(0,0,0,0.45);transition:transform .15s ease}
 .c8-discard .c8-card .c8-card-rank{font-size:36px}
+
+/* ── Flying card animation ── */
+.c8-card-flying{box-shadow:0 12px 32px rgba(0,0,0,0.5)!important;filter:brightness(1.1)}
 
 /* ── Small cards for results ── */
 .c8-card-sm{width:40px;height:58px;border-radius:6px;border-width:1.5px}
