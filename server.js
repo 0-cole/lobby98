@@ -955,6 +955,11 @@ function handleBotHit(roomCode, victimId, damage, attackerId) {
   if (bot.hp <= 0) {
     // Bot died — emit kill event and respawn after delay
     io.to(roomCode).emit('shooter:kill', { killer: attackerId, victim: victimId });
+    // Track kills for scoring
+    const room = rooms.get(roomCode);
+    if (room?.game?.kills && attackerId) {
+      room.game.kills[attackerId] = (room.game.kills[attackerId] || 0) + 1;
+    }
     setTimeout(() => {
       if (!bots.has(victimId)) return;
       const sp = shSpawnPos();
@@ -970,6 +975,38 @@ function handleBotHit(roomCode, victimId, damage, attackerId) {
 
 function cleanupShooterBots(roomCode) {
   shooterBots.delete(roomCode);
+}
+
+function endBlitzGame(room) {
+  if (!room.game || room.game.type !== "blitz") return;
+  room.game.phase = "gameover";
+  // Build scoreboard sorted by kills
+  const killMap = room.game.kills || {};
+  const scoreboard = [];
+  for (const [pid, k] of Object.entries(killMap)) {
+    const name = room.players.get(pid)?.name || (isBot(pid) ? "Bot" : "???");
+    scoreboard.push({ id: pid, name, kills: k, isBot: isBot(pid) });
+  }
+  scoreboard.sort((a, b) => b.kills - a.kills);
+  // Award coins to human players based on placement
+  for (let i = 0; i < scoreboard.length; i++) {
+    const entry = scoreboard[i];
+    if (entry.isBot) continue;
+    const coins = entry.kills * 3 + (i === 0 ? 20 : i <= 2 ? 10 : 3);
+    const sock = io.sockets.sockets.get(entry.id);
+    if (sock?.data?.user?.id) {
+      addCoins(sock.data.user.id, coins);
+      recordGame(sock.data.user.id, i === 0, entry.kills);
+    }
+  }
+  // Emit end event with scoreboard
+  io.to(room.code).emit("game:blitzEnd", { scoreboard });
+  // Clean up shooter state
+  shooterStates.delete(room.code);
+  cleanupShooterBots(room.code);
+  // After a delay, allow back to lobby
+  addSystemMessage(room, `💥 Game over! ${scoreboard[0]?.name || "???"} wins with ${scoreboard[0]?.kills || 0} kills!`);
+  broadcastRoom(room);
 }
 
 function setupShooterRelay(socket, roomCode) {
@@ -991,6 +1028,11 @@ function setupShooterRelay(socket, roomCode) {
   });
   socket.on('shooter:died', ({ killer }) => {
     io.to(roomCode).emit('shooter:kill', { killer, victim: socket.id });
+    // Track kills for scoring
+    const room = rooms.get(roomCode);
+    if (room?.game?.kills && killer) {
+      room.game.kills[killer] = (room.game.kills[killer] || 0) + 1;
+    }
   });
 }
 
@@ -998,6 +1040,8 @@ function setupShooterRelay(socket, roomCode) {
 setInterval(() => {
   for (const [code, state] of shooterStates) {
     if (Object.keys(state.players).length === 0) { shooterStates.delete(code); cleanupShooterBots(code); continue; }
+    const room = rooms.get(code);
+    if (room?.game?.phase === "gameover") continue; // stop ticking after game ends
     tickShooterBots(code);
     io.to(code).emit('shooter:state', state.players);
   }
@@ -1321,7 +1365,7 @@ function gameSnapshot(room) {
 
   // Blitz has a minimal game object (no scores, rounds, etc.) — return early
   if (g.type === "blitz") {
-    return { type: "blitz", phase: g.phase };
+    return { type: "blitz", phase: g.phase, scores: {} };
   }
 
   const snap = {
@@ -3977,18 +4021,23 @@ io.on("connection", (socket) => {
         return ack?.({ error: "Need at least 2 players for Blitz" });
       }
       // Blitz is real-time, not turn-based. Set up relay and tell clients.
-      room.game = { type: "blitz", phase: "playing" };
+      room.game = { type: "blitz", phase: "playing", startedAt: Date.now(), duration: 90000 };
       // Init bot players server-side before setting up relays
       initShooterBots(room.code, room);
       setupShooterRelay(socket, room.code);
       for (const [pid] of room.players) {
-        if (isBot(pid)) continue; // bots don't have sockets
+        if (isBot(pid)) continue;
         const s = io.sockets.sockets.get(pid);
         if (s && s !== socket) setupShooterRelay(s, room.code);
       }
-      io.to(room.code).emit("game:blitzStart", { code: room.code });
-      addSystemMessage(room, "💥 Blitz started! WASD to move, mouse to aim, click to shoot!");
+      // Track kills for scoring
+      room.game.kills = {}; // socketId -> kill count
+      for (const [pid] of room.players) room.game.kills[pid] = 0;
+      io.to(room.code).emit("game:blitzStart", { code: room.code, duration: 90000 });
+      addSystemMessage(room, "💥 Blitz started! 90 seconds — most kills wins!");
       broadcastRoom(room);
+      // Set timer to end the game
+      setRoomTimer(room, 90000, () => endBlitzGame(room));
       ack?.({ ok: true });
     } else {
       return ack?.({ error: "Pick a game mode first" });

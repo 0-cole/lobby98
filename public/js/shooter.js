@@ -29,12 +29,16 @@
         <canvas id="shooter-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:14px;cursor:crosshair;background:#1a2a3a;box-shadow:0 6px 20px rgba(0,0,0,0.3)"></canvas>
         <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:700">
           <span style="color:var(--success)" id="sh-kills">Kills: 0</span>
-          <span style="color:var(--ink2)" id="sh-players">Players: 1</span>
+          <span style="color:#ffd700;font-size:18px" id="sh-timer">1:30</span>
           <span style="color:var(--danger)" id="sh-deaths">Deaths: 0</span>
         </div>
       `;
       const canvas = document.getElementById('shooter-canvas');
       const ctx = canvas.getContext('2d');
+      const gameStartTime = Date.now();
+      const gameDuration = 90000;
+      let gameEnded = false;
+      let endScoreboard = null;
 
       // My initial position
       const spawnX = 100 + Math.random() * (W - 200);
@@ -106,6 +110,14 @@
         }
       });
 
+      socket.on('game:blitzEnd', ({ scoreboard }) => {
+        gameEnded = true;
+        endScoreboard = scoreboard || [];
+        gameActive = false;
+        // Final render with scoreboard
+        renderScoreboard();
+      });
+
       function collideWall(x, y, r) {
         for (const w of WALLS) {
           const cx = Math.max(w.x, Math.min(x, w.x + w.w));
@@ -118,6 +130,17 @@
       // Game loop
       const tick = () => {
         if (!gameActive) return;
+        // Timer update
+        const elapsed = Date.now() - gameStartTime;
+        const remaining = Math.max(0, gameDuration - elapsed);
+        const secs = Math.ceil(remaining / 1000);
+        const timerEl = document.getElementById('sh-timer');
+        if (timerEl) {
+          const m = Math.floor(secs / 60), s = secs % 60;
+          timerEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+          if (secs <= 10) timerEl.style.color = '#e04858';
+          else if (secs <= 30) timerEl.style.color = '#f5a623';
+        }
         const p = players[myId];
         if (p && p.hp > 0) {
           let dx = 0, dy = 0;
@@ -207,6 +230,50 @@
         this._raf = requestAnimationFrame(tick);
       };
       this._raf = requestAnimationFrame(tick);
+
+      // Scoreboard overlay after game ends
+      function renderScoreboard() {
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(10,15,25,0.92)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 28px Nunito,sans-serif';
+        ctx.fillText('💥 GAME OVER', W/2, 50);
+        if (endScoreboard && endScoreboard.length > 0) {
+          ctx.font = 'bold 14px Nunito,sans-serif';
+          ctx.fillStyle = 'rgba(255,255,255,0.5)';
+          ctx.fillText('RANK', 80, 90);
+          ctx.fillText('PLAYER', W/2, 90);
+          ctx.fillText('KILLS', W-100, 90);
+          for (let i = 0; i < Math.min(endScoreboard.length, 10); i++) {
+            const entry = endScoreboard[i];
+            const y = 120 + i * 32;
+            const isMe = entry.id === myId;
+            ctx.fillStyle = isMe ? 'rgba(76,175,80,0.15)' : (i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent');
+            ctx.fillRect(30, y - 14, W - 60, 28);
+            ctx.fillStyle = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#fff';
+            ctx.font = `bold ${isMe ? 15 : 13}px Nunito,sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(`#${i + 1}`, 80, y + 5);
+            ctx.fillText(`${entry.name}${entry.isBot ? ' 🤖' : ''}${isMe ? ' (you)' : ''}`, W/2, y + 5);
+            ctx.fillText(`${entry.kills}`, W - 100, y + 5);
+          }
+          // Show your reward
+          const myEntry = endScoreboard.find(e => e.id === myId);
+          const myRank = endScoreboard.findIndex(e => e.id === myId);
+          if (myEntry) {
+            const coins = myEntry.kills * 3 + (myRank === 0 ? 20 : myRank <= 2 ? 10 : 3);
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 16px Nunito,sans-serif';
+            ctx.fillText(`+${coins} coins earned`, W/2, H - 40);
+          }
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = 'bold 12px Nunito,sans-serif';
+        ctx.fillText('Host can return to lobby', W/2, H - 15);
+      }
+
       this.cleanup = () => {
         gameActive = false;
         if (this._raf) cancelAnimationFrame(this._raf);
@@ -215,7 +282,7 @@
         canvas.removeEventListener('mousemove', this._mouseHandler);
         canvas.removeEventListener('mousedown', this._clickHandler);
         socket.off('shooter:state'); socket.off('shooter:bullet');
-        socket.off('shooter:kill');
+        socket.off('shooter:kill'); socket.off('game:blitzEnd');
       };
     }
   };

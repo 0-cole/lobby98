@@ -619,8 +619,30 @@ function renderIntermission(snap) {
 
 function renderGameOver(snap) {
   $("phase-gameover").hidden = false; const g = snap.game, amHost = me && snap.hostId === me.id;
-  if (!coinsAwarded && me && g.scores[me.id] !== undefined) { coinsAwarded = true; refreshUser(); }
-  const sb = snap.players.filter(p => g.scores[p.id] !== undefined).map(p => ({ ...p, score: g.scores[p.id] || 0 })).sort((a, b) => b.score - a.score);
+  // Blitz shows its own scoreboard from the stored data
+  if (g.type === "blitz") {
+    const blitzSb = window._blitzScoreboard || [];
+    const c = $("final-scoreboard"); c.innerHTML = "";
+    if (blitzSb.length > 0) {
+      for (let i = 0; i < blitzSb.length; i++) {
+        const entry = blitzSb[i];
+        const isMe = me && entry.id === me.id;
+        const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`;
+        const d = document.createElement("div");
+        d.className = `scoreboard-entry ${i===0?"scoreboard-winner":""} ${isMe?"scoreboard-me":""}`;
+        d.innerHTML = `<span class="scoreboard-rank">${medal}</span><span class="scoreboard-name">${esc(entry.name)}${entry.isBot?' 🤖':''}${isMe?" (you)":""}</span><span class="scoreboard-score">${entry.kills} kills</span>`;
+        c.appendChild(d);
+      }
+    }
+    $("back-lobby-area").hidden = !amHost;
+    if (!coinsAwarded) { coinsAwarded = true; refreshUser(); }
+    // Clean up shooter
+    if (window.ShooterGame?.cleanup) window.ShooterGame.cleanup();
+    return;
+  }
+  if (!coinsAwarded && me && g.scores && g.scores[me.id] !== undefined) { coinsAwarded = true; refreshUser(); }
+  const scores = g.scores || {};
+  const sb = snap.players.filter(p => scores[p.id] !== undefined).map(p => ({ ...p, score: scores[p.id] || 0 })).sort((a, b) => b.score - a.score);
   const c = $("final-scoreboard"); c.innerHTML = "";
   sb.forEach((p, i) => { const isMe = me && p.id === me.id; const m = i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`; const d = document.createElement("div"); d.className = `scoreboard-entry ${i===0?"scoreboard-winner":""} ${isMe?"scoreboard-me":""}`; d.innerHTML = `<span class="scoreboard-rank">${m}</span><span class="scoreboard-name">${esc(p.name)}${isMe?" (you)":""}</span><span class="scoreboard-score">${p.score} pts</span>`; c.appendChild(d); });
   const ba = $("back-lobby-area"); ba.hidden = !amHost;
@@ -2726,9 +2748,10 @@ socket.on("game:blitzStart", ({ code }) => {
   // Switch to game view and init shooter
   showPage("page-game");
   $("game-mode-badge").textContent = "💥 Blitz";
-  $("game-round-badge").textContent = "Live";
+  $("game-round-badge").textContent = "1:30";
   $("game-room-code").textContent = code;
   document.querySelector(".timer-wrap").style.display = "none";
+  window._blitzScoreboard = null; // reset
   const area = document.querySelector(".game-area");
   // Hide all phases
   area.querySelectorAll(".game-phase").forEach(p => p.hidden = true);
@@ -2739,6 +2762,11 @@ socket.on("game:blitzStart", ({ code }) => {
   if (window.ShooterGame) {
     window.ShooterGame.init(sc, socket, code, socket.id, user?.username || me?.name || "Player");
   }
+});
+
+// Store blitz scoreboard so renderGameOver can use it
+socket.on("game:blitzEnd", ({ scoreboard }) => {
+  window._blitzScoreboard = scoreboard || [];
 });
 
 // ============================================================
