@@ -762,6 +762,9 @@ socket.on("room:update", snap => {
     myEchoPrompt = null; hasSubmittedEchoAnswer = false;
     c8MyHand = [];
     c8LastPlayId = null;
+    c8DrawnCard = null;
+    c8DrawnCanPlay = false;
+    hideDrawnCardPrompt();
     clearTI();
     showPage("page-room");
   }
@@ -1362,17 +1365,25 @@ $("c4-next-round-btn").addEventListener("click", () => socket.emit("game:nextRou
 const C8_SUIT_SYMBOLS = { H: "♥", D: "♦", C: "♣", S: "♠" };
 let c8MyHand = [];
 let c8PendingWild = -1;
-let c8LastPlayId = null; // track lastPlay to trigger animations
+let c8LastPlayId = null;
+let c8DrawnCard = null;
+let c8DrawnCanPlay = false;
 
 socket.on("game:c8Hand", ({ hand }) => {
   c8MyHand = hand || [];
-  // Re-render hand immediately — fixes the bug where initial deal doesn't show
-  // (room:update arrives before c8Hand, so renderC8Hand runs with empty c8MyHand).
+  c8DrawnCard = null; c8DrawnCanPlay = false;
+  hideDrawnCardPrompt();
   if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
 });
-socket.on("game:c8Drew", ({ card }) => {
+socket.on("game:c8Drew", ({ card, canPlay }) => {
   if (card) c8MyHand.push(card);
-  if (currentRoom?.game?.phase === "crazy8-playing") renderC8Hand(currentRoom);
+  c8DrawnCard = card || null;
+  c8DrawnCanPlay = !!canPlay;
+  if (currentRoom?.game?.phase === "crazy8-playing") {
+    renderC8Hand(currentRoom);
+    if (c8DrawnCard && c8DrawnCanPlay) showDrawnCardPrompt(c8DrawnCard);
+    else hideDrawnCardPrompt();
+  }
 });
 
 function c8CardHTML(card, opts = {}) {
@@ -1446,7 +1457,7 @@ function renderC8Playing(snap) {
   const st = $("c8-status");
   st.classList.remove("your-turn", "opp-turn");
   if (myTurn) {
-    st.textContent = g.drewThisTurn ? "Play the drawn card or pass" : "Your turn — play a card or draw";
+    st.textContent = g.drewThisTurn ? "Play a matching card" : "Your turn — play a card or draw";
     st.classList.add("your-turn");
   } else {
     const turnName = g.playerNames?.[g.currentTurn] || "???";
@@ -1456,11 +1467,12 @@ function renderC8Playing(snap) {
 
   // Actions
   $("c8-draw-btn").disabled = !myTurn || g.drewThisTurn;
-  $("c8-pass-btn").disabled = !myTurn || !g.drewThisTurn;
 
-  // Hide suit picker
+  // Hide suit picker and drawn-card prompt
   $("c8-suit-picker").hidden = true;
   c8PendingWild = -1;
+  // Only hide drawn prompt if it's no longer our turn (if still our turn, keep it)
+  if (!myTurn) hideDrawnCardPrompt();
 
   // Hand
   renderC8Hand(snap);
@@ -1584,7 +1596,55 @@ document.addEventListener("click", (e) => {
 });
 
 $("c8-draw-btn").addEventListener("click", () => { socket.emit("game:c8Draw"); playSound('click'); });
-$("c8-pass-btn").addEventListener("click", () => { socket.emit("game:c8Pass"); playSound('click'); });
+
+// ── Drawn Card Prompt ──
+// When you draw a playable card, a floating prompt appears over the discard
+// pile showing the drawn card and Yes/No buttons. Clicking Yes plays it,
+// No keeps it in hand (you can still play any other playable card).
+function showDrawnCardPrompt(card) {
+  hideDrawnCardPrompt();
+  const area = document.querySelector('.c8-discard-area');
+  if (!area) return;
+  const prompt = document.createElement('div');
+  prompt.className = 'c8-drawn-prompt';
+  prompt.id = 'c8-drawn-prompt';
+  const cardIdx = c8MyHand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+  prompt.innerHTML = `
+    <div class="c8-drawn-label">Play this card?</div>
+    <div class="c8-drawn-card-wrap">${c8CardHTML(card)}</div>
+    <div class="c8-drawn-btns">
+      <button class="btn c8-drawn-yes" id="c8-drawn-yes">✓ Play</button>
+      <button class="btn c8-drawn-no" id="c8-drawn-no">✗ Keep</button>
+    </div>
+  `;
+  area.appendChild(prompt);
+  // Force reflow then animate in
+  prompt.offsetHeight;
+  prompt.classList.add('visible');
+  $('c8-drawn-yes').addEventListener('click', () => {
+    if (cardIdx < 0) return;
+    if (card.rank === '8') {
+      c8PendingWild = cardIdx;
+      hideDrawnCardPrompt();
+      $('c8-suit-picker').hidden = false;
+    } else {
+      socket.emit('game:c8Play', { cardIdx });
+      playSound('click');
+      hideDrawnCardPrompt();
+    }
+  });
+  $('c8-drawn-no').addEventListener('click', () => {
+    hideDrawnCardPrompt();
+    playSound('click');
+  });
+}
+
+function hideDrawnCardPrompt() {
+  const el = document.getElementById('c8-drawn-prompt');
+  if (el) el.remove();
+  c8DrawnCard = null;
+  c8DrawnCanPlay = false;
+}
 
 function renderC8Results(snap) {
   $("phase-crazy8-results").hidden = false;

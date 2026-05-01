@@ -1109,9 +1109,26 @@ body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,
 .c8-hand{display:flex;justify-content:center;padding:0 20px;min-height:110px}
 .c8-hand .c8-card{margin-left:-18px;cursor:default}
 .c8-hand .c8-card:first-child{margin-left:0}
-.c8-hand .c8-card.playable{cursor:pointer}
-.c8-hand .c8-card.playable:hover{transform:translateY(-16px) scale(1.08);z-index:10;box-shadow:0 10px 24px rgba(0,0,0,0.4)}
-.c8-hand .c8-card:not(.playable){filter:brightness(0.7);margin-top:6px}
+/* Playable cards: glow, slight lift, pulse animation */
+.c8-hand .c8-card.playable{cursor:pointer;transform:translateY(-6px) scale(1.04);z-index:2;animation:c8Playable 2s ease-in-out infinite;box-shadow:0 4px 16px rgba(255,255,255,0.25),0 0 12px rgba(76,175,80,0.5)}
+.c8-hand .c8-card.playable:hover{transform:translateY(-18px) scale(1.1);z-index:10;box-shadow:0 12px 28px rgba(0,0,0,0.4),0 0 16px rgba(76,175,80,0.7);animation:none}
+/* Non-playable: dimmed and pushed down */
+.c8-hand .c8-card:not(.playable){filter:brightness(0.55) saturate(0.6);margin-top:10px}
+
+@keyframes c8Playable{0%,100%{box-shadow:0 4px 16px rgba(255,255,255,0.2),0 0 10px rgba(76,175,80,0.4)}50%{box-shadow:0 6px 20px rgba(255,255,255,0.3),0 0 18px rgba(76,175,80,0.7)}}
+
+/* ── Drawn Card Prompt ── */
+.c8-drawn-prompt{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(10px) scale(0.95);opacity:0;transition:all .25s cubic-bezier(.2,.8,.3,1);z-index:25;background:rgba(10,15,30,0.85);backdrop-filter:blur(10px);border-radius:16px;padding:14px 18px;text-align:center;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.12)}
+.c8-drawn-prompt.visible{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+.c8-drawn-label{font-weight:900;font-size:13px;color:#fff;margin-bottom:10px;text-shadow:0 1px 3px rgba(0,0,0,0.4)}
+.c8-drawn-card-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.c8-drawn-card-wrap .c8-card{box-shadow:0 4px 16px rgba(0,0,0,0.4),0 0 12px rgba(255,215,0,0.3);animation:c8DrawnPulse 1.5s ease-in-out infinite}
+.c8-drawn-btns{display:flex;gap:8px;justify-content:center}
+.c8-drawn-yes{background:linear-gradient(145deg,#38a060,#1a6838)!important;color:#fff!important;font-weight:800;font-size:13px;padding:8px 18px;border-radius:10px;border:none;cursor:pointer;transition:all .15s}
+.c8-drawn-yes:hover{transform:translateY(-2px);box-shadow:0 4px 10px rgba(56,160,96,0.4)}
+.c8-drawn-no{background:rgba(255,255,255,0.1)!important;color:#fff!important;font-weight:800;font-size:13px;padding:8px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);cursor:pointer;transition:all .15s}
+.c8-drawn-no:hover{background:rgba(255,255,255,0.2)!important}
+@keyframes c8DrawnPulse{0%,100%{box-shadow:0 4px 16px rgba(0,0,0,0.4),0 0 10px rgba(255,215,0,0.2)}50%{box-shadow:0 6px 20px rgba(0,0,0,0.5),0 0 20px rgba(255,215,0,0.5)}}
 
 /* ── Actions ── */
 .c8-actions{display:flex;gap:10px;justify-content:center;margin:6px 0}

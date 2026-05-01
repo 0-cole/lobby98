@@ -2954,22 +2954,20 @@ function c8HandleDraw(room, socketId) {
   const g = room.game;
   if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
   if (c8CurrentPlayer(g) !== socketId) return;
-  if (g.drewThisTurn) return; // already drew — must pass
+  if (g.drewThisTurn) return; // already drew this turn
   // If draw pile is empty, shuffle discard pile back in (keep top card)
   if (g.drawPile.length === 0) {
     const top = g.discardPile.pop();
     g.drawPile = g.discardPile;
     g.discardPile = [top];
-    // Shuffle draw pile
     for (let i = g.drawPile.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [g.drawPile[i], g.drawPile[j]] = [g.drawPile[j], g.drawPile[i]];
     }
   }
   if (g.drawPile.length === 0) {
-    // Extremely rare: no cards left at all. Force pass.
-    g.drewThisTurn = true;
-    broadcastRoom(room);
+    // No cards left at all — skip turn
+    c8AdvanceTurn(room);
     return;
   }
   const drawn = g.drawPile.pop();
@@ -2978,22 +2976,32 @@ function c8HandleDraw(room, socketId) {
   // Notify only the drawing player what they got (bots don't need this)
   if (!isBot(socketId)) {
     const sock = io.sockets.sockets.get(socketId);
-    if (sock) sock.emit("game:c8Drew", { card: drawn });
+    const drawnPlayable = c8CanPlay(drawn, c8TopCard(g), g.activeSuit);
+    if (sock) sock.emit("game:c8Drew", { card: drawn, canPlay: drawnPlayable });
+  }
+  // Check if the drawn card (or any card now) is playable.
+  // If nothing is playable, auto-advance — no pass button needed.
+  const hand = g.hands.get(socketId);
+  const top = c8TopCard(g);
+  const hasPlayable = hand.some(c => c8CanPlay(c, top, g.activeSuit));
+  if (!hasPlayable) {
+    // Brief delay so the player sees the drawn card before turn moves on
+    broadcastRoom(room);
+    setTimeout(() => {
+      if (g.phase === "crazy8-playing" && c8CurrentPlayer(g) === socketId) {
+        c8AdvanceTurn(room);
+      }
+    }, isBot(socketId) ? 400 : 800);
+    return;
   }
   broadcastRoom(room);
-  // If bot drew, let the bot AI decide whether to play the drawn card
+  // If bot drew, let the bot AI decide what to play
   if (isBot(socketId)) {
     setTimeout(() => c8BotAfterDraw(room, socketId, drawn), 500 + Math.random() * 500);
   }
 }
 
-function c8HandlePass(room, socketId) {
-  const g = room.game;
-  if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
-  if (c8CurrentPlayer(g) !== socketId) return;
-  if (!g.drewThisTurn) return; // must draw first before passing
-  c8AdvanceTurn(room);
-}
+// c8HandlePass removed — drawing auto-advances if nothing is playable
 
 function c8EndRound(room, winnerId) {
   const g = room.game;
@@ -3098,15 +3106,14 @@ function c8BotAfterDraw(room, botId, drawnCard) {
   if (!g || g.type !== "crazy8" || g.phase !== "crazy8-playing") return;
   if (c8CurrentPlayer(g) !== botId) return;
   const hand = g.hands.get(botId);
-  // Check if the drawn card (now last in hand) is playable
   const top = c8TopCard(g);
+  // Try to play the drawn card
   if (c8CanPlay(drawnCard, top, g.activeSuit)) {
     const idx = hand.indexOf(drawnCard);
     const suit = drawnCard.rank === "8" ? c8BotPickSuit(hand) : undefined;
     c8HandlePlay(room, botId, idx, suit);
-  } else {
-    c8HandlePass(room, botId);
   }
+  // If can't play drawn card, server's c8HandleDraw already scheduled auto-advance
 }
 
 // If all remaining players after a round-end are bots, auto-advance.
@@ -3781,14 +3788,6 @@ io.on("connection", (socket) => {
     const room = rooms.get(code);
     if (!room) return ack?.({ error: "Room gone" });
     c8HandleDraw(room, socket.id);
-    ack?.({ ok: true });
-  });
-  socket.on("game:c8Pass", (_, ack) => {
-    const code = socketToRoom.get(socket.id);
-    if (!code) return ack?.({ error: "Not in a room" });
-    const room = rooms.get(code);
-    if (!room) return ack?.({ error: "Room gone" });
-    c8HandlePass(room, socket.id);
     ack?.({ ok: true });
   });
 
