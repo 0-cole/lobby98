@@ -803,8 +803,164 @@ app.post("/api/stocks/sell", (req, res) => {
 //   SHOOTER RELAY (Socket.IO)
 // ============================================================
 // Shooter rooms are just regular rooms with mode "blitz".
-// Server relays positions and bullets between players. No server-side physics.
+// Server relays positions and bullets between players. No server-side physics
+// for humans, but bots are fully simulated server-side.
 const shooterStates = new Map(); // roomCode -> { players: {id: {x,y,angle,hp,name,color}} }
+
+// Shared constants (must match client)
+const SH_W = 800, SH_H = 500, SH_PLAYER_R = 14, SH_BULLET_R = 4;
+const SH_BULLET_SPEED = 12, SH_PLAYER_SPEED = 3.2, SH_FIRE_RATE = 500, SH_MAX_HP = 100;
+const SH_WALLS = [
+  {x:200,y:100,w:20,h:180},{x:580,y:220,w:20,h:180},
+  {x:300,y:350,w:200,h:20},{x:100,y:250,w:120,h:20},
+  {x:580,y:80,w:120,h:20},{x:380,y:150,w:20,h:120},
+];
+const SH_BOT_COLORS = ['#e04858','#4caf50','#f5a623','#7c3aed','#f472b6','#15803d','#c89020','#38bdf8','#dc2626','#6366f1'];
+
+// Per-room bot state
+const shooterBots = new Map(); // roomCode -> Map<botId, botState>
+
+function shCollideWall(x, y, r) {
+  for (const w of SH_WALLS) {
+    const cx = Math.max(w.x, Math.min(x, w.x + w.w));
+    const cy = Math.max(w.y, Math.min(y, w.y + w.h));
+    if (Math.sqrt((x-cx)**2 + (y-cy)**2) < r) return true;
+  }
+  return false;
+}
+
+function shSpawnPos() {
+  let x, y, tries = 0;
+  do { x = 60 + Math.random()*(SH_W-120); y = 60 + Math.random()*(SH_H-120); tries++; }
+  while (shCollideWall(x, y, SH_PLAYER_R+4) && tries < 50);
+  return { x, y };
+}
+
+function initShooterBots(roomCode, room) {
+  const bots = new Map();
+  for (const [pid, p] of room.players) {
+    if (!isBot(pid)) continue;
+    const sp = shSpawnPos();
+    bots.set(pid, {
+      x: sp.x, y: sp.y, angle: Math.random()*Math.PI*2,
+      hp: SH_MAX_HP, name: p.name,
+      color: SH_BOT_COLORS[Math.abs(pid.charCodeAt(4)||0) % SH_BOT_COLORS.length],
+      lastFire: 0, targetId: null,
+      // Movement AI state
+      moveAngle: Math.random()*Math.PI*2, moveTimer: 0, strafeDir: 1,
+    });
+  }
+  shooterBots.set(roomCode, bots);
+  // Seed their positions into the state broadcast
+  if (!shooterStates.has(roomCode)) shooterStates.set(roomCode, { players: {} });
+  const state = shooterStates.get(roomCode);
+  for (const [bid, b] of bots) {
+    state.players[bid] = { x: b.x, y: b.y, angle: b.angle, hp: b.hp, name: b.name, color: b.color };
+  }
+}
+
+// Bot tick — called at ~15fps from the existing state broadcast interval
+function tickShooterBots(roomCode) {
+  const bots = shooterBots.get(roomCode);
+  if (!bots || bots.size === 0) return;
+  const state = shooterStates.get(roomCode);
+  if (!state) return;
+  const now = Date.now();
+  const allPlayers = state.players; // includes bots + humans
+
+  for (const [bid, bot] of bots) {
+    if (bot.hp <= 0) continue;
+
+    // Find nearest alive enemy (non-self)
+    let nearDist = Infinity, nearId = null, nearX = 0, nearY = 0;
+    for (const [pid, p] of Object.entries(allPlayers)) {
+      if (pid === bid || !p || p.hp <= 0) continue;
+      const d = Math.sqrt((bot.x-p.x)**2 + (bot.y-p.y)**2);
+      if (d < nearDist) { nearDist = d; nearId = pid; nearX = p.x; nearY = p.y; }
+    }
+
+    // Movement: approach nearest enemy with some strafing
+    if (nearId) {
+      const toAngle = Math.atan2(nearY - bot.y, nearX - bot.x);
+      // Strafe perpendicular when close
+      bot.moveTimer--;
+      if (bot.moveTimer <= 0) { bot.strafeDir = Math.random() > 0.5 ? 1 : -1; bot.moveTimer = 20 + Math.floor(Math.random()*40); }
+      let moveA;
+      if (nearDist < 120) {
+        // Strafe at 90 degrees
+        moveA = toAngle + bot.strafeDir * Math.PI/2;
+      } else if (nearDist < 250) {
+        // Approach at an angle
+        moveA = toAngle + bot.strafeDir * 0.4;
+      } else {
+        // Run straight toward
+        moveA = toAngle;
+      }
+      const dx = Math.cos(moveA) * SH_PLAYER_SPEED;
+      const dy = Math.sin(moveA) * SH_PLAYER_SPEED;
+      const nx = Math.max(SH_PLAYER_R, Math.min(SH_W - SH_PLAYER_R, bot.x + dx));
+      const ny = Math.max(SH_PLAYER_R, Math.min(SH_H - SH_PLAYER_R, bot.y + dy));
+      if (!shCollideWall(nx, bot.y, SH_PLAYER_R)) bot.x = nx;
+      if (!shCollideWall(bot.x, ny, SH_PLAYER_R)) bot.y = ny;
+
+      // Aim at target with slight inaccuracy
+      bot.angle = toAngle + (Math.random() - 0.5) * 0.2;
+
+      // Shoot if in range and fire cooldown elapsed
+      if (nearDist < 350 && now - bot.lastFire > SH_FIRE_RATE) {
+        bot.lastFire = now;
+        const bx = bot.x + Math.cos(bot.angle) * SH_PLAYER_R;
+        const by = bot.y + Math.sin(bot.angle) * SH_PLAYER_R;
+        io.to(roomCode).emit('shooter:bullet', {
+          x: bx, y: by,
+          vx: Math.cos(bot.angle) * SH_BULLET_SPEED,
+          vy: Math.sin(bot.angle) * SH_BULLET_SPEED,
+          owner: bid
+        });
+      }
+    } else {
+      // No targets: wander randomly
+      bot.moveTimer--;
+      if (bot.moveTimer <= 0) { bot.moveAngle = Math.random()*Math.PI*2; bot.moveTimer = 30 + Math.floor(Math.random()*60); }
+      const dx = Math.cos(bot.moveAngle) * SH_PLAYER_SPEED * 0.6;
+      const dy = Math.sin(bot.moveAngle) * SH_PLAYER_SPEED * 0.6;
+      const nx = Math.max(SH_PLAYER_R, Math.min(SH_W-SH_PLAYER_R, bot.x+dx));
+      const ny = Math.max(SH_PLAYER_R, Math.min(SH_H-SH_PLAYER_R, bot.y+dy));
+      if (!shCollideWall(nx, bot.y, SH_PLAYER_R)) bot.x = nx;
+      if (!shCollideWall(bot.x, ny, SH_PLAYER_R)) bot.y = ny;
+    }
+
+    // Update state broadcast entry
+    allPlayers[bid] = { x: bot.x, y: bot.y, angle: bot.angle, hp: bot.hp, name: bot.name, color: bot.color };
+  }
+}
+
+// Handle hits on bots (human clients detect collisions and send shooter:hit)
+function handleBotHit(roomCode, victimId, damage, attackerId) {
+  const bots = shooterBots.get(roomCode);
+  if (!bots) return false;
+  const bot = bots.get(victimId);
+  if (!bot || bot.hp <= 0) return false;
+  bot.hp = Math.max(0, bot.hp - damage);
+  if (bot.hp <= 0) {
+    // Bot died — emit kill event and respawn after delay
+    io.to(roomCode).emit('shooter:kill', { killer: attackerId, victim: victimId });
+    setTimeout(() => {
+      if (!bots.has(victimId)) return;
+      const sp = shSpawnPos();
+      bot.x = sp.x; bot.y = sp.y; bot.hp = SH_MAX_HP;
+      bot.angle = Math.random()*Math.PI*2;
+    }, 1500);
+  }
+  // Update state
+  const state = shooterStates.get(roomCode);
+  if (state?.players[victimId]) state.players[victimId].hp = bot.hp;
+  return true;
+}
+
+function cleanupShooterBots(roomCode) {
+  shooterBots.delete(roomCode);
+}
 
 function setupShooterRelay(socket, roomCode) {
   socket.on('shooter:move', (data) => {
@@ -816,17 +972,23 @@ function setupShooterRelay(socket, roomCode) {
     socket.to(roomCode).emit('shooter:bullet', { ...b, owner: socket.id });
   });
   socket.on('shooter:hit', ({ victim, damage }) => {
-    io.to(roomCode).emit('shooter:hit', { victim, damage, attacker: socket.id });
+    // Check if victim is a bot — handle server-side
+    if (isBot(victim)) {
+      handleBotHit(roomCode, victim, damage, socket.id);
+    } else {
+      io.to(roomCode).emit('shooter:hit', { victim, damage, attacker: socket.id });
+    }
   });
   socket.on('shooter:died', ({ killer }) => {
     io.to(roomCode).emit('shooter:kill', { killer, victim: socket.id });
   });
 }
 
-// Broadcast shooter state at 15fps
+// Broadcast shooter state at 15fps + tick bots
 setInterval(() => {
   for (const [code, state] of shooterStates) {
-    if (Object.keys(state.players).length === 0) { shooterStates.delete(code); continue; }
+    if (Object.keys(state.players).length === 0) { shooterStates.delete(code); cleanupShooterBots(code); continue; }
+    tickShooterBots(code);
     io.to(code).emit('shooter:state', state.players);
   }
 }, 66);
@@ -1593,6 +1755,11 @@ function startNextRound(room) {
 
 function backToLobby(room) {
   clearRoomTimer(room);
+  // Clean up blitz bot state if it was a blitz game
+  if (room.game?.type === "blitz") {
+    shooterStates.delete(room.code);
+    cleanupShooterBots(room.code);
+  }
   room.game = null;
   room.mode = null;
   // Move spectators back to players
@@ -3801,8 +3968,11 @@ io.on("connection", (socket) => {
       }
       // Blitz is real-time, not turn-based. Set up relay and tell clients.
       room.game = { type: "blitz", phase: "playing" };
+      // Init bot players server-side before setting up relays
+      initShooterBots(room.code, room);
       setupShooterRelay(socket, room.code);
       for (const [pid] of room.players) {
+        if (isBot(pid)) continue; // bots don't have sockets
         const s = io.sockets.sockets.get(pid);
         if (s && s !== socket) setupShooterRelay(s, room.code);
       }
