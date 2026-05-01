@@ -506,7 +506,12 @@ function switchToGame(snap) {
   updateRound(snap.game); syncChat(); renderPhase(snap); showPage("page-game");
 }
 
-function updateRound(g) { if (g) $("game-round-badge").textContent = `Round ${g.round}/${g.totalRounds}`; }
+function updateRound(g) {
+  if (!g) return;
+  // Blitz is real-time with no rounds
+  if (g.type === "blitz") { $("game-round-badge").textContent = "Live"; return; }
+  $("game-round-badge").textContent = `Round ${g.round || 1}/${g.totalRounds || 1}`;
+}
 
 function renderPhase(snap) {
   const g = snap.game; if (!g) return;

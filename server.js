@@ -1147,14 +1147,19 @@ function gameSnapshot(room) {
   const g = room.game;
   if (!g) return null;
 
+  // Blitz has a minimal game object (no scores, rounds, etc.) — return early
+  if (g.type === "blitz") {
+    return { type: "blitz", phase: g.phase };
+  }
+
   const snap = {
-    type: g.type,          // "frequency" or "wordspy"
+    type: g.type,
     phase: g.phase,
-    round: g.round,
-    totalRounds: g.totalRounds,
-    scores: Object.fromEntries(g.scores),
+    round: g.round || 1,
+    totalRounds: g.totalRounds || 1,
+    scores: g.scores ? Object.fromEntries(g.scores) : {},
     timerEnd: g.timerEnd || null,
-    playerCount: g.activePlayers.size,
+    playerCount: g.activePlayers ? g.activePlayers.size : 0,
     roundScoreDeltas: g.roundScoreDeltas || {}
   };
 
