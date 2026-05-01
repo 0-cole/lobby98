@@ -268,11 +268,21 @@ app.post("/api/arcade/score", (req, res) => {
   if (!sess) return res.status(401).json({ error: "Not logged in" });
   const user = getUserById(sess.user_id);
   const { game, score, elapsed } = req.body || {};
+
+  // Character purchase for Pirate Royale — deducts coins
+  if (game === 'yh_unlock') {
+    const cost = Math.abs(Math.floor(Number(score) || 0));
+    if (cost <= 0 || cost > 5000) return res.status(400).json({ error: "Invalid purchase" });
+    if (user.coins < cost) return res.status(400).json({ error: "Not enough coins" });
+    addCoins(user.id, -cost);
+    return res.json({ ok: true, user: safeUserData(getUserById(user.id)) });
+  }
+
   // Anti-cheat: validate score range and minimum elapsed time
-  const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), 50);
+  const maxCoins = game === 'pirate_royale' ? 100 : 50;
+  const coins = Math.min(Math.max(0, Math.floor(Number(score) || 0)), maxCoins);
   const elapsedMs = Number(elapsed) || 0;
-  // Games should take at least a few seconds — reject suspiciously fast completions
-  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000, dungeon: 0 };
+  const MIN_TIMES = { memory: 8000, minesweeper: 5000, clickspeed: 5000, mathrush: 28000, snake: 3000, dungeon: 0, pirate_royale: 0 };
   const minTime = MIN_TIMES[game] || 3000;
   if (coins > 10 && elapsedMs < minTime) {
     return res.status(400).json({ error: "Score rejected — too fast", coinsEarned: 0 });

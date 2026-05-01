@@ -2767,6 +2767,100 @@ if (dgStartBtn) dgStartBtn.addEventListener('click', () => {
 });
 
 // ============================================================
+//   PIRATE ROYALE
+// ============================================================
+let yhSelectedChar = localStorage.getItem('lobby98_yh_char') || 'swab';
+let yhOwnedChars = JSON.parse(localStorage.getItem('lobby98_yh_owned') || '["swab"]');
+
+function renderYHCharacters() {
+  const wrap = document.getElementById('yh-characters');
+  if (!wrap || !window.PirateRoyale) return;
+  wrap.innerHTML = '';
+  for (const ch of window.PirateRoyale.CHARACTERS) {
+    const owned = yhOwnedChars.includes(ch.id);
+    const selected = yhSelectedChar === ch.id;
+    const canBuy = !owned && user && (user.coins || 0) >= ch.cost;
+    const div = document.createElement('div');
+    div.style.cssText = `text-align:center;padding:10px 14px;border-radius:12px;cursor:pointer;min-width:80px;transition:all .15s;
+      background:${selected ? 'var(--accent)' : 'var(--neo)'};color:${selected ? '#fff' : 'var(--ink)'};
+      box-shadow:${selected ? '0 0 0 3px var(--deep)' : 'inset 1px 1px 3px var(--neo-lo),inset -1px -1px 3px var(--neo-hi)'};
+      opacity:${owned || canBuy ? '1' : '0.5'}`;
+    div.innerHTML = `<div style="font-size:24px">${ch.emoji}</div>
+      <div style="font-weight:800;font-size:12px">${ch.name}</div>
+      <div style="font-size:10px;color:${selected?'rgba(255,255,255,0.8)':'var(--ink3)'}">${owned ? (selected ? '✓ Selected' : 'Owned') : `🪙 ${ch.cost}`}</div>`;
+    div.addEventListener('click', () => {
+      if (owned) {
+        yhSelectedChar = ch.id;
+        localStorage.setItem('lobby98_yh_char', ch.id);
+        renderYHCharacters();
+      } else if (canBuy) {
+        if (!confirm(`Unlock ${ch.name} for ${ch.cost} coins?`)) return;
+        fetch('/api/arcade/score', { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ game: 'yh_unlock', score: -ch.cost, elapsed: 999999 })
+        }).then(r => r.json()).then(d => {
+          if (d.user) { user = d.user; updateUI(); }
+          yhOwnedChars.push(ch.id);
+          yhSelectedChar = ch.id;
+          localStorage.setItem('lobby98_yh_owned', JSON.stringify(yhOwnedChars));
+          localStorage.setItem('lobby98_yh_char', ch.id);
+          renderYHCharacters();
+          playSound('achieve');
+        }).catch(() => {});
+      }
+    });
+    wrap.appendChild(div);
+  }
+}
+
+document.getElementById('yh-start-btn')?.addEventListener('click', () => {
+  const menu = document.getElementById('yh-menu');
+  const playArea = document.getElementById('yh-play-area');
+  const mapIdx = Number(document.getElementById('yh-map-select')?.value || 0);
+  menu.hidden = true;
+  playArea.hidden = false;
+  playArea.innerHTML = '';
+  window.PirateRoyale?.init(playArea, mapIdx, yhSelectedChar, async (result) => {
+    // Award coins
+    try {
+      const res = await fetch('/api/arcade/score', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ game: 'pirate_royale', score: result.coinsEarned, elapsed: 999999 })
+      });
+      const data = await res.json();
+      if (data.user) { user = data.user; updateUI(); }
+    } catch {}
+    // Click to return listener
+    const returnHandler = () => {
+      playArea.removeEventListener('click', returnHandler);
+      canvas?.removeEventListener('click', returnHandler);
+      window.PirateRoyale?.cleanup();
+      playArea.hidden = true;
+      menu.hidden = false;
+      renderYHCharacters();
+    };
+    // Delay so the click that triggers the last attack doesn't immediately return
+    setTimeout(() => {
+      playArea.addEventListener('click', returnHandler);
+      const canvas = playArea.querySelector('canvas');
+      if (canvas) canvas.addEventListener('click', returnHandler);
+    }, 1000);
+  });
+});
+
+// Render characters when navigating to the page
+const _origShowPage = window._showPageHook;
+if (typeof showPage === 'function') {
+  const _origSP = showPage;
+  // Can't easily override — hook via MutationObserver on page visibility instead
+}
+// Simpler: render on nav click
+document.querySelector('[data-page="yohoho"]')?.addEventListener('click', () => {
+  setTimeout(renderYHCharacters, 50);
+});
+// Also render on initial load if already on the page
+setTimeout(renderYHCharacters, 500);
+
+// ============================================================
 //   COLOR THEMES
 // ============================================================
 const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
