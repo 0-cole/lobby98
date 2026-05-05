@@ -83,6 +83,7 @@
       <button class="nav-link" data-page="leaderboard">Leaderboard</button>
       <button class="nav-link" data-page="achievements">🏆 Achievements</button>
       <button class="nav-link" data-page="friends">👥 Friends</button>
+      <button class="nav-link" data-page="dms">💬 DMs</button>
       <button class="nav-link nav-staff" data-page="staff" id="nav-staff-link" hidden>Staff</button>
     </div>
     <div class="nav-right">
@@ -171,17 +172,43 @@
       <div class="glass-card">
         <h3 class="card-title">📋 What's New</h3>
         <div style="font-size:13px;color:var(--ink2);line-height:1.6">
-          <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.5 — April 26, 2026</div>
-          <div>🎨 10 color themes (Midnight, Sunset, Neon, Lava, and more)</div>
-          <div>🎵 Ambient background music with shuffle</div>
-          <div>👑 Owner/Staff/Mod role hierarchy</div>
-          <div>🍀 Luck skill tree + major dungeon rebalance</div>
-          <div>👥 Friends system with DMs and online status</div>
-          <div>😂 Chat reactions (👍❤️😂😮😢🔥)</div>
-          <div>🎭 Avatar builder with faces, hats & colors</div>
-          <div>✨ Page transitions, sounds, particles & loading screen</div>
+          <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v2.0 — May 1, 2026</div>
+          <div>🌑 Dark mode theme · 💬 Dedicated DMs page</div>
+          <div>📝 Username change (500 coins) · 🎰 Lucky Slots arcade game</div>
+          <div>🛠️ Theme persistence fix · longer reconnect grace period (20s)</div>
+          <div>🎨 Player name colors & titles render in party chat</div>
         </div>
         <div id="dash-changelog-extra" hidden style="font-size:13px;color:var(--ink2);line-height:1.6;margin-top:10px">
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.9 — May 1, 2026</div>
+            <div>🃏 Crazy Eights — UNO-style 2-6 player card game with bots</div>
+            <div>⚡ Special cards: Skip ⊘, Reverse ⟳, +2, +4, Stack-Color ★</div>
+            <div>🎬 Card-flight animations, win celebration, auto-reshuffle</div>
+            <div>🏷️ Chat now shows player titles, colors, and host/owner badges</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.8 — April 30, 2026</div>
+            <div>🏴‍☠️ Pirate Royale — battle royale with 3 maps, growth, dash combat</div>
+            <div>👑 15 unlockable pirate characters · doubloon currency</div>
+            <div>💥 Blitz: 90s timed deathmatch, scoreboard, server-side bot AI</div>
+            <div>🤖 Bot system for party games — add bots to fill any room</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.7 — April 28, 2026</div>
+            <div>🔴 Connect Four — 2-player turn-based with AI bot</div>
+            <div>🎨 380+ background gradients · Settings color theme picker</div>
+            <div>⚙️ Room size selector (2/4/6/8/12 players)</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.6 — April 27, 2026</div>
+            <div>⚔️ Deep Dive: 5 endgame areas, 2 new skill trees, respec button</div>
+            <div>📊 Linear+quadratic monster scaling · scaling unique items</div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.5 — April 26, 2026</div>
+            <div>🎨 10 color themes · 🎵 Ambient music · 👑 Role hierarchy</div>
+            <div>🍀 Luck skill tree · 👥 Friends + DMs · 😂 Chat reactions</div>
+          </div>
           <div style="margin-bottom:10px">
             <div style="font-weight:700;color:var(--ink1);margin-bottom:4px">v1.4 — April 25, 2026</div>
             <div>🛡️ 14 admin tools, mute/kick/ban, user list</div>
@@ -406,6 +433,7 @@
         <div class="glass-card arcade-card" data-arcade="clickspeed"><div class="ac-icon">🎯</div><h3 class="ac-title">Firing Range</h3><p class="ac-desc">Hit the bullseye for max coins. Accuracy matters.</p></div>
         <div class="glass-card arcade-card" data-arcade="mathrush"><div class="ac-icon">🔢</div><h3 class="ac-title">Math Rush</h3><p class="ac-desc">Solve math problems. 30 seconds. Go.</p></div>
         <div class="glass-card arcade-card" data-arcade="snake"><div class="ac-icon">🐍</div><h3 class="ac-title">Snake</h3><p class="ac-desc">Classic snake. Eat, grow, don't crash. Arrow keys or WASD.</p></div>
+        <div class="glass-card arcade-card" data-arcade="slots"><div class="ac-icon">🎰</div><h3 class="ac-title">Lucky Slots</h3><p class="ac-desc">Wager coins, spin the reels, hit jackpot. 💎💎💎 = 100×</p></div>
       </div>
       <div class="glass-card" id="arcade-play-area" hidden>
         <button class="btn btn-ghost btn-sm" id="arcade-back" style="margin-bottom:12px">← Back to arcade</button>
@@ -506,6 +534,7 @@
             <div class="theme-swatch" data-theme="theme-ocean" style="background:linear-gradient(135deg,#041828,#0a3060,#1a6080)"><span>Ocean</span></div>
             <div class="theme-swatch" data-theme="theme-lava" style="background:linear-gradient(135deg,#1a0505,#3a0a0a,#200505);border:1px solid rgba(255,60,30,0.2)"><span style="color:#ff8060">Lava</span></div>
             <div class="theme-swatch" data-theme="theme-arctic" style="background:linear-gradient(135deg,#90c8e8,#c0e8ff,#f0f8ff)"><span style="color:#1a4060">Arctic</span></div>
+            <div class="theme-swatch" data-theme="theme-dark" style="background:linear-gradient(135deg,#0a0a0a,#1a1a1a,#252525);border:1px solid rgba(255,255,255,0.1)"><span style="color:#e0e0e0">Dark</span></div>
           </div>
           <div id="gradient-current-preview" style="margin:14px 0 8px"></div>
           <button class="btn btn-primary" id="open-gradient-picker-btn" style="width:100%">Browse 380+ More Gradients</button>
@@ -535,6 +564,21 @@
         <input class="inp" type="text" id="wipe-confirm-input" placeholder="Type the sentence above..." style="width:100%" autocomplete="off" />
         <button class="btn btn-danger" id="wipe-confirm-btn" style="width:100%;margin-top:8px" disabled>Erase Everything</button>
         <p class="form-err" id="wipe-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h2 class="card-title">📝 Change Username</h2>
+        <p class="card-desc" style="font-size:12px;color:var(--ink3)">Change your username. Costs <strong>500 coins</strong>. 3-16 characters, letters/numbers/underscore only. Your old name becomes available for others to claim.</p>
+        <input class="inp" type="text" id="change-username-input" placeholder="New username..." style="width:100%;margin-top:8px" autocomplete="off" maxlength="16" />
+        <button class="btn btn-primary" id="change-username-btn" style="width:100%;margin-top:8px">Change Username (500 🪙)</button>
+        <p class="form-err" id="change-username-msg"></p>
+      </div>
+      <div class="glass-card">
+        <h2 class="card-title" style="color:var(--danger)">☠️ Delete Account</h2>
+        <p class="card-desc" style="font-size:12px;color:var(--ink3)">This will permanently delete your account and all associated data — coins, achievements, shop items, game stats, stocks, profile, friends, and chat history. Your username will be freed for someone else to claim. <strong>This cannot be undone.</strong></p>
+        <p style="font-size:12px;color:var(--danger);margin:8px 0;font-weight:700">Type your username to confirm:</p>
+        <input class="inp" type="text" id="delete-account-input" placeholder="Your exact username..." style="width:100%" autocomplete="off" />
+        <button class="btn btn-danger" id="delete-account-btn" style="width:100%;margin-top:8px" disabled>Delete My Account Forever</button>
+        <p class="form-err" id="delete-account-msg"></p>
       </div>
       <div class="glass-card">
         <h2 class="card-title">📋 Update Log</h2>
@@ -705,6 +749,30 @@
           <input class="inp" type="text" id="dm-input" placeholder="Type a message..." style="flex:1" maxlength="300" />
           <button class="btn btn-primary btn-sm" id="dm-send-btn">Send</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ============== DIRECT MESSAGES ============== -->
+    <section class="page" id="page-dms" hidden>
+      <div class="glass-card"><h2 class="card-title">💬 Direct Messages</h2><p class="card-desc">Chat privately with your friends.</p></div>
+      <div class="dm-layout" style="display:grid;grid-template-columns:240px 1fr;gap:14px;min-height:480px">
+        <!-- Left: friend list -->
+        <div class="glass-card" style="padding:12px;overflow-y:auto;max-height:580px">
+          <h3 style="font-size:14px;color:var(--ink2);margin:0 0 10px 0;font-weight:800">CONVERSATIONS</h3>
+          <div id="dm-friends-list"><p style="color:var(--ink3);font-size:12px">No friends yet</p></div>
+        </div>
+        <!-- Right: conversation -->
+        <div class="glass-card" style="display:flex;flex-direction:column;padding:0;overflow:hidden">
+          <div id="dm-page-header" style="padding:14px 16px;border-bottom:1px solid var(--glass-edge);font-weight:800;color:var(--deep)">
+            <span id="dm-page-title">Pick a friend to start chatting</span>
+          </div>
+          <div id="dm-page-messages" style="flex:1;overflow-y:auto;padding:14px 16px;min-height:380px;max-height:480px">
+            <p style="color:var(--ink3);font-size:13px;text-align:center;padding-top:60px">← Select a conversation to begin</p>
+          </div>
+          <div id="dm-page-input-wrap" style="padding:10px 14px;border-top:1px solid var(--glass-edge);display:flex;gap:8px" hidden>
+            <input class="inp" type="text" id="dm-page-input" placeholder="Type a message..." style="flex:1" maxlength="300" />
+            <button class="btn btn-primary btn-sm" id="dm-page-send-btn">Send</button>
+          </div>
       </div>
     </section>
 

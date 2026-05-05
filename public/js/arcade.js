@@ -437,6 +437,139 @@
         if (this._interval) clearInterval(this._interval);
         if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler);
       }
+    },
+
+    // ==================== SLOTS ====================
+    // Server-authoritative slot machine. Pick wager, hit Spin, server rolls 3 reels.
+    // Wager is deducted upfront; payouts come back based on matches.
+    slots: {
+      init(container, onComplete) {
+        const gameId = 'slots';
+        _startTimes[gameId] = Date.now();
+        _completed[gameId] = false;
+        let myCoins = (window.user?.coins) || 0;
+        let wager = 5;
+        const SYMBOLS = ['🍒','🍋','🔔','🍀','7️⃣','💎'];
+
+        container.innerHTML = `
+          <div style="text-align:center;max-width:480px;margin:0 auto">
+            <h3 style="color:var(--deep);font-weight:800;margin-bottom:6px">🎰 Lucky Slots</h3>
+            <p style="color:var(--ink2);font-size:13px;margin-bottom:14px">Match 3 to win big. Match 2 for a small payout.</p>
+            <div id="sl-balance" style="font-weight:800;font-size:18px;color:#ffd700;margin-bottom:10px">💰 ${myCoins}</div>
+
+            <div id="sl-reels" style="display:flex;gap:10px;justify-content:center;background:linear-gradient(180deg,#1a0d05,#3a1a08);padding:18px 14px;border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,0.4),inset 0 2px 8px rgba(0,0,0,0.5);margin-bottom:14px;border:3px solid #c8a040">
+              <div class="sl-reel" id="sl-r0" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+              <div class="sl-reel" id="sl-r1" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+              <div class="sl-reel" id="sl-r2" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+            </div>
+
+            <div id="sl-result" style="min-height:24px;font-weight:800;font-size:16px;margin-bottom:10px"></div>
+
+            <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:12px">
+              <span style="color:var(--ink2);font-weight:700">Bet:</span>
+              <button id="sl-dec" class="btn btn-ghost btn-sm" style="min-width:32px">−</button>
+              <span id="sl-wager" style="font-weight:900;font-size:18px;color:var(--deep);min-width:50px;text-align:center">${wager}</span>
+              <button id="sl-inc" class="btn btn-ghost btn-sm" style="min-width:32px">+</button>
+              <button id="sl-max" class="btn btn-ghost btn-sm" style="font-size:11px">Max</button>
+            </div>
+
+            <button id="sl-spin" class="btn btn-primary btn-lg" style="min-width:160px">🎲 SPIN</button>
+
+            <div style="margin-top:18px;padding:12px;background:var(--neo);border-radius:12px;font-size:12px;color:var(--ink2);text-align:left">
+              <div style="font-weight:800;margin-bottom:6px;color:var(--ink)">Payout (×wager)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px">
+                <span>🍒🍒🍒 ×3</span><span>🍒🍒 ×1</span>
+                <span>🍋🍋🍋 ×5</span><span>🍋🍋 ×1.5</span>
+                <span>🔔🔔🔔 ×8</span><span>🔔🔔 ×2</span>
+                <span>🍀🍀🍀 ×12</span><span>🍀🍀 ×3</span>
+                <span>7️⃣7️⃣7️⃣ ×25</span><span>7️⃣7️⃣ ×5</span>
+                <span style="color:#ffd700;font-weight:800">💎💎💎 ×100</span><span>💎💎 ×10</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const wagerEl = document.getElementById('sl-wager');
+        const balanceEl = document.getElementById('sl-balance');
+        const resultEl = document.getElementById('sl-result');
+        const spinBtn = document.getElementById('sl-spin');
+        const reels = [0,1,2].map(i => document.getElementById(`sl-r${i}`));
+
+        const updateWager = () => {
+          wager = Math.max(1, Math.min(100, Math.min(myCoins, wager)));
+          wagerEl.textContent = wager;
+          spinBtn.disabled = myCoins < wager;
+        };
+        document.getElementById('sl-dec').addEventListener('click', () => { wager = Math.max(1, wager - 5); updateWager(); });
+        document.getElementById('sl-inc').addEventListener('click', () => { wager = Math.min(100, wager + 5); updateWager(); });
+        document.getElementById('sl-max').addEventListener('click', () => { wager = Math.min(100, myCoins); updateWager(); });
+
+        let spinning = false;
+        spinBtn.addEventListener('click', async () => {
+          if (spinning) return;
+          if (myCoins < wager) { resultEl.textContent = "Not enough coins!"; resultEl.style.color = "var(--danger)"; return; }
+          spinning = true;
+          spinBtn.disabled = true;
+          resultEl.textContent = "Spinning...";
+          resultEl.style.color = "var(--ink2)";
+          // Animate reels with random symbols
+          const intervals = reels.map((reel, i) => setInterval(() => {
+            reel.textContent = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+          }, 60));
+
+          try {
+            const res = await fetch('/api/arcade/score', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ game: 'slots', score: wager, elapsed: 9999 })
+            });
+            const data = await res.json();
+            // Stop reels one at a time with a stagger
+            for (let i = 0; i < 3; i++) {
+              await new Promise(r => setTimeout(r, 600 + i * 350));
+              clearInterval(intervals[i]);
+              if (data.reels) {
+                reels[i].textContent = data.reels[i];
+                reels[i].style.transition = 'transform 0.15s';
+                reels[i].style.transform = 'scale(1.1)';
+                setTimeout(() => { reels[i].style.transform = 'scale(1)'; }, 150);
+              }
+            }
+            await new Promise(r => setTimeout(r, 250));
+            if (data.error) {
+              resultEl.textContent = data.error; resultEl.style.color = "var(--danger)";
+            } else {
+              myCoins = data.user?.coins ?? myCoins;
+              if (window.user) window.user.coins = myCoins;
+              balanceEl.textContent = `💰 ${myCoins}`;
+              if (data.outcome === 'jackpot') {
+                resultEl.innerHTML = `💎 <span style="color:#ffd700">JACKPOT!</span> +${data.payout - data.wager} coins!`;
+                resultEl.style.color = "#ffd700";
+                if (window.spawnParticles) for (let p = 0; p < 50; p++) setTimeout(() => window.spawnParticles?.(window.innerWidth/2, window.innerHeight/3, 'confetti'), p*30);
+              } else if (data.outcome === 'triple') {
+                resultEl.textContent = `🎉 Triple! +${data.payout - data.wager} coins`;
+                resultEl.style.color = "var(--success)";
+              } else if (data.outcome === 'pair') {
+                resultEl.textContent = data.net > 0 ? `Pair! +${data.net} coins` : data.net === 0 ? `Pair! Break even` : `Pair! ${data.net} coins`;
+                resultEl.style.color = data.net >= 0 ? "var(--success)" : "var(--ink2)";
+              } else {
+                resultEl.textContent = `No match. -${data.wager} coins`;
+                resultEl.style.color = "var(--ink3)";
+              }
+              // Update top-bar coins display if present
+              if (window.refreshUser) window.refreshUser();
+            }
+          } catch (err) {
+            for (const it of intervals) clearInterval(it);
+            resultEl.textContent = "Spin failed";
+            resultEl.style.color = "var(--danger)";
+          }
+          spinning = false;
+          updateWager();
+        });
+
+        updateWager();
+      },
+      cleanup() {}
     }
   };
 })();

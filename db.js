@@ -172,6 +172,11 @@ export function addCoins(userId, amount) { s.addCoins.run(amount, userId); }
 export function setCoins(userId, amount) { s.setCoins.run(amount, userId); }
 export function setColor(userId, color) { s.setColor.run(color, userId); }
 export function setTitle(userId, title) { s.setTitle.run(title, userId); }
+export function setUsername(userId, newUsername) {
+  // Caller must have already validated uniqueness. Returns false on collision.
+  try { db.prepare("UPDATE users SET username = ? WHERE id = ?").run(newUsername, userId); return true; }
+  catch { return false; }
+}
 export function getOwnedItems(userId) {
   const u = s.getById.get(userId);
   try { return JSON.parse(u.owned_items); } catch { return ["default", "none"]; }
@@ -302,6 +307,19 @@ export function safeUserData(u) {
     createdAt: u.created_at || 0,
     avatar: (() => { try { return JSON.parse(u.avatar || "{}"); } catch { return {}; } })()
   };
+}
+
+export function deleteUserById(userId) {
+  // Delete user account and all associated records.
+  // Foreign-key tables get cleaned up first to avoid orphans.
+  try { db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId); } catch {}
+  try { db.prepare("DELETE FROM bug_reports WHERE user_id = ?").run(userId); } catch {}
+  try { db.prepare("DELETE FROM achievements WHERE user_id = ?").run(userId); } catch {}
+  try { db.prepare("DELETE FROM friends WHERE from_id = ? OR to_id = ?").run(userId, userId); } catch {}
+  try { db.prepare("DELETE FROM direct_messages WHERE from_id = ? OR to_id = ?").run(userId, userId); } catch {}
+  try { db.prepare("DELETE FROM chat_reactions WHERE user_id = ?").run(userId); } catch {}
+  try { db.prepare("DELETE FROM chat_messages WHERE username IN (SELECT username FROM users WHERE id = ?)").run(userId); } catch {}
+  return db.prepare("DELETE FROM users WHERE id = ?").run(userId).changes;
 }
 
 export function deleteAllUsersExcept(keepUsernames) {

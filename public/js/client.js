@@ -219,7 +219,7 @@ function checkNewUserNotice() {
 // ============================================================
 //   ROUTING
 // ============================================================
-const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-yohoho","page-profile","page-market","page-achievements","page-friends"];
+const PAGES = ["page-auth","page-dashboard","page-play","page-room","page-game","page-kicked","page-arcade","page-shop","page-settings","page-leaderboard","page-staff","page-dungeon","page-yohoho","page-profile","page-market","page-achievements","page-friends","page-dms"];
 
 function showPage(id) {
   const outgoing = PAGES.find(p => !$(p)?.hidden && p !== id);
@@ -238,7 +238,7 @@ function showPage(id) {
       el.style.animation = '';
     }
   });
-  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-yohoho":"yohoho","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends"};
+  const map = {"page-dashboard":"dashboard","page-play":"play","page-room":"play","page-game":"play","page-arcade":"arcade","page-shop":"shop","page-settings":"settings","page-leaderboard":"leaderboard","page-staff":"staff","page-dungeon":"dungeon","page-yohoho":"yohoho","page-profile":"profile","page-market":"market","page-achievements":"achievements","page-friends":"friends","page-dms":"dms"};
   document.querySelectorAll(".nav-link").forEach(l => l.classList.toggle("active", l.dataset.page === map[id]));
   if (user && !GCHAT_HIDDEN_PAGES.has(id)) showGChat();
   else hideGChat();
@@ -249,7 +249,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
   l.addEventListener("click", () => {
     if (!user) return;
     // Don't navigate away from active room/game
-    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "yohoho" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends")) {
+    if (currentRoom && (l.dataset.page === "dashboard" || l.dataset.page === "arcade" || l.dataset.page === "shop" || l.dataset.page === "settings" || l.dataset.page === "leaderboard" || l.dataset.page === "staff" || l.dataset.page === "dungeon" || l.dataset.page === "yohoho" || l.dataset.page === "profile" || l.dataset.page === "market" || l.dataset.page === "friends" || l.dataset.page === "dms")) {
       if (!confirm("Leave the current room?")) return;
       socket.emit("room:leave");
       resetRoomState();
@@ -259,6 +259,7 @@ document.querySelectorAll(".nav-link").forEach(l => {
     if (l.dataset.page === "settings") loadSettings();
     if (l.dataset.page === "play") { prefillName(); loadRoomBrowser(); }
     if (l.dataset.page === "yohoho") renderYHMenu();
+    if (l.dataset.page === "dms") loadDMsPage();
     if (l.dataset.page === "leaderboard") loadLeaderboard();
     if (l.dataset.page === "achievements") loadAchievements();
     if (l.dataset.page === "profile") loadProfile();
@@ -755,7 +756,30 @@ $("submit-rating-btn").addEventListener("click", () => { if(selectedRating===nul
 // ============================================================
 function renderChat(hist) { const m=$("chat-messages"); m.innerHTML=""; for (const msg of hist) addChat(msg); scrollChat(); }
 function addChat(msg) {
-  ["chat-messages","game-chat-messages"].forEach(id => { const c=$(id); if(!c)return; const li=document.createElement("li"); if(msg.system){li.className="chat-system";li.textContent=`— ${msg.text} —`;} else { const isH=currentRoom&&msg.playerId===currentRoom.hostId; li.innerHTML=`<span class="chat-author ${isH?"host-author":""}">${esc(msg.name)}:</span><span class="chat-text">${esc(msg.text)}</span>`; } c.appendChild(li); });
+  ["chat-messages","game-chat-messages"].forEach(id => {
+    const c = $(id); if (!c) return;
+    const li = document.createElement("li");
+    if (msg.system) {
+      li.className = "chat-system";
+      li.textContent = `— ${msg.text} —`;
+    } else {
+      const isHost = currentRoom && msg.playerId === currentRoom.hostId;
+      // Color: prefer colorCss from server, fall back to default
+      const colorStyle = msg.colorCss
+        ? (msg.colorCss.includes('gradient')
+          ? `background:${msg.colorCss};-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent`
+          : `color:${msg.colorCss}`)
+        : '';
+      // Title badge — only show if there is a meaningful title
+      let titleBadge = '';
+      if (msg.isOwner) titleBadge = '<span class="chat-title-badge owner-badge">OWNER</span>';
+      else if (msg.titleName) titleBadge = `<span class="chat-title-badge">${esc(msg.titleName)}</span>`;
+      const hostBadge = isHost ? '<span class="chat-title-badge host-badge">HOST</span>' : '';
+      const timestamp = msg.ts ? `<span class="chat-time">${new Date(msg.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>` : '';
+      li.innerHTML = `${hostBadge}${titleBadge}<span class="chat-author" style="${colorStyle}">${esc(msg.name)}</span><span class="chat-text">${esc(msg.text)}</span>${timestamp}`;
+    }
+    c.appendChild(li);
+  });
 }
 function scrollChat() { ["chat-messages","game-chat-messages"].forEach(id => { const e=$(id); if(e) e.scrollTop=e.scrollHeight; }); }
 function syncChat() { const s=$("chat-messages"),d=$("game-chat-messages"); if(s&&d){d.innerHTML=s.innerHTML;d.scrollTop=d.scrollHeight;} }
@@ -803,7 +827,59 @@ socket.on("game:yourWord", ({ word, category, isSpy }) => { myWord = { word, cat
 socket.on("game:yourChainRole", ({ isSaboteur, targetWord, starter }) => { myChainRole = { isSaboteur, targetWord, starter }; hasAccused=false; });
 socket.on("chat:message", msg => { addChat(msg); scrollChat(); });
 socket.on("room:kicked", ({ by }) => { $("kicked-by").textContent = by ? `(by ${by})` : ""; resetRoomState(); showPage("page-kicked"); });
-socket.on("disconnect", () => { if (me) { resetRoomState(); showPage("page-dashboard"); } });
+
+// Disconnect handling: don't immediately kick the user on every blip.
+// Socket.IO auto-reconnects; show a banner and only fall back to dashboard
+// if the disconnect is permanent (no reconnection within a reasonable window).
+let _reconnectTimer = null;
+let _reconnectBanner = null;
+function showReconnectBanner() {
+  if (_reconnectBanner) return;
+  _reconnectBanner = document.createElement('div');
+  _reconnectBanner.id = '_reconnect-banner';
+  _reconnectBanner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;padding:8px 16px;background:rgba(245,166,35,0.95);color:#000;font-weight:800;text-align:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+  _reconnectBanner.textContent = '⚠ Reconnecting...';
+  document.body.appendChild(_reconnectBanner);
+}
+function hideReconnectBanner() {
+  if (_reconnectBanner) { _reconnectBanner.remove(); _reconnectBanner = null; }
+}
+socket.on("disconnect", (reason) => {
+  if (!me) return;
+  showReconnectBanner();
+  // If we're still disconnected after 8 seconds, give up and go to dashboard.
+  if (_reconnectTimer) clearTimeout(_reconnectTimer);
+  _reconnectTimer = setTimeout(() => {
+    if (!socket.connected) {
+      hideReconnectBanner();
+      resetRoomState();
+      showPage("page-dashboard");
+      showAnnouncement("Lost connection to server", "danger", 4000);
+    }
+  }, 8000);
+});
+socket.on("connect", () => {
+  if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
+  hideReconnectBanner();
+  // Auto-rejoin our previous room if we were in one and the page is still showing it
+  if (currentRoom?.code && me?.name) {
+    socket.emit("room:join", { code: currentRoom.code, name: me.name }, (resp) => {
+      if (resp?.ok) {
+        // Update our socket-bound id to the new one
+        me = resp.you || me;
+        currentRoom = resp.snapshot;
+        renderChat(resp.chat || []);
+        renderRoom(resp.snapshot);
+      } else if (resp?.error) {
+        // Room is gone or full — fall back to dashboard
+        resetRoomState();
+        showPage("page-dashboard");
+        showAnnouncement(resp.error, "danger", 4000);
+      }
+    });
+  }
+});
+
 socket.on("kicked", ({ reason }) => { showAnnouncement("You've been kicked: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
 socket.on("banned", ({ reason }) => { showAnnouncement("You've been banned: " + (reason || "No reason"), "danger"); setTimeout(() => location.reload(), 2500); });
 
@@ -2044,7 +2120,7 @@ let _gradientSearch = "";
 // curated theme class — only one theme is ever active at a time.
 function applyGradientBackground(css) {
   // Remove any curated theme class and clear its localStorage entry.
-  const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+  const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic','theme-dark'];
   THEME_CLASSES.forEach(c => document.body.classList.remove(c));
   localStorage.setItem('lobby98_theme', '');
   // De-highlight any active theme swatch in the Settings grid.
@@ -2459,6 +2535,53 @@ if (wipeInput && wipeBtn) {
         await refreshUser();
       } else { msg.textContent = data.error; msg.style.color = "var(--danger)"; }
     } catch { msg.textContent = "Error"; }
+  });
+}
+
+// ── Delete Account (permanent) ──
+const delAcctInput = document.getElementById("delete-account-input");
+const delAcctBtn = document.getElementById("delete-account-btn");
+if (delAcctInput && delAcctBtn) {
+  delAcctInput.addEventListener("paste", e => e.preventDefault());
+  delAcctInput.addEventListener("drop", e => e.preventDefault());
+  delAcctInput.addEventListener("input", () => {
+    delAcctBtn.disabled = !user || delAcctInput.value !== user.username;
+  });
+  delAcctBtn.addEventListener("click", async () => {
+    const msg = $("delete-account-msg"); msg.textContent = "";
+    if (!user || delAcctInput.value !== user.username) { msg.textContent = "Type your exact username."; msg.style.color = "var(--danger)"; return; }
+    if (!confirm(`This will permanently delete your account "${user.username}" and ALL data forever. Continue?`)) return;
+    try {
+      const res = await fetch("/api/account/delete", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({confirmation:delAcctInput.value}) });
+      const data = await res.json();
+      if (res.ok) {
+        msg.textContent = "Account deleted. Goodbye! 👋"; msg.style.color = "var(--success)";
+        setTimeout(() => { location.href = "/"; }, 1500);
+      } else { msg.textContent = data.error; msg.style.color = "var(--danger)"; }
+    } catch { msg.textContent = "Error"; }
+  });
+}
+
+// Username change
+const changeUsernameInput = document.getElementById("change-username-input");
+const changeUsernameBtn = document.getElementById("change-username-btn");
+if (changeUsernameInput && changeUsernameBtn) {
+  changeUsernameBtn.addEventListener("click", async () => {
+    const msg = $("change-username-msg"); msg.textContent = "";
+    const newName = changeUsernameInput.value.trim();
+    if (!newName) { msg.textContent = "Enter a new username"; msg.style.color = "var(--danger)"; return; }
+    if (!/^[a-zA-Z0-9_]{3,16}$/.test(newName)) { msg.textContent = "Username: 3-16 chars, letters/numbers/underscore only"; msg.style.color = "var(--danger)"; return; }
+    if (!confirm(`Change your username to "${newName}" for 500 coins?\n\nYour old name "${user?.username}" will be released for someone else to claim.`)) return;
+    try {
+      const res = await fetch("/api/account/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({newUsername:newName}) });
+      const data = await res.json();
+      if (res.ok) {
+        msg.textContent = data.message || "Username changed!"; msg.style.color = "var(--success)";
+        if (data.user) { user = data.user; updateUI(); }
+        changeUsernameInput.value = "";
+        playSound('achieve');
+      } else { msg.textContent = data.error; msg.style.color = "var(--danger)"; }
+    } catch { msg.textContent = "Error"; msg.style.color = "var(--danger)"; }
   });
 }
 
@@ -2880,20 +3003,19 @@ setTimeout(renderYHMenu, 500);
 // ============================================================
 //   COLOR THEMES
 // ============================================================
-const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic'];
+const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic','theme-dark'];
 function applyTheme(theme) {
   THEME_CLASSES.forEach(c => document.body.classList.remove(c));
   if (theme) document.body.classList.add(theme);
   localStorage.setItem('lobby98_theme', theme || '');
   // Picking a curated theme clears any custom gradient — only one active at a time.
-  // Use the internal helper so we don't ping-pong (clearGradientBackground itself
-  // does NOT call applyTheme, so this is safe and won't recurse).
-  if (typeof clearGradientBackground === 'function') clearGradientBackground();
+  // BUT: only clear if a real theme is being applied. Calling applyTheme('')
+  // (e.g., on page load when no theme is set) should NOT wipe the user's gradient.
+  if (theme && typeof clearGradientBackground === 'function') clearGradientBackground();
   // Update active swatch
   document.querySelectorAll('.theme-swatch').forEach(s => {
     s.classList.toggle('active', (s.dataset.theme || '') === (theme || ''));
   });
-  // Refresh the gradient-active chip in Settings (now blank since we just cleared it).
   if (typeof renderGradientCurrentPreview === 'function') renderGradientCurrentPreview();
 }
 // Init theme from localStorage
@@ -2905,8 +3027,18 @@ document.getElementById('theme-grid')?.addEventListener('click', e => {
   if (!swatch) return;
   applyTheme(swatch.dataset.theme || '');
 });
-// Mark active swatch on page load
-setTimeout(() => applyTheme(savedTheme), 50);
+// Mark active swatch on page load — only call applyTheme if there's actually a theme
+// (calling applyTheme('') on every reload was stripping the body class set by the
+// inline early-load script in index.html when localStorage flushed mid-render).
+setTimeout(() => {
+  if (savedTheme) applyTheme(savedTheme);
+  else {
+    // Just update the swatch UI without touching body classes
+    document.querySelectorAll('.theme-swatch').forEach(s => {
+      s.classList.toggle('active', !s.dataset.theme || s.dataset.theme === '');
+    });
+  }
+}, 50);
 
 // Dashboard changelog toggle
 const dashChangelogToggle = document.getElementById('dash-changelog-toggle');
@@ -3008,6 +3140,91 @@ document.getElementById('friend-add-btn')?.addEventListener('click', async () =>
   } catch { msg.textContent = 'Error'; }
 });
 
+// ============================================================
+//   DMs PAGE — dedicated full-page conversation view
+// ============================================================
+let _dmsPageFriend = null;
+
+async function loadDMsPage() {
+  const list = $('dm-friends-list');
+  if (!list) return;
+  list.innerHTML = '<p style="color:var(--ink3);font-size:12px">Loading...</p>';
+  try {
+    const res = await fetch('/api/friends');
+    const data = await res.json();
+    if (!data.friends?.length) { list.innerHTML = '<p style="color:var(--ink3);font-size:12px">Add friends first to start DMing!</p>'; return; }
+    list.innerHTML = data.friends.sort((a,b)=>b.online-a.online).map(f => {
+      const dot = f.online ? 'background:var(--success)' : 'background:#888';
+      const isActive = _dmsPageFriend === f.id;
+      return `<div class="dm-friend-row" data-friend-id="${f.id}" data-friend-name="${esc(f.username)}" style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer;margin-bottom:4px;${isActive?'background:rgba(74,160,200,0.15)':''}">
+        <span style="font-size:18px">${f.pfpEmoji||'😎'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis">${esc(f.username)}</div>
+          <div style="font-size:10px;color:var(--ink3)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;${dot};margin-right:4px"></span>${f.online?'Online':'Offline'}</div>
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.dm-friend-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const fid = Number(row.dataset.friendId);
+        const fname = row.dataset.friendName;
+        openDMPage(fid, fname);
+      });
+    });
+    // If a friend was previously selected, refresh that conversation
+    if (_dmsPageFriend) {
+      const f = data.friends.find(x => x.id === _dmsPageFriend);
+      if (f) openDMPage(f.id, f.username);
+    }
+  } catch { list.innerHTML = '<p style="color:var(--danger);font-size:12px">Error loading friends</p>'; }
+}
+
+async function openDMPage(friendId, friendName) {
+  _dmsPageFriend = friendId;
+  // Update active row visual
+  document.querySelectorAll('.dm-friend-row').forEach(r => {
+    r.style.background = Number(r.dataset.friendId) === friendId ? 'rgba(74,160,200,0.15)' : '';
+  });
+  $('dm-page-title').textContent = `💬 ${friendName}`;
+  $('dm-page-input-wrap').hidden = false;
+  const msgEl = $('dm-page-messages');
+  msgEl.innerHTML = '<p style="color:var(--ink3);font-size:13px;text-align:center">Loading messages...</p>';
+  try {
+    const res = await fetch(`/api/dm/${friendId}`);
+    const data = await res.json();
+    if (!data.messages?.length) {
+      msgEl.innerHTML = '<p style="color:var(--ink3);font-size:13px;text-align:center;padding-top:60px">No messages yet. Say hi! 👋</p>';
+      return;
+    }
+    msgEl.innerHTML = data.messages.map(m => {
+      const isMe = m.from_id === user.id;
+      const time = new Date(m.time);
+      const ts = `${time.getHours()}:${String(time.getMinutes()).padStart(2,'0')}`;
+      return `<div style="margin-bottom:10px;text-align:${isMe?'right':'left'}">
+        <div style="display:inline-block;max-width:70%;padding:8px 12px;border-radius:14px;background:${isMe?'var(--accent)':'rgba(0,0,0,0.06)'};color:${isMe?'#fff':'var(--ink)'};font-size:14px;text-align:left;word-wrap:break-word">${esc(m.text)}</div>
+        <div style="font-size:10px;color:var(--ink3);margin-top:2px">${isMe?'You':esc(friendName)} · ${ts}</div>
+      </div>`;
+    }).join('');
+    msgEl.scrollTop = msgEl.scrollHeight;
+  } catch {
+    msgEl.innerHTML = '<p style="color:var(--danger);font-size:13px">Error loading conversation</p>';
+  }
+}
+
+document.getElementById('dm-page-send-btn')?.addEventListener('click', async () => {
+  const input = $('dm-page-input');
+  const text = input.value.trim();
+  if (!text || !_dmsPageFriend) return;
+  input.value = '';
+  try {
+    await fetch('/api/dm/send', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({friendId:_dmsPageFriend, text}) });
+    const fname = $('dm-page-title').textContent.replace('💬 ', '');
+    openDMPage(_dmsPageFriend, fname);
+    playSound('click');
+  } catch {}
+});
+document.getElementById('dm-page-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('dm-page-send-btn')?.click(); });
+
 // DM socket notification
 function initFriendListeners() {
   if (!window._socket) return;
@@ -3019,6 +3236,7 @@ function initFriendListeners() {
     showToast(`${data.from}: ${data.text.slice(0, 40)}`, '💬', 4000);
     playSound('chat');
     if (_currentDmFriend === data.fromId) openDM(data.fromId, data.from);
+    if (_dmsPageFriend === data.fromId) openDMPage(data.fromId, data.from);
   });
 }
 

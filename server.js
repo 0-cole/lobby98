@@ -27,8 +27,9 @@ import { containsProfanity, cleanText, checkMessage } from "./filter.js";
 import { GRADIENTS } from "./gradients.js";
 import {
   createUser, getUserByName, getUserById, createSession, getSession,
-  deleteSession, addCoins, setColor, setTitle, getOwnedItems,
+  deleteSession, addCoins, setColor, setTitle, getOwnedItems, setUsername,
   addOwnedItem, recordGame, safeUserData, changePassword, setCoins, leaderboardQuery,
+  deleteUserById,
   setBan, setPfpEmoji, setCustomTitle,
   getStockCash, setStockCash, getPortfolio, setShares, setPfpBorder, checkpoint,
   submitBugReport, getBugReports, resolveBugReport, deleteBugReport, countUserOpenBugs,
@@ -268,6 +269,54 @@ app.post("/api/arcade/score", (req, res) => {
   if (!sess) return res.status(401).json({ error: "Not logged in" });
   const user = getUserById(sess.user_id);
   const { game, score, elapsed } = req.body || {};
+
+  // === SLOTS — server-authoritative spin ===
+  // Wager goes in, server rolls 3 reels, applies multiplier, pays out.
+  if (game === 'slots') {
+    const wager = Math.floor(Number(score) || 0);
+    if (wager < 1 || wager > 100) return res.status(400).json({ error: "Invalid wager (1-100 coins)" });
+    if (user.coins < wager) return res.status(400).json({ error: "Not enough coins" });
+    // Deduct wager first
+    addCoins(user.id, -wager);
+    // Roll 3 reels — symbols and weights
+    // 🍒 cherry (common), 🍋 lemon, 🔔 bell, 🍀 clover, 7️⃣ seven, 💎 diamond (rare)
+    const SYMBOLS = [
+      { s: '🍒', w: 30 },
+      { s: '🍋', w: 25 },
+      { s: '🔔', w: 18 },
+      { s: '🍀', w: 12 },
+      { s: '7️⃣', w: 10 },
+      { s: '💎', w: 5 },
+    ];
+    const totalW = SYMBOLS.reduce((a, b) => a + b.w, 0);
+    function roll() {
+      let r = Math.random() * totalW;
+      for (const sy of SYMBOLS) { if (r < sy.w) return sy.s; r -= sy.w; }
+      return SYMBOLS[0].s;
+    }
+    const reels = [roll(), roll(), roll()];
+    // Payout multipliers
+    const TRIPLE = { '🍒': 3, '🍋': 5, '🔔': 8, '🍀': 12, '7️⃣': 25, '💎': 100 };
+    const PAIR = { '🍒': 1, '🍋': 1.5, '🔔': 2, '🍀': 3, '7️⃣': 5, '💎': 10 };
+    let multiplier = 0;
+    let outcome = 'lose';
+    if (reels[0] === reels[1] && reels[1] === reels[2]) {
+      multiplier = TRIPLE[reels[0]] || 0;
+      outcome = reels[0] === '💎' ? 'jackpot' : 'triple';
+    } else if (reels[0] === reels[1] || reels[1] === reels[2] || reels[0] === reels[2]) {
+      // Find the matching symbol
+      const match = reels[0] === reels[1] ? reels[0] : (reels[1] === reels[2] ? reels[1] : reels[0]);
+      multiplier = PAIR[match] || 0;
+      outcome = 'pair';
+    }
+    const payout = Math.floor(wager * multiplier);
+    if (payout > 0) addCoins(user.id, payout);
+    const net = payout - wager;
+    return res.json({
+      ok: true, reels, multiplier, payout, wager, net, outcome,
+      user: safeUserData(getUserById(user.id))
+    });
+  }
 
   // Character purchase for Pirate Royale — deducts coins
   if (game === 'yh_unlock') {
@@ -705,6 +754,51 @@ app.post("/api/profile/wipe", (req, res) => {
   // Wipe everything but keep username/password/staff/mod status
   wipeUserProgress(user.id, "all");
   res.json({ ok: true, message: "All progress has been erased." });
+});
+
+// Permanently delete the user's account and all associated data.
+// Requires typing the username as confirmation. Owner accounts cannot be deleted.
+// Change username — costs 500 coins, validates new name is available
+app.post("/api/account/change-username", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  // Owner accounts can't change name (would break isOwner checks)
+  if (isOwner(user.username)) return res.status(403).json({ error: "Owner accounts cannot change username" });
+  const { newUsername } = req.body || {};
+  if (!newUsername || typeof newUsername !== "string") return res.status(400).json({ error: "Missing username" });
+  const cleanName = newUsername.trim();
+  if (!USERNAME_RE.test(cleanName)) return res.status(400).json({ error: "Username: 3-16 chars, letters/numbers/underscore" });
+  if (cleanName === user.username) return res.status(400).json({ error: "That's already your username" });
+  // Check availability (case-insensitive via NOCASE collation)
+  if (getUserByName(cleanName)) return res.status(409).json({ error: "That username is taken" });
+  const COST = 500;
+  if (user.coins < COST) return res.status(400).json({ error: `Costs ${COST} coins (you have ${user.coins})` });
+  const ok = setUsername(user.id, cleanName);
+  if (!ok) return res.status(500).json({ error: "Could not update username" });
+  addCoins(user.id, -COST);
+  res.json({ ok: true, message: `Username changed to ${cleanName}!`, user: safeUserData(getUserById(user.id)) });
+  triggerBackup();
+});
+
+app.post("/api/account/delete", (req, res) => {
+  const cookies = cookie.parse(req.headers.cookie || "");
+  const sess = cookies.session ? getSession(cookies.session) : null;
+  if (!sess) return res.status(401).json({ error: "Not logged in" });
+  const user = getUserById(sess.user_id);
+  if (!user) return res.status(401).json({ error: "Not logged in" });
+  // Owner accounts cannot be deleted (would lock out admin access)
+  if (isOwner(user.username)) return res.status(403).json({ error: "Owner accounts cannot be deleted" });
+  const { confirmation } = req.body || {};
+  if (confirmation !== user.username) {
+    return res.status(400).json({ error: "Confirmation must match your username exactly" });
+  }
+  deleteUserById(user.id);
+  // Clear the session cookie
+  res.clearCookie("session");
+  res.json({ ok: true, message: "Account deleted." });
 });
 
 // Profile endpoints
@@ -3848,7 +3942,7 @@ io.on("connection", (socket) => {
       maxPlayers: roomMax,
       createdAt: Date.now()
     };
-    room.players.set(socket.id, { id: socket.id, name: clean });
+    room.players.set(socket.id, { id: socket.id, name: clean, userId: socket.data?.user?.id });
     rooms.set(code, room);
     socketToRoom.set(socket.id, code);
     socket.join(code);
@@ -3864,16 +3958,51 @@ io.on("connection", (socket) => {
     const upperCode = typeof code === "string" ? code.toUpperCase().trim() : "";
     const room = rooms.get(upperCode);
     if (!room) return ack?.({ error: "That room doesn't exist" });
-    if (room.players.size + room.spectators.size >= (room.maxPlayers || MAX_PLAYERS)) return ack?.({ error: "Room is full" });
 
     const clean = sanitizeName(name);
     if (!clean) return ack?.({ error: "Name required (1-16 characters, no weird stuff)" });
+
+    // Rejoin detection: if this authenticated user is already in the room with
+    // a stale socket entry, evict the old entry and let them rejoin cleanly.
+    // Prevents duplicates after brief disconnects/network blips.
+    const myUserId = socket.data?.user?.id;
+    if (myUserId) {
+      // Cancel any pending grace-period removal for this user
+      if (room._pendingRemoval) {
+        const timer = room._pendingRemoval.get(myUserId);
+        if (timer) { clearTimeout(timer); room._pendingRemoval.delete(myUserId); }
+      }
+      let staleSocketId = null;
+      for (const [pid, p] of room.players) {
+        if (p.userId === myUserId && pid !== socket.id) { staleSocketId = pid; break; }
+      }
+      if (!staleSocketId) {
+        for (const [pid, p] of room.spectators) {
+          if (p.userId === myUserId && pid !== socket.id) { staleSocketId = pid; break; }
+        }
+      }
+      if (staleSocketId) {
+        // The old socket may still be technically alive — if so, disconnect it.
+        // Mark it so its disconnect doesn't spawn a phantom grace-period timer
+        // that could fire 8s later and interact weirdly with the new entry.
+        const staleSock = io.sockets.sockets.get(staleSocketId);
+        if (staleSock) { staleSock.data._beingReplaced = true; staleSock.disconnect(true); }
+        // Remove the stale entry from room state so we can re-add cleanly
+        room.players.delete(staleSocketId);
+        room.spectators.delete(staleSocketId);
+        socketToRoom.delete(staleSocketId);
+        // If the stale entry was the host, transfer host to this incoming socket
+        if (room.hostId === staleSocketId) room.hostId = socket.id;
+      }
+    }
+
+    if (room.players.size + room.spectators.size >= (room.maxPlayers || MAX_PLAYERS)) return ack?.({ error: "Room is full" });
 
     const finalName = uniqueNameInRoom(room, clean);
 
     // Ghost Mode: if a game is in progress, join as spectator
     if (room.game && room.game.phase !== "gameover") {
-      room.spectators.set(socket.id, { id: socket.id, name: finalName });
+      room.spectators.set(socket.id, { id: socket.id, name: finalName, userId: myUserId });
       socketToRoom.set(socket.id, upperCode);
       socket.join(upperCode);
       ack?.({ ok: true, code: upperCode, you: { id: socket.id, name: finalName }, snapshot: roomSnapshot(room), chat: room.chat, spectator: true });
@@ -3882,7 +4011,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    room.players.set(socket.id, { id: socket.id, name: finalName });
+    room.players.set(socket.id, { id: socket.id, name: finalName, userId: myUserId });
     socketToRoom.set(socket.id, upperCode);
     socket.join(upperCode);
 
@@ -3909,12 +4038,32 @@ io.on("connection", (socket) => {
     const cleanText = typeof text === "string" ? text.trim().slice(0, 300) : "";
     if (!cleanText) return ack?.({ error: "Empty message" });
 
+    // Resolve user's color and title for chat display.
+    // Pull fresh from DB rather than cached socket.data.user — the user may
+    // have bought a new color/title after connecting.
+    const cachedUsr = socket.data.user;
+    const usr = cachedUsr ? safeUserData(getUserById(cachedUsr.id)) : null;
+    let colorCss = null, titleName = null;
+    if (usr) {
+      const colorEntry = SHOP_ITEMS.colors.find(c => c.id === usr.nameColor);
+      if (colorEntry && colorEntry.id !== "default") colorCss = colorEntry.color;
+      if (usr.customTitle) titleName = usr.customTitle;
+      else if (usr.title && usr.title !== "none") {
+        const t = SHOP_ITEMS.titles.find(t => t.id === usr.title);
+        if (t) titleName = t.name;
+      }
+    }
+
     const msg = {
       id: Date.now() + Math.random(),
       name: player.name,
       text: cleanText,
       ts: Date.now(),
       playerId: player.id,
+      colorCss,
+      titleName,
+      isStaff: !!(usr && (usr.isStaff || usr.isMod)),
+      isOwner: !!(usr && isOwner(usr.username)),
       system: false
     };
     room.chat.push(msg);
@@ -4242,7 +4391,7 @@ io.on("connection", (socket) => {
         io.emit("arcade:liveUpdate");
       }
     }
-    handleLeave(socket);
+    handleLeave(socket, { isDisconnect: true });
   });
 
 });
@@ -4251,17 +4400,50 @@ io.on("connection", (socket) => {
 //   LEAVE LOGIC — shared between explicit leave, kick, and disconnect
 // ============================================================
 function handleLeave(socket, opts = {}) {
+  // Socket is being replaced by a fresh reconnect from the same user — the
+  // new socket already cleaned up state. Don't create a stale grace timer.
+  if (socket.data?._beingReplaced) return;
   const code = socketToRoom.get(socket.id);
   if (!code) return;
   const room = rooms.get(code);
-  socketToRoom.delete(socket.id);
-  if (!room) return;
+  if (!room) { socketToRoom.delete(socket.id); return; }
 
   const player = room.players.get(socket.id) || room.spectators.get(socket.id);
-  if (!player) return;
-  room.players.delete(socket.id);
-  room.spectators.delete(socket.id);
-  socket.leave(code);
+  if (!player) { socketToRoom.delete(socket.id); return; }
+
+  // Grace period: if this is a disconnect (not explicit leave/kick) and the user
+  // is logged in, give them 8 seconds to reconnect before actually removing them.
+  // This prevents brief network blips from kicking players out of party game lobbies.
+  if (opts.isDisconnect && player.userId && !room.game) {
+    // Mark as pending-removal but keep in the room
+    if (!room._pendingRemoval) room._pendingRemoval = new Map();
+    // Clear any existing timer for this user
+    const existing = room._pendingRemoval.get(player.userId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      // Still here after grace period? Actually remove them.
+      const stillThere = room.players.get(socket.id) || room.spectators.get(socket.id);
+      if (stillThere && stillThere.userId === player.userId) {
+        actuallyRemovePlayer(room, socket.id, player, opts);
+      }
+      if (room._pendingRemoval) room._pendingRemoval.delete(player.userId);
+    }, 20000); // 20s grace period for reconnect
+    room._pendingRemoval.set(player.userId, timer);
+    socketToRoom.delete(socket.id);
+    socket.leave(code);
+    return;
+  }
+
+  actuallyRemovePlayer(room, socket.id, player, opts);
+}
+
+function actuallyRemovePlayer(room, socketId, player, opts = {}) {
+  const code = room.code;
+  socketToRoom.delete(socketId);
+  room.players.delete(socketId);
+  room.spectators.delete(socketId);
+  const sock = io.sockets.sockets.get(socketId);
+  if (sock) sock.leave(code);
 
   // Room empty? Delete it. Only count real (non-bot) players.
   const realPlayers = [...room.players.values()].filter(p => !p.isBot);
@@ -4274,20 +4456,20 @@ function handleLeave(socket, opts = {}) {
   // Handle game disconnect if a game is active
   if (room.game) {
     if (room.game.type === "wordspy") {
-      wsHandleGameDisconnect(room, socket.id);
+      wsHandleGameDisconnect(room, socketId);
     } else if (room.game.type === "chain") {
-      chainHandleGameDisconnect(room, socket.id);
+      chainHandleGameDisconnect(room, socketId);
     } else if (room.game.type === "echo") {
-      echoHandleDisconnect(room, socket.id);
+      echoHandleDisconnect(room, socketId);
     } else {
-      handleGameDisconnect(room, socket.id);
+      handleGameDisconnect(room, socketId);
     }
   }
 
   // Host left? Migrate to next player
-  if (room.hostId === socket.id) {
+  if (room.hostId === socketId) {
     const newHost = room.players.size > 0
-      ? room.players.values().next().value
+      ? [...room.players.values()].find(p => !p.isBot)
       : room.spectators.values().next().value;
     if (newHost) {
       room.hostId = newHost.id;
