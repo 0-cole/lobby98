@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -22,7 +22,7 @@
     else if (_g) {
       const s = document.createElement('style');
       s.id = 'custom-gradient-bg-style';
-      s.textContent = `body .sky-bg{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
+      s.textContent = `body .sky-bg, #loading-screen{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
       document.head.appendChild(s);
       document.body.classList.add('has-custom-bg');
       let _isDark = localStorage.getItem('lobby98_gradient_is_dark');

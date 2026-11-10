@@ -1,4 +1,4 @@
-﻿// client.js — Lobby 98 v3
+// client.js — Lobby 98 v3
 const $ = id => document.getElementById(id);
 
 // ============================================================
@@ -2320,7 +2320,7 @@ function applyGradientBackground(css) {
   }
   // The aurora ::after overlay gets dimmed slightly so it doesn't muddy bold gradients,
   // but we keep it for the Frutiger Aero shimmer.
-  tag.textContent = `body .sky-bg{background:${css}!important}body .sky-bg::after{opacity:0.5}`;
+  tag.textContent = `body .sky-bg, #loading-screen{background:${css}!important}body .sky-bg::after{opacity:0.5}`;
   document.body.classList.add('has-custom-bg');
   const lum = getGradientLuminance(css);
   const isDark = lum < 0.44;

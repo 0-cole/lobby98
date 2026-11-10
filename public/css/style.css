@@ -1198,6 +1198,14 @@ body.theme-arctic #loading-screen .loader-brand{color:#1a4060}
 body.theme-arctic #loading-screen .loader-brand span{background:linear-gradient(180deg,#60b0e0,#4090c0);-webkit-background-clip:text;background-clip:text;color:transparent}
 body.theme-arctic #loading-screen .loader-fill{background:linear-gradient(90deg,#60b0e0,#4090c0)}
 
+/* Dynamic custom gradient loading screen */
+body.gradient-is-dark #loading-screen .loader-brand{color:#ffffff!important;text-shadow:0 2px 8px rgba(0,0,0,0.6)!important}
+body.gradient-is-dark #loading-screen .loader-brand span{background:linear-gradient(180deg,#80d8ef,#22aed1)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important}
+body.gradient-is-dark #loading-screen .loader-sub{color:rgba(220,240,255,0.75)!important;text-shadow:0 1px 3px rgba(0,0,0,0.6)!important}
+body.gradient-is-dark #loading-screen .loader-bar{background:rgba(255,255,255,0.2)!important}
+body.gradient-is-dark #loading-screen .loader-fill{background:linear-gradient(90deg,#80d8ef,#22aed1)!important}
+body.gradient-is-dark #loading-screen .loader-dot{background:rgba(255,255,255,0.5)!important}
+
 /* ============================================================
    GRADIENT PICKER MODAL
    - Backdrop is the "shadow on the page" — fades in when opened, removed when closed.

@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "lobby98",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "Lobby 98 — social deduction + arcade platform",
   "main": "server.js",
   "type": "module",
