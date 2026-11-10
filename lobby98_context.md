@@ -1,7 +1,7 @@
 # Lobby 98 — Project Context Summary (`lobby98_context.md`)
 
 ## 1. Executive Summary & High-Level Objective
-- **Project**: **Lobby 98** (`v3.0.3`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
+- **Project**: **Lobby 98** (`v3.0.4`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
 - **Core Purpose**: Casual, high-polish party games and arcade challenges for friends with persistent accounts, titles, cosmetics, and economy.
 - **Repository**: [`0-cole/lobby98`](https://github.com/0-cole/lobby98) on GitHub.
 - **Hosting Runtime**:
@@ -77,6 +77,7 @@ lobby98/
 - **Automated Testing**: Created `test-e2e-neon.js` validating the full snapshot restore/save roundtrip.
 - **Adaptive Gradient Text Contrast Engine (v3.0.1)**: Added automatic perceived luminance detection (`getGradientLuminance`) across all 380+ wallpaper gradients and curated themes. Automatically switches text between crisp embossed dark slate on light gradients and pure white/ice-cyan with drop-shadows on dark gradients, fixing illegible labels and subtitles on translucent glass cards.
 - **Loading Screen Gradient Synchronization (v3.0.3)**: Synchronized `#loading-screen` background and typography with the user's chosen custom gradient or curated theme before render, preserving the default aqua screen when no custom gradient is active.
+- **Full-Width Announcements & Persistent Single-Play Notice (v3.0.4)**: Extended top announcement bars across 100% of the screen width over the global chat sidebar by removing the 280px margin restriction and dynamically offsetting `.gchat-sidebar` and `.stage` via `--announce-h`. Updated new account bug report notice to play once for 8 seconds and permanently record viewing in `localStorage` so it never repeats on reloads.
 
 ---
 

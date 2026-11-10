@@ -195,24 +195,35 @@ function playSound(type) {
 // ============================================================
 //   ANNOUNCEMENTS (stacking top bars)
 // ============================================================
+function updateAnnounceHeight() {
+  const container = $('announcements');
+  const h = container ? container.offsetHeight : 0;
+  document.documentElement.style.setProperty('--announce-h', `${h}px`);
+}
+if (typeof ResizeObserver !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    const container = $('announcements');
+    if (container) new ResizeObserver(() => updateAnnounceHeight()).observe(container);
+  });
+}
 function showAnnouncement(text, type = 'info', autoClose = 0) {
   const container = $('announcements');
   if (!container) return;
   const bar = document.createElement('div');
   bar.className = `announce-bar ${type}`;
   bar.innerHTML = `<span>${esc(text)}</span><button class="announce-x" title="Dismiss">✕</button>`;
-  const dismiss = () => { bar.style.animation = 'toastOut .2s ease forwards'; setTimeout(() => bar.remove(), 200); };
+  const dismiss = () => { bar.style.animation = 'toastOut .2s ease forwards'; setTimeout(() => { bar.remove(); updateAnnounceHeight(); }, 200); };
   bar.querySelector('.announce-x').addEventListener('click', dismiss);
-  container.appendChild(bar);
+  container.appendChild(bar); updateAnnounceHeight();
   if (autoClose > 0) setTimeout(dismiss, autoClose);
 }
 
 function checkNewUserNotice() {
-  if (!user || !user.createdAt) return;
+  if (!user || !user.createdAt) return; const storageKey = 'lobby98_seen_new_user_notice_' + (user.id || user.username); if (localStorage.getItem(storageKey)) return;
   const age = Date.now() - user.createdAt;
   if (age < 86400000) {
     const hrs = Math.ceil((86400000 - age) / 3600000);
-    showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn');
+    localStorage.setItem(storageKey, '1'); showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn', 8000);
   }
 }
 
@@ -3653,8 +3664,8 @@ async function checkSiteVersion() {
       const bar = document.createElement('div');
       bar.className = 'announce-bar info';
       bar.innerHTML = `<span>🔄 Lobby 98 has been updated!</span><button class="btn btn-ghost btn-sm" style="color:#fff;border:1px solid rgba(255,255,255,0.4);margin-left:8px;font-size:11px" onclick="location.reload()">Reload</button><button class="announce-x" title="Dismiss">✕</button>`;
-      bar.querySelector('.announce-x').addEventListener('click', () => { bar.style.animation='toastOut .2s ease forwards'; setTimeout(()=>bar.remove(),200); });
-      container.appendChild(bar);
+      bar.querySelector('.announce-x').addEventListener('click', () => { bar.style.animation='toastOut .2s ease forwards'; setTimeout(()=>{ bar.remove(); updateAnnounceHeight(); },200); });
+      container.appendChild(bar); updateAnnounceHeight();
     }
   } catch {}
 }
