@@ -1,0 +1,26 @@
+name: Sync to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -n "$HF_TOKEN" ]; then
+            git push --force https://0-cole:$HF_TOKEN@huggingface.co/spaces/0-cole/lobby98 main
+          else
+            echo "HF_TOKEN not set in repository secrets. Skipping auto-sync."
+          fi
