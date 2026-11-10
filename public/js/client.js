@@ -218,12 +218,12 @@ function showAnnouncement(text, type = 'info', autoClose = 0) {
   if (autoClose > 0) setTimeout(dismiss, autoClose);
 }
 
-function checkNewUserNotice() {
-  if (!user || !user.createdAt) return; const storageKey = 'lobby98_seen_new_user_notice_' + (user.id || user.username); if (localStorage.getItem(storageKey)) return;
+window.showAnnouncement = showAnnouncement; function checkNewUserNotice() {
+  if (!user || !user.createdAt) return; const storageKey = 'lobby98_seen_new_user_notice_v305_' + (user.id || user.username); if (localStorage.getItem(storageKey)) return;
   const age = Date.now() - user.createdAt;
   if (age < 86400000) {
     const hrs = Math.ceil((86400000 - age) / 3600000);
-    localStorage.setItem(storageKey, '1'); showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn', 8000);
+    localStorage.setItem(storageKey, '1'); showAnnouncement(`🕐 New account — bug reports unlock in ${hrs} hour${hrs !== 1 ? 's' : ''}. Enjoy the games!`, 'warn', 15000);
   }
 }
 
