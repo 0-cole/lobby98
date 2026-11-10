@@ -44,6 +44,24 @@ import {
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+for (const envFile of [".env.local", ".env"]) {
+  const envPath = path.join(__dirname, envFile);
+  if (fs.existsSync(envPath)) {
+    try {
+      const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx !== -1) {
+          const k = trimmed.slice(0, eqIdx).trim();
+          const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+          if (!process.env[k]) process.env[k] = v;
+        }
+      }
+    } catch (_) {}
+  }
+}
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
