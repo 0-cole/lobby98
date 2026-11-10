@@ -1051,7 +1051,7 @@
   </div>
 
   <!-- Hidden YouTube Player -->
-  <div id="yt-player-wrap" style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none"><div id="yt-player"></div></div>
+  <div id="yt-player-wrap" style="position:fixed;bottom:0;left:0;width:200px;height:200px;opacity:0.001;pointer-events:none;z-index:-1000;overflow:hidden"><div id="yt-player"></div></div>
 
   <!-- Music Control Button -->
   <button id="music-toggle" title="Toggle music" style="position:fixed;bottom:44px;left:12px;z-index:300;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s">🔇</button>
@@ -1082,13 +1082,13 @@
     window.onYouTubeIframeAPIReady = function(){
       console.log('[Lobby98 Music] YT API ready');
       player = new YT.Player('yt-player', {
-        height:'1',width:'1',
+        height:'200',width:'200',
         videoId: queue[0],
-        playerVars: { autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
+        playerVars: { autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1, enablejsapi:1, origin:window.location.origin },
         events: {
           onReady: function(e){
             console.log('[Lobby98 Music] Player ready, volume 15%');
-            e.target.setVolume(15);
+            try{ e.target.unMute(); e.target.setVolume(20); }catch(_){}
             currentIdx = 0;
           },
           onStateChange: function(e){
@@ -1142,6 +1142,7 @@
       document.removeEventListener('keydown', startMusic);
     }
     document.addEventListener('click', startMusic, { once: false });
+    document.addEventListener('touchstart', startMusic, { once: false });
     document.addEventListener('keydown', startMusic, { once: false });
 
     // Toggle button
