@@ -1,4 +1,4 @@
-// client.js — Lobby 98 v3
+﻿// client.js — Lobby 98 v3
 const $ = id => document.getElementById(id);
 
 // ============================================================
@@ -2118,6 +2118,77 @@ let _gradientSearch = "";
 // Inject (or update) a <style> tag that overrides .sky-bg with the chosen gradient.
 // Uses !important so it wins over theme-class rules in style.css. Also clears any
 // curated theme class — only one theme is ever active at a time.
+// Universal luminance parser for any CSS color or gradient stop.
+// Standard W3C relative luminance formula (0.0 = black, 1.0 = white).
+function parseColorLuminance(colorStr) {
+  if (!colorStr) return 0.5;
+  colorStr = colorStr.trim().toLowerCase();
+  let r = 128, g = 128, b = 128;
+  if (colorStr.startsWith('#')) {
+    let hex = colorStr.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+    if (hex.length >= 6) {
+      r = parseInt(hex.slice(0, 2), 16) || 0;
+      g = parseInt(hex.slice(2, 4), 16) || 0;
+      b = parseInt(hex.slice(4, 6), 16) || 0;
+    }
+  } else if (colorStr.startsWith('rgb')) {
+    const m = colorStr.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (m) { r = Number(m[1]); g = Number(m[2]); b = Number(m[3]); }
+  } else if (colorStr.startsWith('hsl')) {
+    const m = colorStr.match(/(\d+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+    if (m) {
+      const h = Number(m[1]) / 360, s = Number(m[2]) / 100, l = Number(m[3]) / 100;
+      if (s === 0) { r = g = b = Math.round(l * 255); }
+      else {
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1; if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        r = Math.round(hue2rgb(p, q, h + 1/3) * 255);
+        g = Math.round(hue2rgb(p, q, h) * 255);
+        b = Math.round(hue2rgb(p, q, h - 1/3) * 255);
+      }
+    }
+  }
+  const a = [r, g, b].map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+}
+
+// Compute the average perceived brightness across all color stops of a gradient string.
+function getGradientLuminance(gradientStr) {
+  if (!gradientStr) return 0.5;
+  const matches = gradientStr.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)/g);
+  if (!matches || matches.length === 0) return 0.5;
+  let totalLum = 0;
+  for (const m of matches) totalLum += parseColorLuminance(m);
+  return totalLum / matches.length;
+}
+window.getGradientLuminance = getGradientLuminance;
+
+// Universal fix for text on any gradient: adapts color and text-shadow dynamically
+// based on whether the gradient is light, dark, or chromatic.
+function adaptTextForGradient(el, gradientStr) {
+  if (!el || !gradientStr) return;
+  const lum = getGradientLuminance(gradientStr);
+  if (lum < 0.44) {
+    el.style.color = '#ffffff';
+    el.style.textShadow = '0 1px 3px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.5)';
+  } else {
+    el.style.color = '#0a2838';
+    el.style.textShadow = '0 1px 2px rgba(255,255,255,0.85)';
+  }
+}
+window.adaptTextForGradient = adaptTextForGradient;
+
 function applyGradientBackground(css) {
   // Remove any curated theme class and clear its localStorage entry.
   const THEME_CLASSES = ['theme-midnight','theme-sunset','theme-golden','theme-forest','theme-sakura','theme-neon','theme-ocean','theme-lava','theme-arctic','theme-dark'];
@@ -2136,6 +2207,11 @@ function applyGradientBackground(css) {
   // but we keep it for the Frutiger Aero shimmer.
   tag.textContent = `body .sky-bg{background:${css}!important}body .sky-bg::after{opacity:0.5}`;
   document.body.classList.add('has-custom-bg');
+  const lum = getGradientLuminance(css);
+  const isDark = lum < 0.44;
+  document.body.classList.toggle('gradient-is-dark', isDark);
+  document.body.classList.toggle('gradient-is-light', !isDark);
+  localStorage.setItem('lobby98_gradient_is_dark', isDark ? '1' : '0');
   localStorage.setItem('lobby98_gradient_bg', css);
   localStorage.setItem('lobby98_gradient_bg_id', _currentGradientId || '');
 }
@@ -2144,6 +2220,9 @@ function clearGradientBackground() {
   const tag = document.getElementById('custom-gradient-bg-style');
   if (tag) tag.remove();
   document.body.classList.remove('has-custom-bg');
+  document.body.classList.remove('gradient-is-dark');
+  document.body.classList.remove('gradient-is-light');
+  localStorage.removeItem('lobby98_gradient_is_dark');
   localStorage.removeItem('lobby98_gradient_bg');
   localStorage.removeItem('lobby98_gradient_bg_id');
   _currentGradientId = null;
@@ -3058,9 +3137,13 @@ const AVATAR_PARTS = {
   bg: ['#22aed1','#e04858','#4caf50','#9c27b0','#ff9800','#2196f3','#e91e63','#00bcd4','#ff5722','#607d8b','#ffd700','#1a1a2e'],
 };
 function renderAvatarPreview(avatar, size = 48) {
-  const bg = avatar.bg || '#22aed1';
-  const face = avatar.face || '😀';
-  const hat = avatar.hat || 'none';
+  if (avatar && avatar.mode === 'emoji') {
+    const em = avatar.emoji || '😎';
+    return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.6)}px;position:relative;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15)">${em}</div>`;
+  }
+  const bg = avatar?.bg || '#22aed1';
+  const face = avatar?.face || '😀';
+  const hat = avatar?.hat || 'none';
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.55)}px;position:relative;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.15)">${face}${hat!=='none'?`<span style="position:absolute;top:-${Math.round(size*0.15)}px;font-size:${Math.round(size*0.35)}px">${hat}</span>`:''}</div>`;
 }
 

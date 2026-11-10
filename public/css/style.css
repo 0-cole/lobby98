@@ -6,7 +6,7 @@
   --neo:#e2f0ec;--neo-hi:rgba(255,255,255,0.9);--neo-lo:rgba(30,90,120,0.16);
   --deep:#0a3d5c;--mid:#1889ab;--accent:#22aed1;--accent-lt:#80d8ef;
   --success:#4caf50;--warn:#f5a623;--danger:#e04858;
-  --ink:#1a3a4a;--ink2:#4a7a8f;--ink3:#7ba0ad;--white:#fff;
+  --ink:#0f2736;--ink2:#1d4c62;--ink3:#36677e;--white:#fff;
   --r:20px;--rs:12px;--rx:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -51,16 +51,16 @@ html,body{min-height:100dvh;font-family:"Nunito","Quicksand",system-ui,sans-seri
 /* GLASS CARD */
 .glass-card{background:linear-gradient(180deg,rgba(255,255,255,.65)0%,rgba(255,255,255,.42)40%,rgba(255,255,255,.50)100%);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);border:1px solid var(--glass-edge);border-radius:var(--r);padding:24px 26px;margin-bottom:16px;box-shadow:0 10px 40px var(--glass-sh),inset 0 1px 0 rgba(255,255,255,.85);position:relative;overflow:hidden}
 .glass-card::before{content:"";position:absolute;top:0;left:0;right:0;height:40%;background:linear-gradient(180deg,rgba(255,255,255,.4)0%,transparent 100%);pointer-events:none;border-radius:var(--r) var(--r) 0 0}
-.card-title{font-weight:800;font-size:20px;color:var(--deep);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
-.card-desc{color:var(--ink2);font-size:15px;margin:-8px 0 10px}
-.card-sub{font-size:14px;color:var(--ink3);margin:-6px 0 10px;font-style:italic}
+.card-title{font-weight:800;font-size:20px;color:var(--deep);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;transition:color .2s ease, text-shadow .2s ease}
+.card-desc{color:var(--ink2);font-size:15px;margin:-8px 0 10px;font-weight:600;line-height:1.45;transition:color .2s ease, text-shadow .2s ease}
+.card-sub{font-size:14px;color:var(--ink3);margin:-6px 0 10px;font-style:italic;transition:color .2s ease, text-shadow .2s ease}
 
 /* INPUTS */
-.inp{width:100%;padding:12px 16px;font-family:inherit;font-size:16px;font-weight:600;color:var(--ink);background:var(--neo);border:none;border-radius:var(--rs);outline:none;box-shadow:inset 3px 3px 6px var(--neo-lo),inset -3px -3px 6px var(--neo-hi);transition:box-shadow .2s}
+.inp{width:100%;padding:12px 16px;font-family:inherit;font-size:16px;font-weight:600;color:var(--ink);background:var(--neo);border:1px solid transparent;border-radius:var(--rs);outline:none;box-shadow:inset 3px 3px 6px var(--neo-lo),inset -3px -3px 6px var(--neo-hi);transition:box-shadow .2s, background .2s, color .2s, border-color .2s}
 .inp::placeholder{color:var(--ink3)}
 .inp:focus{box-shadow:inset 3px 3px 6px var(--neo-lo),inset -3px -3px 6px var(--neo-hi),0 0 0 3px rgba(34,174,209,.22)}
 .code-input{font-weight:800;font-size:24px;letter-spacing:10px;text-align:center;text-transform:uppercase}
-.lbl{display:block;font-size:12px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px}
+.lbl{display:block;font-size:12px;font-weight:800;color:var(--ink2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;transition:color .2s ease, text-shadow .2s ease}
 
 /* BUTTONS */
 .btn{font-family:inherit;font-weight:700;font-size:15px;padding:12px 24px;border:none;border-radius:var(--rs);cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
@@ -673,6 +673,249 @@ body.theme-dark .btn-ghost{background:rgba(40,40,40,0.6);color:#e0e0e0}
 body.theme-dark #loading-screen{background:linear-gradient(170deg,#000,#1a1a1a)}
 body.theme-dark #loading-screen .loader-brand{color:#e8e8e8}
 body.theme-dark #loading-screen .loader-brand span{background:linear-gradient(180deg,#888,#444);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ══════════════════════════════════════════════════════
+   UNIVERSAL GRADIENT CONTRAST & ADAPTIVE TEXT ENGINE
+   ══════════════════════════════════════════════════════ */
+
+/* Light gradient / default adaptation */
+body.gradient-is-light,
+body:not(.gradient-is-dark):not(.theme-midnight):not(.theme-neon):not(.theme-ocean):not(.theme-lava):not(.theme-dark) {
+  --text-on-gradient: #0f2736;
+  --text-sub-on-gradient: #1d4c62;
+  --text-muted-on-gradient: #36677e;
+}
+
+body.gradient-is-light .card-title,
+body:not(.gradient-is-dark):not(.theme-midnight):not(.theme-neon):not(.theme-ocean):not(.theme-lava):not(.theme-dark) .card-title {
+  color: var(--deep);
+  text-shadow: 0 1px 1px rgba(255,255,255,0.85);
+}
+body.gradient-is-light .card-desc,
+body:not(.gradient-is-dark):not(.theme-midnight):not(.theme-neon):not(.theme-ocean):not(.theme-lava):not(.theme-dark) .card-desc {
+  color: var(--ink2);
+  text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+}
+body.gradient-is-light .card-sub,
+body:not(.gradient-is-dark):not(.theme-midnight):not(.theme-neon):not(.theme-ocean):not(.theme-lava):not(.theme-dark) .card-sub {
+  color: var(--ink3);
+  text-shadow: 0 1px 1px rgba(255,255,255,0.65);
+}
+body.gradient-is-light .lbl,
+body:not(.gradient-is-dark):not(.theme-midnight):not(.theme-neon):not(.theme-ocean):not(.theme-lava):not(.theme-dark) .lbl {
+  color: var(--ink2);
+  text-shadow: 0 1px 1px rgba(255,255,255,0.75);
+}
+
+/* ── DARK GRADIENTS & DARK THEMES — UNIVERSAL LEGIBILITY ── */
+body.gradient-is-dark,
+body.theme-midnight,
+body.theme-neon,
+body.theme-ocean,
+body.theme-lava,
+body.theme-dark {
+  --deep: #ffffff;
+  --ink: #f0f6fc;
+  --ink2: #cde4f2;
+  --ink3: #9ec5dc;
+  --glass: rgba(18, 22, 38, 0.65);
+  --glass-hi: rgba(255, 255, 255, 0.16);
+  --glass-edge: rgba(255, 255, 255, 0.22);
+  --glass-sh: rgba(0, 0, 0, 0.55);
+  --neo: rgba(255, 255, 255, 0.08);
+  --neo-hi: rgba(255, 255, 255, 0.14);
+  --neo-lo: rgba(0, 0, 0, 0.4);
+}
+
+/* Glass card enhancement on dark gradients */
+body.gradient-is-dark .glass-card {
+  background: linear-gradient(180deg, rgba(30,36,55,0.72) 0%, rgba(20,24,38,0.60) 40%, rgba(24,28,45,0.68) 100%);
+  border-color: rgba(255,255,255,0.20);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+body.gradient-is-dark .glass-card::before {
+  background: linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 100%);
+}
+
+/* Headers and Titles on dark gradients — Bright white with ambient dark drop-shadow */
+body.gradient-is-dark .card-title,
+body.theme-midnight .card-title,
+body.theme-neon .card-title,
+body.theme-ocean .card-title,
+body.theme-lava .card-title,
+body.theme-dark .card-title,
+body.gradient-is-dark .settings-label,
+body.theme-midnight .settings-label,
+body.theme-neon .settings-label,
+body.theme-ocean .settings-label,
+body.theme-lava .settings-label,
+body.theme-dark .settings-label,
+body.gradient-is-dark .ph-title,
+body.theme-midnight .ph-title,
+body.theme-neon .ph-title,
+body.theme-ocean .ph-title,
+body.theme-lava .ph-title,
+body.theme-dark .ph-title,
+body.gradient-is-dark .hero-brand,
+body.theme-midnight .hero-brand,
+body.theme-neon .hero-brand,
+body.theme-ocean .hero-brand,
+body.theme-lava .hero-brand,
+body.theme-dark .hero-brand,
+body.gradient-is-dark .dash-greeting,
+body.theme-midnight .dash-greeting,
+body.theme-neon .dash-greeting,
+body.theme-ocean .dash-greeting,
+body.theme-lava .dash-greeting,
+body.theme-dark .dash-greeting,
+body.gradient-is-dark .dc-title,
+body.theme-midnight .dc-title,
+body.theme-neon .dc-title,
+body.theme-ocean .dc-title,
+body.theme-lava .dc-title,
+body.theme-dark .dc-title,
+body.gradient-is-dark .gc-name,
+body.theme-midnight .gc-name,
+body.theme-neon .gc-name,
+body.theme-ocean .gc-name,
+body.theme-lava .gc-name,
+body.theme-dark .gc-name,
+body.gradient-is-dark .ds-val,
+body.theme-midnight .ds-val,
+body.theme-neon .ds-val,
+body.theme-ocean .ds-val,
+body.theme-lava .ds-val,
+body.theme-dark .ds-val {
+  color: #ffffff!important;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5)!important;
+}
+
+body.gradient-is-dark .dc-desc,
+body.theme-midnight .dc-desc,
+body.theme-neon .dc-desc,
+body.theme-ocean .dc-desc,
+body.theme-lava .dc-desc,
+body.theme-dark .dc-desc,
+body.gradient-is-dark .gc-desc,
+body.theme-midnight .gc-desc,
+body.theme-neon .gc-desc,
+body.theme-ocean .gc-desc,
+body.theme-lava .gc-desc,
+body.theme-dark .gc-desc,
+body.gradient-is-dark .player-name,
+body.theme-midnight .player-name,
+body.theme-neon .player-name,
+body.theme-ocean .player-name,
+body.theme-lava .player-name,
+body.theme-dark .player-name {
+  color: #d6ecf8!important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7)!important;
+}
+
+body.gradient-is-dark .ds-label,
+body.theme-midnight .ds-label,
+body.theme-neon .ds-label,
+body.theme-ocean .ds-label,
+body.theme-lava .ds-label,
+body.theme-dark .ds-label {
+  color: #a4c9e0!important;
+}
+
+/* Descriptions, subtitles, and instructions on dark gradients */
+body.gradient-is-dark .card-desc,
+body.theme-midnight .card-desc,
+body.theme-neon .card-desc,
+body.theme-ocean .card-desc,
+body.theme-lava .card-desc,
+body.theme-dark .card-desc,
+body.gradient-is-dark .ph-inst,
+body.theme-midnight .ph-inst,
+body.theme-neon .ph-inst,
+body.theme-ocean .ph-inst,
+body.theme-lava .ph-inst,
+body.theme-dark .ph-inst,
+body.gradient-is-dark .hero-tagline,
+body.theme-midnight .hero-tagline,
+body.theme-neon .hero-tagline,
+body.theme-ocean .hero-tagline,
+body.theme-lava .hero-tagline,
+body.theme-dark .hero-tagline {
+  color: #d6ecf8!important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7)!important;
+  font-weight: 600;
+}
+
+body.gradient-is-dark .card-sub,
+body.theme-midnight .card-sub,
+body.theme-neon .card-sub,
+body.theme-ocean .card-sub,
+body.theme-lava .card-sub,
+body.theme-dark .card-sub {
+  color: #b0d4eb!important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.65)!important;
+}
+
+/* Labels on dark gradients (e.g. "Background Color", "Face", "Username") */
+body.gradient-is-dark .lbl,
+body.theme-midnight .lbl,
+body.theme-neon .lbl,
+body.theme-ocean .lbl,
+body.theme-lava .lbl,
+body.theme-dark .lbl {
+  color: #cce7f8!important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.75)!important;
+  font-weight: 800!important;
+  letter-spacing: 0.8px;
+}
+
+/* Input boxes & placeholders on dark gradients */
+body.gradient-is-dark .inp,
+body.theme-midnight .inp,
+body.theme-neon .inp,
+body.theme-ocean .inp,
+body.theme-lava .inp {
+  background: rgba(18, 24, 40, 0.75);
+  color: #f0f6fc;
+  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4), inset -1px -1px 3px rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+body.gradient-is-dark .inp::placeholder,
+body.theme-midnight .inp::placeholder,
+body.theme-neon .inp::placeholder,
+body.theme-ocean .inp::placeholder,
+body.theme-lava .inp::placeholder {
+  color: rgba(215, 235, 255, 0.65);
+}
+
+/* Nav on dark gradients */
+body.gradient-is-dark .top-nav {
+  background: rgba(15, 20, 35, 0.7);
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+body.gradient-is-dark .nav-brand,
+body.gradient-is-dark .nav-user {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+body.gradient-is-dark .nav-link {
+  color: #b8d8ec;
+}
+body.gradient-is-dark .nav-link:hover {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+}
+body.gradient-is-dark .nav-link.active {
+  background: rgba(255,255,255,0.25);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Self-contained gradient cards keep their internal high-contrast palette */
+.offkey-reveal-card{display:inline-block;padding:16px 28px;border-radius:14px;background:linear-gradient(180deg,#d4f5e0,#a8e6c0);text-align:center;color:#0a3d24}
+.offkey-reveal-card .offkey-label{color:#1e5e3a!important;text-shadow:none!important}
+.offkey-reveal-card .offkey-name{color:#0a3d24!important;text-shadow:none!important}
+.scoreboard-winner{background:linear-gradient(180deg,rgba(255,255,255,.95),#fff4d0);box-shadow:0 0 0 2px var(--warn);color:#2a2000!important}
+.scoreboard-winner .scoreboard-name{color:#2a2000!important;text-shadow:none!important}
 
 /* Theme wave overrides (13 ribbons) */
 body.theme-midnight .xmb-b1{fill:rgba(130,60,220,0.55)}

@@ -825,8 +825,9 @@ app.post("/api/profile/update", (req, res) => {
   const sess = cookies.session ? getSession(cookies.session) : null;
   if (!sess) return res.status(401).json({ error: "Not logged in" });
   const user = getUserById(sess.user_id);
-  const { pfpEmoji, nameColor, title, customTitle } = req.body || {};
+  const { pfpEmoji, nameColor, title, customTitle, avatar } = req.body || {};
   if (pfpEmoji) setPfpEmoji(user.id, pfpEmoji.slice(0, 4));
+  if (avatar && typeof avatar === 'object') setAvatar(user.id, avatar);
   if (nameColor) {
     const owned = getOwnedItems(user.id);
     if (owned.includes(nameColor)) setColor(user.id, nameColor);

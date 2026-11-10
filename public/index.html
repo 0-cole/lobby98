@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -25,6 +25,21 @@
       s.textContent = `body .sky-bg{background:${_g}!important}body .sky-bg::after{opacity:0.5}`;
       document.head.appendChild(s);
       document.body.classList.add('has-custom-bg');
+      let _isDark = localStorage.getItem('lobby98_gradient_is_dark');
+      if (_isDark === null) {
+        const m = _g.match(/#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)/);
+        if (m) {
+          let r = 128, g = 128, b = 128;
+          if (m[0].startsWith('#')) {
+            let h = m[0].slice(1);
+            if (h.length === 3) h = h.split('').map(x=>x+x).join('');
+            if (h.length >= 6) { r = parseInt(h.slice(0,2),16)||0; g = parseInt(h.slice(2,4),16)||0; b = parseInt(h.slice(4,6),16)||0; }
+          }
+          _isDark = ((0.2126*r + 0.7152*g + 0.0722*b)/255 < 0.44) ? '1' : '0';
+        }
+      }
+      if (_isDark === '1') document.body.classList.add('gradient-is-dark');
+      else if (_isDark === '0') document.body.classList.add('gradient-is-light');
     }
   </script>
   <!-- 9. LOADING SCREEN -->
@@ -467,26 +482,34 @@
         <h2 class="card-title" style="justify-content:center" id="profile-username">Username</h2>
         <p id="profile-title-display" style="color:var(--mid);font-weight:700;font-size:14px"></p>
       </div>
-      <div class="glass-card">
-        <h3 class="card-title">🎨 Avatar Builder</h3>
+      <div class="glass-card" id="profile-builder-card" style="transition:all .2s ease">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <h3 class="card-title" style="margin:0">🎨 Avatar Builder</h3>
+          <span id="avatar-builder-status" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px"></span>
+        </div>
         <p class="card-desc">Build your avatar — shown on your profile and friends list.</p>
-        <div style="margin-bottom:12px">
-          <span class="lbl">Face</span>
-          <div id="avatar-face-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:28px;cursor:pointer"></div>
+        <div id="avatar-builder-controls">
+          <div style="margin-bottom:12px">
+            <span class="lbl">Face</span>
+            <div id="avatar-face-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:28px;cursor:pointer"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <span class="lbl">Hat / Accessory</span>
+            <div id="avatar-hat-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:24px;cursor:pointer"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <span class="lbl">Background Color</span>
+            <div id="avatar-bg-picker" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="avatar-save-btn" style="width:100%;margin-top:4px">Save Avatar</button>
+          <p class="form-err" id="avatar-save-msg"></p>
         </div>
-        <div style="margin-bottom:12px">
-          <span class="lbl">Hat / Accessory</span>
-          <div id="avatar-hat-picker" style="display:flex;flex-wrap:wrap;gap:6px;font-size:24px;cursor:pointer"></div>
-        </div>
-        <div style="margin-bottom:12px">
-          <span class="lbl">Background Color</span>
-          <div id="avatar-bg-picker" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-        </div>
-        <button class="btn btn-primary btn-sm" id="avatar-save-btn" style="width:100%;margin-top:4px">Save Avatar</button>
-        <p class="form-err" id="avatar-save-msg"></p>
       </div>
-      <div class="glass-card">
-        <h3 class="card-title">Profile Picture</h3>
+      <div class="glass-card" id="profile-emoji-card" style="transition:all .2s ease">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <h3 class="card-title" style="margin:0">Profile Picture</h3>
+          <span id="profile-emoji-status" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px"></span>
+        </div>
         <p class="card-desc">Or pick a simple emoji instead.</p>
         <div id="pfp-picker" style="display:flex;flex-wrap:wrap;gap:8px;font-size:28px;cursor:pointer"></div>
       </div>
