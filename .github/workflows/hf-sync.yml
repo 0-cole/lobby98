@@ -20,7 +20,7 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           if [ -n "$HF_TOKEN" ]; then
-            git push --force https://0-cole:$HF_TOKEN@huggingface.co/spaces/0-cole/lobby98 main
+            git push --force https://cole-0:$HF_TOKEN@huggingface.co/spaces/cole-0/lobby98 main
           else
             echo "HF_TOKEN not set in repository secrets. Skipping auto-sync."
           fi
