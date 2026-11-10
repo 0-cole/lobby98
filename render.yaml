@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: lobby98
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm install
+    startCommand: node restore.js && node server.js
+    envVars:
+      - key: PORT
+        value: 10000
