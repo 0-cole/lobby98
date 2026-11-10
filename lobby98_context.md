@@ -1,7 +1,7 @@
-# Lobby 98 — Project Context Summary (`lobby98_context.md`)
+﻿# Lobby 98 — Project Context Summary (`lobby98_context.md`)
 
 ## 1. Executive Summary & High-Level Objective
-- **Project**: **Lobby 98** (`v3.0.1`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
+- **Project**: **Lobby 98** (`v3.0.2`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
 - **Core Purpose**: Casual, high-polish party games and arcade challenges for friends with persistent accounts, titles, cosmetics, and economy.
 - **Repository**: [`0-cole/lobby98`](https://github.com/0-cole/lobby98) on GitHub.
 - **Hosting Runtime**:

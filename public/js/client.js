@@ -1945,18 +1945,97 @@ function getBorderStyle(id) { return BORDER_STYLES[id] || "none"; }
 
 function loadProfile() {
   if (!user) return;
-  // Avatar preview
   const currentAvatar = user.avatar || {};
-  $("profile-avatar-preview").innerHTML = renderAvatarPreview(currentAvatar, 80);
-  $("profile-pfp").innerHTML = `<span class="pfp-circle" style="box-shadow:${getBorderStyle(user.pfpBorder)}"><span class="pfp-emoji">${user.pfpEmoji || '😎'}</span></span>`;
+  // Active mode: 'emoji' vs 'builder'
+  // If explicitly set, respect mode. Otherwise, if custom parts are configured, default 'builder', else 'emoji'
+  const isEmojiMode = currentAvatar.mode ? currentAvatar.mode === 'emoji' : false;
+
+  function updateActivePreview(mode, avData, emojiChar) {
+    const previewEl = $("profile-avatar-preview");
+    if (!previewEl) return;
+    const borderStyle = getBorderStyle(user.pfpBorder);
+    if (mode === 'emoji') {
+      const em = emojiChar || currentAvatar.emoji || user.pfpEmoji || '😎';
+      previewEl.innerHTML = `<span class="pfp-circle" style="box-shadow:${borderStyle};width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.14);display:inline-flex;align-items:center;justify-content:center"><span class="pfp-emoji" style="font-size:46px;line-height:1">${em}</span></span>`;
+    } else {
+      previewEl.innerHTML = `<div style="display:inline-block;border-radius:50%;box-shadow:${borderStyle}">${renderAvatarPreview(avData || currentAvatar, 80)}</div>`;
+    }
+  }
+
+  function updateModeUI(mode) {
+    const builderCard = $("profile-builder-card");
+    const emojiCard = $("profile-emoji-card");
+    const builderStatus = $("avatar-builder-status");
+    const emojiStatus = $("profile-emoji-status");
+    const saveBtn = $("avatar-save-btn");
+
+    if (mode === 'builder') {
+      if (builderStatus) {
+        builderStatus.textContent = "Active";
+        builderStatus.style.background = "rgba(46,164,79,0.25)";
+        builderStatus.style.color = "var(--success)";
+      }
+      if (emojiStatus) {
+        emojiStatus.textContent = "Inactive";
+        emojiStatus.style.background = "rgba(255,255,255,0.1)";
+        emojiStatus.style.color = "var(--ink3)";
+      }
+      if (builderCard) {
+        builderCard.style.opacity = "1";
+        builderCard.style.filter = "none";
+      }
+      if (emojiCard) {
+        emojiCard.style.opacity = "0.65";
+      }
+      if (saveBtn) saveBtn.textContent = "Save Avatar";
+      const pfpPicker = $("pfp-picker");
+      if (pfpPicker) {
+        pfpPicker.querySelectorAll("span").forEach(s => {
+          s.style.background = "";
+          s.style.boxShadow = "";
+        });
+      }
+    } else {
+      if (builderStatus) {
+        builderStatus.textContent = "Inactive";
+        builderStatus.style.background = "rgba(255,255,255,0.1)";
+        builderStatus.style.color = "var(--ink3)";
+      }
+      if (emojiStatus) {
+        emojiStatus.textContent = "Active";
+        emojiStatus.style.background = "rgba(46,164,79,0.25)";
+        emojiStatus.style.color = "var(--success)";
+      }
+      if (builderCard) {
+        builderCard.style.opacity = "0.65";
+      }
+      if (emojiCard) {
+        emojiCard.style.opacity = "1";
+        emojiCard.style.filter = "none";
+      }
+      if (saveBtn) saveBtn.textContent = "Enable & Save Avatar";
+    }
+  }
+
+  updateActivePreview(isEmojiMode ? 'emoji' : 'builder', currentAvatar, user.pfpEmoji);
   $("profile-username").textContent = user.username;
   const titleDisplay = $("profile-title-display");
   if (user.title === "custom" && user.customTitle) titleDisplay.textContent = user.customTitle;
   else { const t = SHOP_TITLES.find(x => x.id === user.title); titleDisplay.textContent = t && t.id !== "none" ? t.name : ""; }
 
   // Avatar builder pickers
-  const _av = { face: currentAvatar.face || '😀', hat: currentAvatar.hat || 'none', bg: currentAvatar.bg || '#22aed1' };
-  function refreshAvatarPreview() { $("profile-avatar-preview").innerHTML = renderAvatarPreview(_av, 80); }
+  const _av = {
+    face: currentAvatar.face || '😀',
+    hat: currentAvatar.hat || 'none',
+    bg: currentAvatar.bg || '#22aed1',
+    mode: isEmojiMode ? 'emoji' : 'builder'
+  };
+
+  function refreshAvatarPreview() {
+    _av.mode = 'builder';
+    updateActivePreview('builder', _av);
+    updateModeUI('builder');
+  }
 
   const facePicker = $("avatar-face-picker"); facePicker.innerHTML = "";
   AVATAR_PARTS.face.forEach(f => {
@@ -2001,11 +2080,28 @@ function loadProfile() {
   newSaveBtn.addEventListener("click", async () => {
     saveMsg.textContent = "";
     try {
-      const res = await fetch("/api/profile/avatar", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({avatar:_av}) });
+      const payload = { face: _av.face, hat: _av.hat, bg: _av.bg, mode: 'builder' };
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar: payload })
+      });
       const data = await res.json();
-      if (res.ok) { saveMsg.textContent = "Avatar saved!"; saveMsg.style.color = "var(--success)"; await refreshUser(); playSound('achieve'); spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle'); }
-      else { saveMsg.textContent = data.error; saveMsg.style.color = "var(--danger)"; }
-    } catch { saveMsg.textContent = "Error"; }
+      if (res.ok) {
+        saveMsg.textContent = "Avatar saved & active!";
+        saveMsg.style.color = "var(--success)";
+        await refreshUser();
+        updateActivePreview('builder', payload);
+        updateModeUI('builder');
+        playSound('achieve');
+        spawnParticles(window.innerWidth/2, window.innerHeight/2, 'sparkle');
+      } else {
+        saveMsg.textContent = data.error;
+        saveMsg.style.color = "var(--danger)";
+      }
+    } catch {
+      saveMsg.textContent = "Error";
+    }
   });
 
   // PFP picker
@@ -2013,13 +2109,32 @@ function loadProfile() {
   for (const emoji of PFP_EMOJIS) {
     const btn = document.createElement("span");
     btn.textContent = emoji;
-    btn.style.cssText = `cursor:pointer;padding:6px;border-radius:10px;transition:all 0.15s;${user.pfpEmoji === emoji ? "background:var(--accent);box-shadow:0 0 0 2px var(--accent);" : ""}`;
+    const isSelected = isEmojiMode && (user.pfpEmoji === emoji || currentAvatar.emoji === emoji);
+    btn.style.cssText = `cursor:pointer;padding:6px;border-radius:10px;transition:all 0.15s;${isSelected ? "background:var(--accent);box-shadow:0 0 0 2px var(--accent);" : ""}`;
     btn.addEventListener("click", async () => {
-      await fetch("/api/profile/update", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ pfpEmoji: emoji }) });
-      await refreshUser(); loadProfile();
+      playSound('click');
+      pfpPicker.querySelectorAll('span').forEach(s => { s.style.background = ''; s.style.boxShadow = ''; });
+      btn.style.background = 'var(--accent)';
+      btn.style.boxShadow = '0 0 0 2px var(--accent)';
+      updateActivePreview('emoji', null, emoji);
+      updateModeUI('emoji');
+      saveMsg.textContent = "";
+      try {
+        const updatedAvatar = { face: _av.face, hat: _av.hat, bg: _av.bg, mode: 'emoji', emoji: emoji };
+        await fetch("/api/profile/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pfpEmoji: emoji, avatar: updatedAvatar })
+        });
+        await refreshUser();
+        showToast("Profile emoji set to " + emoji, emoji);
+      } catch {}
     });
     pfpPicker.appendChild(btn);
   }
+
+  // Set initial mode UI
+  updateModeUI(isEmojiMode ? 'emoji' : 'builder');
 
   // Color picker
   const colorPicker = $("profile-color-picker"); colorPicker.innerHTML = "";
