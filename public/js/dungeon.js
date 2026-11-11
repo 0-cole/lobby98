@@ -1140,15 +1140,17 @@ function handleClick(mx,my,onFinish){
   // Bottom panel — inventory clicks
   for(const s of(g._invSlots||[])){if(hit(mx,my,s)){
     const it=g.inv[s.idx];if(!it)return;
-    if(g.tab===TAB.FORGE){forgeItem(s.idx);return;}
+    if(_dgTouchMode==="inspect"){const prev=_shiftHeld;_shiftHeld=true;handleHover(mx,my);_shiftHeld=prev;return;}
+    if(_dgTouchMode==="dismantle"||g.tab===TAB.FORGE){forgeItem(s.idx);return;}
     // Equip: click item in inventory to equip it
     if(it.slot!==undefined){
       if(!g.slots[it.slot]){log(`🔒 ${ITEM_TYPES[it.slot].name} slot locked! Forge more items.`);return;}
       const old=g.equips[it.slot];g.equips[it.slot]=it;g.inv.splice(s.idx,1);
       if(old)g.inv.push(old);recalc();log(`✅ Equipped ${it.icon} ${it.name}`);return;}}}
-  // Equipment slot clicks — unequip
+  // Equipment slot clicks — unequip (or inspect in inspect mode)
   for(const s of(g._eqSlots||[])){if(hit(mx,my,s)){
     const it=g.equips[s.slot];if(!it)return;
+    if(_dgTouchMode==="inspect"){handleHover(mx,my);return;}
     if(g.inv.length<20){g.equips[s.slot]=null;g.inv.push(it);recalc();log(`Unequipped ${it.icon}`);}}}
 }
 
@@ -1158,6 +1160,7 @@ function handleRightClick(mx,my){
 }
 
 let _shiftHeld=false;
+let _dgTouchMode="equip"; // "equip" | "inspect" | "dismantle"
 document.addEventListener("keydown",e=>{if(e.key==="Shift")_shiftHeld=true;});
 document.addEventListener("keyup",e=>{if(e.key==="Shift")_shiftHeld=false;});
 
@@ -1231,19 +1234,56 @@ function loadGame(){
 
 window.DungeonGame={
   init(container,onFinish){
-    g=newGame();_particles=[];_tooltip=null;
+    g=newGame();_particles=[];_tooltip=null;_dgTouchMode="equip";
     const loaded=loadGame();
     if(!loaded){recalc();g.player.hp=g.player.mhp;}
-    container.innerHTML=`<canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:100%;height:auto"></canvas>`;
+    container.innerHTML=`
+      <canvas id="dg-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:8px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:100%;height:auto;touch-action:none"></canvas>
+      <div class="mobile-mode-bar" id="dg-mobile-tabs" style="max-width:800px;margin-top:10px">
+        <button type="button" class="mobile-mode-btn" data-dgtab="${TAB.MAP}">🗺️ Map</button>
+        <button type="button" class="mobile-mode-btn" data-dgtab="${TAB.STATS}">📊 Stats</button>
+        <button type="button" class="mobile-mode-btn" data-dgtab="${TAB.FORGE}">⚒️ Forge</button>
+        <button type="button" class="mobile-mode-btn" data-dgtab="${TAB.SKILLS}">✦ Skills</button>
+        <button type="button" class="mobile-mode-btn" data-dgtab="${TAB.SETTINGS}">⚙️ Config</button>
+      </div>
+      <div class="mobile-mode-bar" id="dg-mobile-modes" style="max-width:520px;margin-top:4px">
+        <button type="button" class="mobile-mode-btn active" data-dgmode="equip">⚡ Tap: Equip</button>
+        <button type="button" class="mobile-mode-btn" data-dgmode="inspect">🔍 Tap: Compare</button>
+        <button type="button" class="mobile-mode-btn" data-dgmode="dismantle">🔨 Tap: Dismantle</button>
+      </div>
+    `;
     const cv=document.getElementById("dg-canvas"),ctx=cv.getContext("2d");
+    const syncTabBtns=()=>{
+      container.querySelectorAll("[data-dgtab]").forEach(btn=>{
+        btn.classList.toggle("active",Number(btn.dataset.dgtab)===g.tab);
+      });
+    };
+    container.querySelectorAll("[data-dgtab]").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        const targetTab=Number(btn.dataset.dgtab);
+        if(g.tab===TAB.VICTORY||g.tab===TAB.DEFEAT)return;
+        if(g.tab===TAB.BATTLE&&targetTab!==TAB.BATTLE&&targetTab!==TAB.SETTINGS&&targetTab!==TAB.STATS)return;
+        g.tab=targetTab;
+        syncTabBtns();
+      });
+    });
+    container.querySelectorAll("[data-dgmode]").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        _dgTouchMode=btn.dataset.dgmode;
+        _tooltip=null;
+        container.querySelectorAll("[data-dgmode]").forEach(b=>b.classList.toggle("active",b.dataset.dgmode===_dgTouchMode));
+      });
+    });
     const xy=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height)];};
-    const onClick=e=>{const[mx,my]=xy(e);handleClick(mx,my,onFinish);};
+    let lastTouchEnd=0;
+    const onClick=e=>{if(Date.now()-lastTouchEnd<450)return;const[mx,my]=xy(e);handleClick(mx,my,onFinish);syncTabBtns();};
     const onCtx=e=>{e.preventDefault();const[mx,my]=xy(e);handleRightClick(mx,my);};
     const onMove=e=>{const[mx,my]=xy(e);handleHover(mx,my);};
     cv.addEventListener("click",onClick);cv.addEventListener("contextmenu",onCtx);cv.addEventListener("mousemove",onMove);
     // Touch support for mobile
-    cv.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];const[mx,my]=xy(t);handleHover(mx,my);},{passive:false});
-    cv.addEventListener("touchend",e=>{e.preventDefault();if(e.changedTouches.length){const t=e.changedTouches[0];const[mx,my]=xy(t);handleClick(mx,my,onFinish);}},{passive:false});
+    cv.addEventListener("touchstart",e=>{e.preventDefault();const t=e.touches[0];if(t){const[mx,my]=xy(t);if(_dgTouchMode==="inspect"){const prev=_shiftHeld;_shiftHeld=true;handleHover(mx,my);_shiftHeld=prev;}else handleHover(mx,my);}},{passive:false});
+    cv.addEventListener("touchend",e=>{e.preventDefault();lastTouchEnd=Date.now();if(e.changedTouches.length){const t=e.changedTouches[0];const[mx,my]=xy(t);handleClick(mx,my,onFinish);syncTabBtns();}},{passive:false});
+    syncTabBtns();
     let last=Date.now();
     const loop=()=>{const now=Date.now();const dt=Math.min((now-last)/16.67,3);last=now;
       updateBattle(dt);render(ctx);_raf=requestAnimationFrame(loop);};

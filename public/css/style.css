@@ -1498,3 +1498,366 @@ body.gradient-is-dark #loading-screen .loader-dot{background:rgba(255,255,255,0.
   .c8-draw-pile{width:55px;height:80px}
   .c8-suit-opt{width:44px;height:44px;font-size:24px}
 }
+
+
+/* ============================================================
+   11. EXTENSIVE MOBILE & TOUCH SUPPORT (v3.1.0)
+   - Safe-area insets (iOS Dynamic Island / Home Indicator)
+   - Zero auto-zoom on input focus (16px floor on mobile)
+   - Touch-device hover fallbacks (kick buttons, 3D card tilt)
+   - Frutiger Aero Virtual D-Pad, Analog Thumbstick & Action Docks
+   - Responsive overrides for all Party, Arcade, Deep Dive & Royale games
+   ============================================================ */
+.nav-left{display:flex;align-items:center;gap:10px}
+.btn,.nav-link,.dash-card,.arcade-card,.game-card,.shop-item,.vote-card,.rating-btn,.c4-cell,.c8-card,.filter-btn{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* Reusable Mobile Touch Controls (Snake, Minesweeper, Deep Dive, Pirate Royale, Blitz) */
+.mobile-mode-bar{
+  display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;
+  margin:8px auto 12px;padding:6px;max-width:440px;
+  background:var(--neo);border-radius:14px;
+  box-shadow:inset 2px 2px 5px var(--neo-lo),inset -2px -2px 5px var(--neo-hi);
+}
+.mobile-mode-btn{
+  flex:1;min-width:88px;min-height:40px;padding:8px 10px;
+  font-family:inherit;font-weight:800;font-size:13px;
+  border:none;border-radius:10px;cursor:pointer;
+  background:transparent;color:var(--ink2);
+  transition:all .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.mobile-mode-btn.active{
+  background:linear-gradient(180deg,#6cd0e8 0%,var(--accent) 45%,var(--mid) 100%);
+  color:#fff;box-shadow:0 3px 10px rgba(26,140,175,0.35);
+  text-shadow:0 1px 2px rgba(0,0,0,0.25);
+}
+body.gradient-is-dark .mobile-mode-bar,
+body.theme-midnight .mobile-mode-bar,
+body.theme-neon .mobile-mode-bar,
+body.theme-ocean .mobile-mode-bar,
+body.theme-lava .mobile-mode-bar,
+body.theme-dark .mobile-mode-bar{
+  background:rgba(15,22,38,0.75);
+  border:1px solid rgba(255,255,255,0.12);
+}
+body.gradient-is-dark .mobile-mode-btn,
+body.theme-midnight .mobile-mode-btn,
+body.theme-neon .mobile-mode-btn,
+body.theme-ocean .mobile-mode-btn,
+body.theme-lava .mobile-mode-btn,
+body.theme-dark .mobile-mode-btn{
+  color:#c8e4f8;
+}
+
+/* On-screen D-Pad (Snake & Directional Games) */
+.mobile-dpad{
+  display:grid;
+  grid-template-columns:repeat(3, 58px);
+  grid-template-rows:repeat(2, 54px);
+  gap:8px;
+  justify-content:center;
+  margin:12px auto 4px;
+  user-select:none;-webkit-user-select:none;
+}
+.mobile-dpad-btn{
+  width:58px;height:54px;border-radius:14px;border:1px solid var(--glass-edge);
+  background:linear-gradient(180deg,rgba(255,255,255,0.85) 0%,var(--neo) 100%);
+  color:var(--deep);font-size:22px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 12px var(--glass-sh),inset 0 1px 0 #fff;
+  cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;
+  transition:transform .08s ease, background .1s ease;
+}
+.mobile-dpad-btn:active,.mobile-dpad-btn.pressed{
+  transform:scale(0.92);
+  background:linear-gradient(180deg,#6cd0e8,var(--accent));
+  color:#fff;
+}
+body.gradient-is-dark .mobile-dpad-btn,
+body.theme-midnight .mobile-dpad-btn,
+body.theme-neon .mobile-dpad-btn,
+body.theme-ocean .mobile-dpad-btn,
+body.theme-lava .mobile-dpad-btn,
+body.theme-dark .mobile-dpad-btn{
+  background:linear-gradient(180deg,rgba(45,65,95,0.9),rgba(20,30,50,0.95));
+  color:#fff;border-color:rgba(255,255,255,0.2);
+}
+
+/* Dual-Thumb Virtual Joystick + Action Pad (Pirate Royale & Blitz) */
+.mobile-touch-Controls{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:16px;margin:12px auto 4px;padding:10px 16px;
+  max-width:520px;border-radius:18px;
+  background:rgba(255,255,255,0.22);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--glass-edge);
+  user-select:none;-webkit-user-select:none;touch-action:none;
+}
+body.gradient-is-dark .mobile-touch-Controls,
+body.theme-midnight .mobile-touch-Controls,
+body.theme-neon .mobile-touch-Controls,
+body.theme-ocean .mobile-touch-Controls,
+body.theme-lava .mobile-touch-Controls,
+body.theme-dark .mobile-touch-Controls{
+  background:rgba(12,18,32,0.65);
+  border-color:rgba(255,255,255,0.15);
+}
+.mobile-joy-base{
+  position:relative;width:116px;height:116px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,0.35) 0%,rgba(20,60,90,0.25) 100%);
+  border:2px solid rgba(255,255,255,0.5);
+  box-shadow:inset 0 4px 12px rgba(0,0,0,0.2),0 4px 14px rgba(0,0,0,0.15);
+  touch-action:none;flex-shrink:0;
+}
+.mobile-joy-stick{
+  position:absolute;top:50%;left:50%;width:48px;height:48px;
+  margin-left:-24px;margin-top:-24px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#6dd8f0 35%,#1889ab 80%);
+  box-shadow:0 4px 12px rgba(0,0,0,0.35),inset 0 2px 4px rgba(255,255,255,0.8);
+  pointer-events:none;transition:transform .04s linear;
+}
+.mobile-action-cluster{
+  display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;
+}
+.mobile-action-btn{
+  width:100%;max-width:170px;min-height:64px;border-radius:18px;border:2px solid rgba(255,255,255,0.55);
+  background:linear-gradient(180deg,#ff8a65 0%,#e04858 50%,#b82838 100%);
+  color:#fff;font-family:inherit;font-weight:900;font-size:16px;
+  text-shadow:0 1px 3px rgba(0,0,0,0.4);
+  box-shadow:0 6px 18px rgba(224,72,88,0.4),inset 0 1px 0 rgba(255,255,255,0.5);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;
+}
+.mobile-action-btn:active,.mobile-action-btn.pressed{
+  transform:scale(0.95);
+  filter:brightness(1.1);
+}
+.mobile-action-sub{
+  font-size:10px;font-weight:700;opacity:0.9;margin-top:2px;
+}
+
+/* Touch devices without hover: always show host kick/remove & staff delete buttons */
+@media (hover: none), (max-width: 768px) {
+  .player-kick-btn.can-kick{opacity:1!important}
+  body.is-staff .gchat-body .chat-msg .gchat-delete-btn{display:inline!important;opacity:0.85}
+  .dash-card:hover,.arcade-card:hover,.game-card:not(.soon):hover,.shop-item:hover{
+    transform:none!important;
+  }
+  .dash-card:active,.arcade-card:active,.game-card:not(.soon):active,.shop-item:active{
+    transform:scale(0.98)!important;
+  }
+}
+
+/* Tablet & Mobile Responsive Overhaul (<= 768px) */
+@media (max-width: 768px) {
+  /* Prevent iOS Safari zoom on input focus */
+  .inp, input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Safe-area aware top navigation */
+  .top-nav {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px));
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .nav-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.25);
+  }
+  body.gradient-is-dark .nav-hamburger,
+  body.theme-midnight .nav-hamburger,
+  body.theme-neon .nav-hamburger,
+  body.theme-ocean .nav-hamburger,
+  body.theme-lava .nav-hamburger,
+  body.theme-dark .nav-hamburger {
+    color: #fff;
+    background: rgba(255,255,255,0.12);
+  }
+  .nav-links.open {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    padding: 10px 2px 4px;
+    max-height: 68dvh;
+    overflow-y: auto;
+    border-top: 1px solid var(--glass-edge);
+  }
+  .nav-link {
+    text-align: center;
+    padding: 10px 8px;
+    font-size: 13px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.25);
+  }
+  body.gradient-is-dark .nav-link,
+  body.theme-midnight .nav-link,
+  body.theme-neon .nav-link,
+  body.theme-ocean .nav-link,
+  body.theme-lava .nav-link,
+  body.theme-dark .nav-link {
+    background: rgba(255,255,255,0.08);
+  }
+  .nav-user {
+    max-width: 84px;
+    font-size: 12px;
+  }
+
+  /* Safe-area stage & bottom ticker */
+  .stage {
+    padding: calc(12px + var(--announce-h, 0px)) calc(10px + env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) calc(10px + env(safe-area-inset-left, 0px));
+  }
+  .news-ticker {
+    height: calc(30px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #gchat-mobile-toggle {
+    bottom: calc(42px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+    z-index: 310;
+  }
+  #music-toggle {
+    bottom: calc(42px + env(safe-area-inset-bottom, 0px)) !important;
+    left: calc(12px + env(safe-area-inset-left, 0px)) !important;
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 18px !important;
+  }
+
+  /* Fullscreen Mobile Global Chat Drawer */
+  .gchat-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    z-index: 950 !important;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #gchat-close-mobile {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.12);
+    font-size: 18px;
+    font-weight: 800;
+  }
+  .gchat-head {
+    padding: 14px 54px 14px 16px;
+    font-size: 15px;
+  }
+  .gchat-foot {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Room & Game Headers */
+  .room-header, .game-header {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .room-code {
+    font-size: 20px;
+    letter-spacing: 3px;
+    padding: 3px 10px;
+  }
+  .timer-wrap {
+    width: 40px;
+    height: 40px;
+  }
+  .game-timer {
+    font-size: 14px;
+  }
+
+  /* Crazy Eights Hand: horizontal touch scroll so large hands never overflow */
+  .c8-my-hand-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 12px 10px !important;
+    margin: 0 -8px;
+    width: calc(100% + 16px);
+  }
+  .c8-hand {
+    width: max-content;
+    min-width: 100%;
+    justify-content: center;
+    padding: 0 16px;
+  }
+  .c8-drawn-prompt {
+    min-width: min(240px, 88vw);
+  }
+
+  /* Word Spy / Chain / Echo Input Rows */
+  .ws-clue-input, .ws-guess-inp, .chain-word-inp, #echo-answer-area {
+    flex-direction: column;
+  }
+  .ws-clue-input .btn, .ws-guess-inp .btn, .chain-word-inp .btn, #echo-answer-area .btn {
+    width: 100%;
+  }
+
+  /* Canvases scale cleanly */
+  #sn-canvas, #shooter-canvas, #yh-canvas, #dg-canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Modals fit mobile dynamic viewport */
+  .bug-modal, .gradient-modal-card {
+    max-height: 88dvh !important;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-brand {
+    font-size: 17px;
+  }
+  .nav-coins {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  #bug-report-btn {
+    padding: 4px 7px !important;
+    font-size: 10px !important;
+  }
+  .hero-brand {
+    font-size: 32px;
+  }
+  .dash-greeting {
+    font-size: 20px;
+  }
+  .ds-val {
+    font-size: 21px;
+  }
+  .vote-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .mobile-touch-Controls {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+  .mobile-joy-base {
+    width: 100px;
+    height: 100px;
+  }
+}

@@ -1,4 +1,4 @@
-// arcade.js v2 — anti-cheat wrappers, play-again, firing range, snake
+// arcade.js v3.1 — anti-cheat wrappers, play-again, firing range, snake, full mobile touch controls
 // Each game calls onComplete(score) ONCE. Server caps at 50 coins.
 // Anti-cheat: games track start time, the server validates timing.
 
@@ -51,9 +51,9 @@
 
         container.innerHTML = `
           <h3 style="text-align:center;margin-bottom:8px;color:var(--deep);font-weight:800">🎯 Firing Range</h3>
-          <p id="fr-status" style="text-align:center;margin-bottom:8px;color:var(--ink2);font-size:14px">Hit the targets! Center = 5pts, Ring = 3pts, Edge = 1pt · ${maxRounds} targets</p>
+          <p id="fr-status" style="text-align:center;margin-bottom:8px;color:var(--ink2);font-size:14px">Tap or click targets! Center = 5pts, Ring = 3pts, Edge = 1pt · ${maxRounds} targets</p>
           <div id="fr-score" style="text-align:center;font-weight:800;font-size:20px;color:var(--deep);margin-bottom:8px">Score: 0</div>
-          <div id="fr-field" style="position:relative;width:100%;height:360px;background:var(--neo);border-radius:16px;overflow:hidden;cursor:crosshair;box-shadow:inset 3px 3px 7px rgba(30,80,110,0.12),inset -3px -3px 7px rgba(255,255,255,0.9)"></div>
+          <div id="fr-field" style="position:relative;width:100%;height:clamp(260px,52dvh,360px);background:var(--neo);border-radius:16px;overflow:hidden;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:inset 3px 3px 7px rgba(30,80,110,0.12),inset -3px -3px 7px rgba(255,255,255,0.9)"></div>
         `;
         const field = document.getElementById('fr-field');
         const scoreEl = document.getElementById('fr-score');
@@ -69,11 +69,11 @@
           }
           round++;
           statusEl.textContent = `Target ${round}/${maxRounds} · Score: ${totalScore}`;
-          const size = 90;
-          const x = Math.random() * (field.clientWidth - size - 20) + 10;
-          const y = Math.random() * (field.clientHeight - size - 20) + 10;
+          const size = Math.min(90, Math.max(66, Math.floor((field.clientWidth || 320) * 0.24)));
+          const x = Math.random() * Math.max(10, field.clientWidth - size - 20) + 10;
+          const y = Math.random() * Math.max(10, field.clientHeight - size - 20) + 10;
           const target = document.createElement('div');
-          target.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;border-radius:50%;cursor:crosshair;animation:targetIn 0.2s ease-out;`;
+          target.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${size}px;height:${size}px;border-radius:50%;cursor:crosshair;touch-action:none;animation:targetIn 0.2s ease-out;`;
           // Concentric rings: outer=red, middle=white, inner=red, bullseye=gold
           target.innerHTML = `
             <svg width="${size}" height="${size}" viewBox="0 0 90 90">
@@ -85,30 +85,36 @@
             </svg>
           `;
           let hit = false;
-          target.addEventListener('click', (e) => {
+          const onHit = (e) => {
             if (hit) return;
+            if (e.cancelable) e.preventDefault();
             hit = true;
+            clearTimeout(timeout);
             const rect = target.getBoundingClientRect();
             const cx = rect.left + rect.width / 2;
             const cy = rect.top + rect.height / 2;
-            const dist = Math.sqrt((e.clientX - cx) ** 2 + (e.clientY - cy) ** 2);
+            const clientX = e.clientX ?? (e.touches?.[0]?.clientX ?? cx);
+            const clientY = e.clientY ?? (e.touches?.[0]?.clientY ?? cy);
+            const dist = Math.sqrt((clientX - cx) ** 2 + (clientY - cy) ** 2);
             const radius = rect.width / 2;
             const ratio = dist / radius;
             let pts, label, color;
-            if (ratio < 0.24) { pts = 5; label = 'BULLSEYE!'; color = '#ffd700'; }
-            else if (ratio < 0.50) { pts = 3; label = 'Nice!'; color = '#4caf50'; }
+            if (ratio < 0.26) { pts = 5; label = 'BULLSEYE!'; color = '#ffd700'; }
+            else if (ratio < 0.52) { pts = 3; label = 'Nice!'; color = '#4caf50'; }
             else { pts = 1; label = 'Edge'; color = '#e04858'; }
             totalScore += pts;
             scoreEl.textContent = `Score: ${totalScore}`;
             // Show hit feedback
             const fb = document.createElement('div');
-            fb.style.cssText = `position:absolute;left:${x + size/2 - 20}px;top:${y - 10}px;font-weight:800;font-size:18px;color:${color};pointer-events:none;animation:hitFloat 0.6s ease-out forwards;text-shadow:0 1px 3px rgba(0,0,0,0.2)`;
+            fb.style.cssText = `position:absolute;left:${Math.max(6, Math.min(field.clientWidth - 90, x + size/2 - 20))}px;top:${Math.max(10, y - 10)}px;font-weight:800;font-size:18px;color:${color};pointer-events:none;animation:hitFloat 0.6s ease-out forwards;text-shadow:0 1px 3px rgba(0,0,0,0.2)`;
             fb.textContent = `+${pts} ${label}`;
             field.appendChild(fb);
             setTimeout(() => fb.remove(), 700);
             target.remove();
             setTimeout(spawnTarget, 300);
-          });
+          };
+          target.addEventListener('pointerdown', onHit);
+          target.addEventListener('click', onHit);
           // Auto-miss after 2.5 seconds
           const timeout = setTimeout(() => {
             if (!hit) {
@@ -147,10 +153,10 @@
         const grid = document.getElementById('mem-grid');
         const status = document.getElementById('mem-status');
 
-        deck.forEach((emoji, i) => {
+        deck.forEach((emoji) => {
           const card = document.createElement('button');
           card.textContent = '?';
-          card.style.cssText = 'width:100%;aspect-ratio:1;font-size:26px;border:none;border-radius:12px;cursor:pointer;background:var(--neo);box-shadow:3px 3px 8px rgba(30,80,110,0.12),-2px -2px 6px rgba(255,255,255,0.9);transition:all 0.15s;font-family:inherit';
+          card.style.cssText = 'width:100%;aspect-ratio:1;font-size:26px;border:none;border-radius:12px;cursor:pointer;background:var(--neo);box-shadow:3px 3px 8px rgba(30,80,110,0.12),-2px -2px 6px rgba(255,255,255,0.9);transition:all 0.15s;font-family:inherit;touch-action:manipulation';
           card.addEventListener('click', () => {
             if (locked || card.dataset.done || flipped.includes(card)) return;
             card.textContent = emoji;
@@ -188,7 +194,7 @@
         _startTimes[gameId] = Date.now();
         _completed[gameId] = false;
         const W = 8, H = 8, MINES = 10;
-        let board = [], revealed = [], flagged = [], gameOver = false, firstClick = true;
+        let board = [], revealed = [], flagged = [], gameOver = false, firstClick = true, flagMode = false;
         const init = () => { board = Array(H).fill(null).map(() => Array(W).fill(0)); revealed = Array(H).fill(null).map(() => Array(W).fill(false)); flagged = Array(H).fill(null).map(() => Array(W).fill(false)); };
         init();
 
@@ -209,18 +215,55 @@
         function checkWin() { let s=0; for(let r=0;r<H;r++) for(let c=0;c<W;c++) if(revealed[r][c]) s++; return s===W*H-MINES; }
 
         container.innerHTML = `
-          <h3 style="text-align:center;margin-bottom:8px;color:var(--deep);font-weight:800">💣 Minesweeper</h3>
-          <p id="ms-status" style="text-align:center;margin-bottom:8px;color:var(--ink2);font-size:14px">Click to reveal. Right-click to flag. 10 mines.</p>
-          <div id="ms-grid" style="display:grid;grid-template-columns:repeat(${W},1fr);gap:3px;max-width:340px;margin:0 auto"></div>
+          <h3 style="text-align:center;margin-bottom:6px;color:var(--deep);font-weight:800">💣 Minesweeper</h3>
+          <p id="ms-status" style="text-align:center;margin-bottom:6px;color:var(--ink2);font-size:13px">Tap to reveal, or switch to Flag Mode (or right-click / hold) to flag. 10 mines.</p>
+          <div class="mobile-mode-bar" style="max-width:300px">
+            <button type="button" class="mobile-mode-btn active" id="ms-mode-dig">⛏️ Dig Mode</button>
+            <button type="button" class="mobile-mode-btn" id="ms-mode-flag">🚩 Flag Mode</button>
+          </div>
+          <div id="ms-grid" style="display:grid;grid-template-columns:repeat(${W},1fr);gap:4px;max-width:340px;margin:0 auto;user-select:none;-webkit-user-select:none"></div>
         `;
         const grid = document.getElementById('ms-grid');
         const status = document.getElementById('ms-status');
+        const digBtn = document.getElementById('ms-mode-dig');
+        const flagBtn = document.getElementById('ms-mode-flag');
+
+        const setFlagMode = (val) => {
+          flagMode = val;
+          digBtn.classList.toggle('active', !flagMode);
+          flagBtn.classList.toggle('active', flagMode);
+        };
+        digBtn.addEventListener('click', () => setFlagMode(false));
+        flagBtn.addEventListener('click', () => setFlagMode(true));
+
+        function toggleFlag(r, c) {
+          if (gameOver || revealed[r][c]) return;
+          flagged[r][c] = !flagged[r][c];
+          render();
+        }
+
+        function doDig(r, c) {
+          if (gameOver || revealed[r][c] || flagged[r][c]) return;
+          if (firstClick) { placeMines(r,c); firstClick=false; }
+          if (board[r][c]===-1) {
+            gameOver=true; for(let rr=0;rr<H;rr++) for(let cc=0;cc<W;cc++) revealed[rr][cc]=true;
+            render(); status.innerHTML = `<strong style="color:var(--danger)">💥 Boom! 0 coins</strong>`;
+            safeComplete(gameId, 0, onComplete); makeEndButtons(container, gameId, onComplete); return;
+          }
+          reveal(r,c); render();
+          if (checkWin()) {
+            gameOver=true; const secs=((Date.now()-_startTimes[gameId])/1000).toFixed(1);
+            const coins = Math.max(10, Math.min(50, Math.round(50 - (Date.now()-_startTimes[gameId])/2000)));
+            status.innerHTML = `<strong style="color:var(--success)">Cleared in ${secs}s! ${coins} coins</strong>`;
+            safeComplete(gameId, coins, onComplete); makeEndButtons(container, gameId, onComplete);
+          }
+        }
 
         function render() {
           grid.innerHTML = '';
           for (let r=0;r<H;r++) for (let c=0;c<W;c++) {
             const btn = document.createElement('button');
-            btn.style.cssText = 'width:100%;aspect-ratio:1;font-size:15px;border:none;border-radius:5px;cursor:pointer;font-family:"Nunito",sans-serif;font-weight:700;transition:all 0.1s;';
+            btn.style.cssText = 'width:100%;aspect-ratio:1;font-size:15px;border:none;border-radius:6px;cursor:pointer;font-family:"Nunito",sans-serif;font-weight:700;transition:all 0.1s;touch-action:manipulation;-webkit-user-select:none;user-select:none';
             if (revealed[r][c]) {
               const v = board[r][c];
               btn.style.background = v===-1?'#ff6b7d':'rgba(255,255,255,0.6)';
@@ -234,23 +277,27 @@
               btn.style.background = 'var(--neo)'; btn.style.boxShadow = '2px 2px 5px rgba(30,80,110,0.1),-2px -2px 4px rgba(255,255,255,0.9)';
             }
             if (!gameOver) {
+              let longPressTimer = null;
+              let longPressed = false;
+              btn.addEventListener('touchstart', () => {
+                longPressed = false;
+                longPressTimer = setTimeout(() => {
+                  longPressed = true;
+                  toggleFlag(r, c);
+                }, 360);
+              }, { passive: true });
+              btn.addEventListener('touchend', () => {
+                if (longPressTimer) clearTimeout(longPressTimer);
+              }, { passive: true });
+              btn.addEventListener('touchmove', () => {
+                if (longPressTimer) clearTimeout(longPressTimer);
+              }, { passive: true });
               btn.addEventListener('click', () => {
-                if (gameOver||revealed[r][c]||flagged[r][c]) return;
-                if (firstClick) { placeMines(r,c); firstClick=false; }
-                if (board[r][c]===-1) {
-                  gameOver=true; for(let rr=0;rr<H;rr++) for(let cc=0;cc<W;cc++) revealed[rr][cc]=true;
-                  render(); status.innerHTML = `<strong style="color:var(--danger)">💥 Boom! 0 coins</strong>`;
-                  safeComplete(gameId, 0, onComplete); makeEndButtons(container, gameId, onComplete); return;
-                }
-                reveal(r,c); render();
-                if (checkWin()) {
-                  gameOver=true; const secs=((Date.now()-_startTimes[gameId])/1000).toFixed(1);
-                  const coins = Math.max(10, Math.min(50, Math.round(50 - (Date.now()-_startTimes[gameId])/2000)));
-                  status.innerHTML = `<strong style="color:var(--success)">Cleared in ${secs}s! ${coins} coins</strong>`;
-                  safeComplete(gameId, coins, onComplete); makeEndButtons(container, gameId, onComplete);
-                }
+                if (longPressed) { longPressed = false; return; }
+                if (flagMode) toggleFlag(r, c);
+                else doDig(r, c);
               });
-              btn.addEventListener('contextmenu', e => { e.preventDefault(); if(gameOver||revealed[r][c]) return; flagged[r][c]=!flagged[r][c]; render(); });
+              btn.addEventListener('contextmenu', e => { e.preventDefault(); toggleFlag(r, c); });
             }
             grid.appendChild(btn);
           }
@@ -289,7 +336,7 @@
           <p id="mr-status" style="text-align:center;margin-bottom:6px;color:var(--ink2);font-size:14px">Go go go!</p>
           <div style="text-align:center;margin-bottom:8px"><span id="mr-timer" style="font-size:26px;font-weight:800;color:var(--deep)">30</span><span style="color:var(--ink3)">s</span> · <span id="mr-score" style="font-size:18px;font-weight:700;color:var(--success)">0 correct</span></div>
           <div id="mr-problem" style="text-align:center;font-size:34px;font-weight:800;color:var(--deep);margin:14px 0"></div>
-          <div style="display:flex;gap:8px;max-width:280px;margin:0 auto"><input class="inp" type="number" id="mr-input" style="flex:1;font-size:22px;text-align:center;font-weight:700" /><button class="btn btn-primary" id="mr-submit">→</button></div>
+          <div style="display:flex;gap:8px;max-width:280px;margin:0 auto"><input class="inp" type="number" inputmode="numeric" pattern="[0-9-]*" id="mr-input" style="flex:1;font-size:22px;text-align:center;font-weight:700" /><button class="btn btn-primary" id="mr-submit">→</button></div>
         `;
         const timerEl = document.getElementById('mr-timer');
         const scoreEl = document.getElementById('mr-score');
@@ -310,7 +357,7 @@
         }
         function submit() {
           if (timeLeft<=0) return;
-          if (parseInt(inputEl.value)===answer) { score++; scoreEl.textContent = `${score} correct`; }
+          if (parseInt(inputEl.value, 10)===answer) { score++; scoreEl.textContent = `${score} correct`; }
           newProblem();
         }
         submitBtn.addEventListener('click', submit);
@@ -347,10 +394,18 @@
 
         container.innerHTML = `
           <h3 style="text-align:center;margin-bottom:8px;color:var(--deep);font-weight:800">🐍 Snake</h3>
-          <p id="sn-status" style="text-align:center;margin-bottom:8px;color:var(--ink2);font-size:14px">Use arrow keys or WASD. Eat food, grow, don't hit walls or yourself!</p>
+          <p id="sn-status" style="text-align:center;margin-bottom:8px;color:var(--ink2);font-size:14px">Use arrow keys, WASD, swipe the board, or tap the D-Pad below!</p>
           <div id="sn-score" style="text-align:center;font-weight:800;font-size:18px;color:var(--deep);margin-bottom:6px">Score: 0</div>
-          <canvas id="sn-canvas" width="${COLS*CELL}" height="${ROWS*CELL}" style="display:block;margin:0 auto;border-radius:12px;background:var(--neo);box-shadow:inset 3px 3px 7px rgba(30,80,110,0.12),inset -3px -3px 7px rgba(255,255,255,0.9)"></canvas>
-          <p style="text-align:center;margin-top:8px;font-size:13px;color:var(--ink3)">Press any arrow key to start</p>
+          <canvas id="sn-canvas" width="${COLS*CELL}" height="${ROWS*CELL}" style="display:block;margin:0 auto;max-width:100%;height:auto;touch-action:none;border-radius:12px;background:var(--neo);box-shadow:inset 3px 3px 7px rgba(30,80,110,0.12),inset -3px -3px 7px rgba(255,255,255,0.9)"></canvas>
+          <div class="mobile-dpad" id="sn-dpad" aria-label="Snake Directional Pad">
+            <div></div>
+            <button type="button" class="mobile-dpad-btn" data-dir="up" aria-label="Up">▲</button>
+            <div></div>
+            <button type="button" class="mobile-dpad-btn" data-dir="left" aria-label="Left">◀</button>
+            <button type="button" class="mobile-dpad-btn" data-dir="down" aria-label="Down">▼</button>
+            <button type="button" class="mobile-dpad-btn" data-dir="right" aria-label="Right">▶</button>
+          </div>
+          <p style="text-align:center;margin-top:6px;font-size:12px;color:var(--ink3)">Press any direction or swipe to start</p>
         `;
         const canvas = document.getElementById('sn-canvas');
         const ctx = canvas.getContext('2d');
@@ -393,7 +448,16 @@
           });
         }
 
-        function step() {
+        const endGame = () => {
+          gameOver = true;
+          if (this._interval) clearInterval(this._interval);
+          const coins = Math.min(50, score);
+          statusEl.innerHTML = `<strong>Game over! Score: ${score} → ${coins} coins</strong>`;
+          safeComplete(gameId, coins, onComplete);
+          makeEndButtons(container, gameId, onComplete);
+        };
+
+        const step = () => {
           if (gameOver) return;
           const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
           // Wall collision
@@ -409,28 +473,63 @@
             snake.pop();
           }
           draw();
-        }
+        };
 
-        function endGame() {
-          gameOver = true;
-          if (this._interval) clearInterval(this._interval);
-          const coins = Math.min(50, score);
-          statusEl.innerHTML = `<strong>Game over! Score: ${score} → ${coins} coins</strong>`;
-          safeComplete(gameId, coins, onComplete);
-          makeEndButtons(container, gameId, onComplete);
-        }
+        const applyDirection = (directionName) => {
+          if (gameOver) return;
+          if (directionName === 'up' && dir.y !== 1) dir = {x:0, y:-1};
+          else if (directionName === 'down' && dir.y !== -1) dir = {x:0, y:1};
+          else if (directionName === 'left' && dir.x !== 1) dir = {x:-1, y:0};
+          else if (directionName === 'right' && dir.x !== -1) dir = {x:1, y:0};
+          if (!started) {
+            started = true;
+            this._interval = setInterval(step, 130);
+          }
+        };
 
         const keyHandler = (e) => {
           if (gameOver) return;
           const key = e.key.toLowerCase();
-          if (['arrowup','w'].includes(key) && dir.y!==1) { dir={x:0,y:-1}; e.preventDefault(); }
-          else if (['arrowdown','s'].includes(key) && dir.y!==-1) { dir={x:0,y:1}; e.preventDefault(); }
-          else if (['arrowleft','a'].includes(key) && dir.x!==1) { dir={x:-1,y:0}; e.preventDefault(); }
-          else if (['arrowright','d'].includes(key) && dir.x!==-1) { dir={x:1,y:0}; e.preventDefault(); }
-          if (!started) { started = true; this._interval = setInterval(() => step.call(this), 130); }
+          if (['arrowup','w'].includes(key)) { e.preventDefault(); applyDirection('up'); }
+          else if (['arrowdown','s'].includes(key)) { e.preventDefault(); applyDirection('down'); }
+          else if (['arrowleft','a'].includes(key)) { e.preventDefault(); applyDirection('left'); }
+          else if (['arrowright','d'].includes(key)) { e.preventDefault(); applyDirection('right'); }
         };
-        this._keyHandler = keyHandler.bind(this);
+        this._keyHandler = keyHandler;
         document.addEventListener('keydown', this._keyHandler);
+
+        // On-screen D-Pad buttons
+        container.querySelectorAll('#sn-dpad .mobile-dpad-btn').forEach(btn => {
+          const trigger = (e) => {
+            if (e.cancelable) e.preventDefault();
+            applyDirection(btn.dataset.dir);
+          };
+          btn.addEventListener('pointerdown', trigger);
+          btn.addEventListener('click', trigger);
+        });
+
+        // Canvas swipe gestures
+        let touchStartX = null, touchStartY = null;
+        canvas.addEventListener('touchstart', (e) => {
+          if (e.cancelable) e.preventDefault();
+          const t = e.touches[0];
+          if (t) { touchStartX = t.clientX; touchStartY = t.clientY; }
+        }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => {
+          if (e.cancelable) e.preventDefault();
+          if (touchStartX === null || touchStartY === null) return;
+          const t = e.touches[0];
+          if (!t) return;
+          const dx = t.clientX - touchStartX;
+          const dy = t.clientY - touchStartY;
+          if (Math.hypot(dx, dy) > 22) {
+            if (Math.abs(dx) > Math.abs(dy)) applyDirection(dx > 0 ? 'right' : 'left');
+            else applyDirection(dy > 0 ? 'down' : 'up');
+            touchStartX = t.clientX;
+            touchStartY = t.clientY;
+          }
+        }, { passive: false });
+
         draw();
       },
       cleanup() {
@@ -457,19 +556,19 @@
             <p style="color:var(--ink2);font-size:13px;margin-bottom:14px">Match 3 to win big. Match 2 for a small payout.</p>
             <div id="sl-balance" style="font-weight:800;font-size:18px;color:#ffd700;margin-bottom:10px">💰 ${myCoins}</div>
 
-            <div id="sl-reels" style="display:flex;gap:10px;justify-content:center;background:linear-gradient(180deg,#1a0d05,#3a1a08);padding:18px 14px;border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,0.4),inset 0 2px 8px rgba(0,0,0,0.5);margin-bottom:14px;border:3px solid #c8a040">
-              <div class="sl-reel" id="sl-r0" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
-              <div class="sl-reel" id="sl-r1" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
-              <div class="sl-reel" id="sl-r2" style="width:88px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:60px;box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+            <div id="sl-reels" style="display:flex;gap:8px;justify-content:center;background:linear-gradient(180deg,#1a0d05,#3a1a08);padding:14px 10px;border-radius:18px;box-shadow:0 6px 20px rgba(0,0,0,0.4),inset 0 2px 8px rgba(0,0,0,0.5);margin-bottom:14px;border:3px solid #c8a040">
+              <div class="sl-reel" id="sl-r0" style="width:min(88px,25vw);height:min(110px,31vw);background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:clamp(36px,11vw,60px);box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+              <div class="sl-reel" id="sl-r1" style="width:min(88px,25vw);height:min(110px,31vw);background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:clamp(36px,11vw,60px);box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
+              <div class="sl-reel" id="sl-r2" style="width:min(88px,25vw);height:min(110px,31vw);background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:clamp(36px,11vw,60px);box-shadow:inset 0 4px 8px rgba(0,0,0,0.2);overflow:hidden">🎰</div>
             </div>
 
             <div id="sl-result" style="min-height:24px;font-weight:800;font-size:16px;margin-bottom:10px"></div>
 
-            <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:12px">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:12px;flex-wrap:wrap">
               <span style="color:var(--ink2);font-weight:700">Bet:</span>
-              <button id="sl-dec" class="btn btn-ghost btn-sm" style="min-width:32px">−</button>
+              <button id="sl-dec" class="btn btn-ghost btn-sm" style="min-width:38px">−</button>
               <span id="sl-wager" style="font-weight:900;font-size:18px;color:var(--deep);min-width:50px;text-align:center">${wager}</span>
-              <button id="sl-inc" class="btn btn-ghost btn-sm" style="min-width:32px">+</button>
+              <button id="sl-inc" class="btn btn-ghost btn-sm" style="min-width:38px">+</button>
               <button id="sl-max" class="btn btn-ghost btn-sm" style="font-size:11px">Max</button>
             </div>
 
@@ -513,7 +612,7 @@
           resultEl.textContent = "Spinning...";
           resultEl.style.color = "var(--ink2)";
           // Animate reels with random symbols
-          const intervals = reels.map((reel, i) => setInterval(() => {
+          const intervals = reels.map((reel) => setInterval(() => {
             reel.textContent = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
           }, 60));
 

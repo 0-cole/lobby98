@@ -1,5 +1,5 @@
-// shooter.js — "Blitz" top-down multiplayer shooter
-// WASD to move, mouse to aim, click to shoot. Server relays via Socket.IO.
+// shooter.js — "Blitz" top-down multiplayer shooter (v3.1 — responsive + mobile dual-thumb touch controls)
+// WASD/Joystick to move, mouse/touch to aim & shoot. Server relays via Socket.IO.
 (function() {
   const W = 800, H = 500, PLAYER_R = 14, BULLET_R = 4, BULLET_SPEED = 12;
   const PLAYER_SPEED = 4, FIRE_RATE = 200, MAX_HP = 100;
@@ -21,16 +21,28 @@
       let bullets = [];
       let myAngle = 0, lastFire = 0, kills = 0, deaths = 0;
       const keys = {};
+      let joyDx = 0, joyDy = 0, autoFiring = false;
       let gameActive = true;
       let myHp = MAX_HP;
       const myColor = COLORS[Math.abs(hashStr(myId)) % COLORS.length];
 
       container.innerHTML = `
-        <canvas id="shooter-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;border-radius:14px;cursor:crosshair;background:#1a2a3a;box-shadow:0 6px 20px rgba(0,0,0,0.3)"></canvas>
+        <canvas id="shooter-canvas" width="${W}" height="${H}" style="display:block;margin:0 auto;max-width:100%;height:auto;touch-action:none;border-radius:14px;cursor:crosshair;background:#1a2a3a;box-shadow:0 6px 20px rgba(0,0,0,0.3)"></canvas>
         <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:700">
           <span style="color:var(--success)" id="sh-kills">Kills: 0</span>
           <span style="color:#ffd700;font-size:18px" id="sh-timer">1:30</span>
           <span style="color:var(--danger)" id="sh-deaths">Deaths: 0</span>
+        </div>
+        <div class="mobile-touch-Controls" id="sh-mobile-controls">
+          <div class="mobile-joy-base" id="sh-joy-base" aria-label="Move Joystick">
+            <div class="mobile-joy-stick" id="sh-joy-stick"></div>
+          </div>
+          <div class="mobile-action-cluster">
+            <button type="button" class="mobile-action-btn" id="sh-fire-btn">
+              <span>🔥 FIRE</span>
+              <span class="mobile-action-sub">Hold to rapid-fire · Tap map to aim</span>
+            </button>
+          </div>
         </div>
       `;
       const canvas = document.getElementById('shooter-canvas');
@@ -45,25 +57,7 @@
       const spawnY = 100 + Math.random() * (H - 200);
       players[myId] = { x: spawnX, y: spawnY, angle: 0, hp: MAX_HP, name: myName, color: myColor };
 
-      // Input
-      this._keyHandler = (e) => {
-        if (['w','a','s','d'].includes(e.key.toLowerCase())) {
-          keys[e.key.toLowerCase()] = e.type === 'keydown';
-          e.preventDefault();
-        }
-      };
-      document.addEventListener('keydown', this._keyHandler);
-      document.addEventListener('keyup', this._keyHandler);
-
-      this._mouseHandler = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        const p = players[myId];
-        if (p) myAngle = Math.atan2(my - p.y, mx - p.x);
-      };
-      canvas.addEventListener('mousemove', this._mouseHandler);
-
-      this._clickHandler = (e) => {
+      const fireBullet = () => {
         if (!gameActive) return;
         const now = Date.now();
         if (now - lastFire < FIRE_RATE) return;
@@ -80,7 +74,83 @@
         bullets.push(bullet);
         socket.emit('shooter:bullet', { x: bullet.x, y: bullet.y, vx: bullet.vx, vy: bullet.vy });
       };
+
+      // Input
+      this._keyHandler = (e) => {
+        const k = e.key.toLowerCase();
+        if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
+          keys[k] = e.type === 'keydown';
+          e.preventDefault();
+        }
+      };
+      document.addEventListener('keydown', this._keyHandler);
+      document.addEventListener('keyup', this._keyHandler);
+
+      const aimAtClient = (clientX, clientY) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (clientX - rect.left) * (W / rect.width);
+        const my = (clientY - rect.top) * (H / rect.height);
+        const p = players[myId];
+        if (p) myAngle = Math.atan2(my - p.y, mx - p.x);
+      };
+
+      this._mouseHandler = (e) => aimAtClient(e.clientX, e.clientY);
+      canvas.addEventListener('mousemove', this._mouseHandler);
+
+      this._clickHandler = (e) => {
+        aimAtClient(e.clientX, e.clientY);
+        fireBullet();
+      };
       canvas.addEventListener('mousedown', this._clickHandler);
+
+      // Touch aiming & firing on canvas
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.cancelable) e.preventDefault();
+        const t = e.touches[0];
+        if (t) { aimAtClient(t.clientX, t.clientY); fireBullet(); autoFiring = true; }
+      }, { passive: false });
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.cancelable) e.preventDefault();
+        const t = e.touches[0];
+        if (t) aimAtClient(t.clientX, t.clientY);
+      }, { passive: false });
+      canvas.addEventListener('touchend', () => { autoFiring = false; }, { passive: true });
+
+      // Mobile Virtual Joystick + Fire Button
+      const joyBase = document.getElementById('sh-joy-base');
+      const joyStick = document.getElementById('sh-joy-stick');
+      const fireBtn = document.getElementById('sh-fire-btn');
+      let joyPid = null;
+      if (joyBase && joyStick) {
+        const updateJoy = (cxClient, cyClient) => {
+          const rect = joyBase.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+          const maxR = rect.width * 0.36;
+          let dx = cxClient - cx, dy = cyClient - cy;
+          const d = Math.hypot(dx, dy);
+          if (d > maxR) { dx = (dx / d) * maxR; dy = (dy / d) * maxR; }
+          joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+          joyDx = dx / maxR; joyDy = dy / maxR;
+          if (Math.hypot(joyDx, joyDy) > 0.15 && !autoFiring) {
+            myAngle = Math.atan2(joyDy, joyDx);
+          }
+        };
+        const resetJoy = () => {
+          joyPid = null; joyDx = 0; joyDy = 0;
+          joyStick.style.transform = 'translate(0px, 0px)';
+        };
+        joyBase.addEventListener('pointerdown', e => { e.preventDefault(); joyPid = e.pointerId; joyBase.setPointerCapture?.(e.pointerId); updateJoy(e.clientX, e.clientY); });
+        joyBase.addEventListener('pointermove', e => { if (e.pointerId !== joyPid) return; e.preventDefault(); updateJoy(e.clientX, e.clientY); });
+        joyBase.addEventListener('pointerup', e => { if (e.pointerId === joyPid) resetJoy(); });
+        joyBase.addEventListener('pointercancel', e => { if (e.pointerId === joyPid) resetJoy(); });
+      }
+      if (fireBtn) {
+        fireBtn.addEventListener('pointerdown', e => { e.preventDefault(); autoFiring = true; fireBullet(); fireBtn.classList.add('pressed'); });
+        const stopFire = () => { autoFiring = false; fireBtn.classList.remove('pressed'); };
+        fireBtn.addEventListener('pointerup', stopFire);
+        fireBtn.addEventListener('pointercancel', stopFire);
+        fireBtn.addEventListener('pointerleave', stopFire);
+      }
 
       // Socket handlers
       socket.on('shooter:state', (data) => {
@@ -92,7 +162,8 @@
         for (const id of Object.keys(players)) {
           if (id !== myId && !data[id]) delete players[id];
         }
-        document.getElementById('sh-players').textContent = `Players: ${Object.keys(players).length}`;
+        const plEl = document.getElementById('sh-players');
+        if (plEl) plEl.textContent = `Players: ${Object.keys(players).length}`;
       });
 
       socket.on('shooter:bullet', (b) => {
@@ -130,6 +201,7 @@
       // Game loop
       const tick = () => {
         if (!gameActive) return;
+        if (autoFiring) fireBullet();
         // Timer update
         const elapsed = Date.now() - gameStartTime;
         const remaining = Math.max(0, gameDuration - elapsed);
@@ -144,11 +216,14 @@
         const p = players[myId];
         if (p && p.hp > 0) {
           let dx = 0, dy = 0;
-          if (keys.w) dy -= PLAYER_SPEED;
-          if (keys.s) dy += PLAYER_SPEED;
-          if (keys.a) dx -= PLAYER_SPEED;
-          if (keys.d) dx += PLAYER_SPEED;
-          if (dx && dy) { dx *= 0.707; dy *= 0.707; }
+          if (keys.w || keys.arrowup) dy -= 1;
+          if (keys.s || keys.arrowdown) dy += 1;
+          if (keys.a || keys.arrowleft) dx -= 1;
+          if (keys.d || keys.arrowright) dx += 1;
+          if (Math.hypot(joyDx, joyDy) > 0.1) { dx = joyDx; dy = joyDy; }
+          const len = Math.hypot(dx, dy);
+          if (len > 1) { dx /= len; dy /= len; }
+          dx *= PLAYER_SPEED; dy *= PLAYER_SPEED;
           const nx = Math.max(PLAYER_R, Math.min(W - PLAYER_R, p.x + dx));
           const ny = Math.max(PLAYER_R, Math.min(H - PLAYER_R, p.y + dy));
           if (!collideWall(nx, p.y, PLAYER_R)) p.x = nx;
@@ -276,6 +351,7 @@
 
       this.cleanup = () => {
         gameActive = false;
+        autoFiring = false;
         if (this._raf) cancelAnimationFrame(this._raf);
         document.removeEventListener('keydown', this._keyHandler);
         document.removeEventListener('keyup', this._keyHandler);
