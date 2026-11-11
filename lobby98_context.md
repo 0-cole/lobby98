@@ -1,7 +1,7 @@
 # Lobby 98 — Project Context Summary (`lobby98_context.md`)
 
 ## 1. Executive Summary & High-Level Objective
-- **Project**: **Lobby 98** (`v3.0.5`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
+- **Project**: **Lobby 98** (`v3.0.6`), a multiplayer social gaming and arcade platform with a signature **Frutiger Aero / PS3 XMB aesthetic** (frosted glass cards, animated wave ribbons, aquatic gradients, floating bubbles, and ambient Donkey Kong Country music).
 - **Core Purpose**: Casual, high-polish party games and arcade challenges for friends with persistent accounts, titles, cosmetics, and economy.
 - **Repository**: [`0-cole/lobby98`](https://github.com/0-cole/lobby98) on GitHub.
 - **Hosting Runtime**:
@@ -78,6 +78,7 @@ lobby98/
 - **Adaptive Gradient Text Contrast Engine (v3.0.1)**: Added automatic perceived luminance detection (`getGradientLuminance`) across all 380+ wallpaper gradients and curated themes. Automatically switches text between crisp embossed dark slate on light gradients and pure white/ice-cyan with drop-shadows on dark gradients, fixing illegible labels and subtitles on translucent glass cards.
 - **Loading Screen Gradient Synchronization (v3.0.3)**: Synchronized `#loading-screen` background and typography with the user's chosen custom gradient or curated theme before render, preserving the default aqua screen when no custom gradient is active.
 - **Full-Width Announcements & Persistent Single-Play Notice (v3.0.5)**: Forced announcement bars to full 100vw width across the chat section using `left: 0 !important; right: 0 !important; width: 100vw !important;`. Added versioned cache-busting query strings (`?v=3.0.5`) in `index.html` and `no-cache` static headers in `server.js` to ensure browsers never hold stale cached stylesheets. Tuned new account notice to play once for 15 seconds with persistent key so it can be verified cleanly.
+- **Full-Width Top Navigation Bar Across Chat Sidebar (v3.0.6)**: Fixed `.top-nav` being truncated 280px short of the right viewport edge when `body.gchat-open` applied `padding-right: 280px`. Added `body.gchat-open .top-nav { width: calc(100% + 280px); margin-right: -280px; }` (with mobile reset) so the top navigation bar spans edge-to-edge above the chat sidebar while keeping `.stage` centered in the main column.
 
 ---
 
